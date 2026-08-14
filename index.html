@@ -2076,6 +2076,7 @@ body.drawer-open .nav-cloud{display:none;}
         <div class="nav-item" data-page="exam"><span class="nav-icon">📄</span>试卷分析</div>
         <div class="nav-item" data-page="error"><span class="nav-icon">❌</span>错题记录</div>
         <div class="nav-item" data-page="ebbinghaus"><span class="nav-icon">🧠</span>记忆复习<span class="nav-badge" id="ebBadge" style="display:none"></span></div>
+        <div class="nav-item" data-page="flashcard"><span class="nav-icon">🃏</span>知识闪卡</div>
         <div class="nav-item" data-page="bank"><span class="nav-icon">🗂️</span>我的题库</div>
       </div>
     </div>
@@ -2096,6 +2097,9 @@ body.drawer-open .nav-cloud{display:none;}
 
 <!-- ===== 记忆复习（艾宾浩斯） ===== -->
 <div class="page" id="page-ebbinghaus"></div>
+
+<!-- ===== 知识闪卡 ===== -->
+<div class="page" id="page-flashcard"></div>
 
 <!-- ===== 首页总览 ===== -->
 <div class="page active" id="page-home">
@@ -3359,6 +3363,7 @@ function defaultStore(){
     achievements: {}, // 成就墙：已解锁成就 {id: 解锁日期}
     gacha: { tickets:0, pulled:[], coll:{} }, // 抽卡养花：扭蛋币数 / 抽卡历史 / 已收集图鉴
     ebbinghaus: { items: [] }, // 艾宾浩斯复习计划 [{id,srcDate,module,stage,interval,dueDate,done,doneDate}]
+    flashcards: [],    // 知识闪卡 [{id,module,front,back,created,level,lastReview}]（level:掌握度0-5）
     inspiration: { custom: [] }, // 用户自己记录的灵感 {id,module,text,date}
     diary: {},         // 每晚日记 {date: {mood, meaningful, wish, feeling, thanks, ts}}
     review: {          // 内容复盘（自动从专注数据生成 + 今日建议）
@@ -3810,6 +3815,159 @@ function doneReview(id){
   toast('复习完成 🌿 记忆更牢啦');
 }
 
+// ====================================================
+//  知识闪卡
+// ====================================================
+let flashTab = 'lib';        // 'lib' | 'review'
+let flashFilter = 'all';     // 模块筛选
+let flashQueue = [];         // 复习队列（id 列表）
+let flashIdx = 0;            // 当前复习到哪张
+let flashFlipped = false;    // 当前卡是否翻面
+let flashRound = { remember:0, forget:0 }; // 本轮统计
+
+function fcInpStyle(){ return 'width:100%;box-sizing:border-box;border:1px solid #e6eaf0;border-radius:12px;padding:10px 12px;font-size:14px;color:#4a5a68;background:#fff;outline:none;resize:vertical;'; }
+function fcChipHtml(nm, cnt, active){
+  const on = (flashFilter===nm);
+  const bg = on ? '#F8C8D0' : '#f3f6f9';
+  const col = on ? '#fff' : '#7a8a96';
+  return '<span style="font-size:12px;padding:5px 11px;border-radius:14px;cursor:pointer;background:'+bg+';color:'+col+';" onclick="flashFilter=\''+nm+'\';renderFlashcards()">'+escapeHtml(nm)+' '+cnt+'</span>';
+}
+
+function renderFlashcards(){
+  const root = document.getElementById('page-flashcard');
+  if(!root) return;
+  const cards = store.flashcards||[];
+  const total = cards.length;
+  const modCount = {};
+  Object.keys(TOPICS).forEach(k=> modCount[TOPICS[k].name]=0);
+  cards.forEach(c=>{ modCount[c.module]=(modCount[c.module]||0)+1; });
+
+  let html = '<div class="card" style="margin:14px 12px;padding:16px;">';
+  html += '<div style="font-size:19px;font-weight:700;color:#5b6b7a;margin-bottom:4px;">🃏 知识闪卡</div>';
+  html += '<div style="font-size:13px;color:#8a97a3;line-height:1.7;">把易错知识点、公式、答题技巧录成小卡片，碎片时间翻一翻。记得的标 ✓，不记得的排到前面，越练越熟 🌿</div>';
+  html += '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center;">';
+  html += '<span style="font-size:13px;color:#9aa7b2;margin-right:4px;">共 '+total+' 张</span>';
+  html += '<button class="btn" style="'+(flashTab==='lib'?'background:#F8C8D0;color:#fff;border:none;':'background:#fff;color:#E8919B;border:1px solid #F8C8D0;')+'" onclick="flashTab=\'lib\';renderFlashcards()">📚 卡片库</button>';
+  html += '<button class="btn" style="'+(flashTab==='review'?'background:#7BC99E;color:#fff;border:none;':'background:#fff;color:#5a9e74;border:1px solid #bfe3cd;')+'" onclick="flashStartTab()">🎴 开始复习</button>';
+  html += '</div></div>';
+
+  html += (flashTab==='lib') ? renderFlashLib(modCount, total) : renderFlashReviewView();
+  root.innerHTML = html;
+}
+
+function renderFlashLib(modCount, total){
+  let h = '<div class="card" style="margin:0 12px 12px;padding:16px;">';
+  h += '<div style="font-size:15px;font-weight:700;color:#5b6b7a;margin-bottom:10px;">➕ 新建闪卡</div>';
+  h += '<div style="margin-bottom:10px;"><select id="fcModule" style="'+fcInpStyle()+'">' + Object.keys(TOPICS).map(k=>'<option value="'+TOPICS[k].name+'">'+TOPICS[k].name+'</option>').join('') + '</select></div>';
+  h += '<div style="margin-bottom:10px;"><textarea id="fcFront" placeholder="正面：知识点 / 问题（如：行政处罚的种类有哪些？）" style="'+fcInpStyle()+'height:64px;"></textarea></div>';
+  h += '<div style="margin-bottom:12px;"><textarea id="fcBack" placeholder="背面：答案 / 解析" style="'+fcInpStyle()+'height:64px;"></textarea></div>';
+  h += '<button class="btn" style="background:#F8C8D0;color:#fff;border:none;width:100%;" onclick="addFlashcard()">保存闪卡</button>';
+  h += '</div>';
+
+  h += '<div style="padding:0 12px;display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">';
+  h += fcChipHtml('all', total, flashFilter==='all');
+  Object.keys(TOPICS).forEach(k=>{ const nm=TOPICS[k].name; h += fcChipHtml(nm, modCount[nm]||0, flashFilter===nm); });
+  h += '</div>';
+
+  const list = (flashFilter==='all'? (store.flashcards||[]) : (store.flashcards||[]).filter(c=>c.module===flashFilter))
+              .slice().sort((a,b)=> (b.created||0)-(a.created||0));
+  if(list.length===0){
+    h += '<div class="card" style="padding:22px;text-align:center;color:#9aa7b2;font-size:14px;">🌸 这个模块还没有闪卡，上面录一张吧～</div>';
+  } else {
+    h += '<div style="padding:0 12px 12px;">';
+    list.forEach(c=>{
+      h += '<div class="card" style="padding:14px;margin-bottom:10px;">';
+      h += '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">';
+      h += '<div style="font-size:13px;color:#E8919B;font-weight:600;">'+escapeHtml(c.module)+'</div>';
+      h += '<span style="font-size:11px;color:#bcc6cf;background:#f5f7f9;padding:2px 8px;border-radius:10px;">掌握 '+(c.level||0)+'/5</span>';
+      h += '</div>';
+      h += '<div style="font-size:15px;color:#4a5a68;margin:6px 0 2px;white-space:pre-wrap;">'+escapeHtml(c.front)+'</div>';
+      h += '<details style="margin-top:2px;"><summary style="font-size:12px;color:#7BAFD4;cursor:pointer;">查看答案</summary>';
+      h += '<div style="font-size:14px;color:#5b6b7a;margin-top:6px;white-space:pre-wrap;line-height:1.6;">'+escapeHtml(c.back)+'</div></details>';
+      h += '<div style="margin-top:8px;text-align:right;"><span style="font-size:12px;color:#c2cad2;cursor:pointer;" onclick="deleteFlashcard(\''+c.id+'\')">🗑 删除</span></div>';
+      h += '</div>';
+    });
+    h += '</div>';
+  }
+  return h;
+}
+
+function addFlashcard(){
+  const modEl = document.getElementById('fcModule');
+  const frontEl = document.getElementById('fcFront');
+  const backEl = document.getElementById('fcBack');
+  if(!modEl || !frontEl || !backEl) return;
+  const mod = modEl.value;
+  const front = frontEl.value.trim();
+  const back = backEl.value.trim();
+  if(!front || !back){ toast('正面和背面都要填哦'); return; }
+  if(!store.flashcards) store.flashcards = [];
+  store.flashcards.push({ id:'fc_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), module:mod, front:front, back:back, created:Date.now(), level:0, lastReview:'' });
+  saveStore();
+  renderFlashcards();
+  toast('已保存 🃏');
+}
+
+function deleteFlashcard(id){
+  if(!confirm('确定删除这张闪卡？')) return;
+  store.flashcards = (store.flashcards||[]).filter(c=>c.id!==id);
+  saveStore();
+  renderFlashcards();
+}
+
+function flashStartTab(){
+  const cards = (store.flashcards||[]);
+  if(cards.length===0){ toast('先去「卡片库」录几张闪卡吧～'); return; }
+  flashQueue = cards.slice().sort((a,b)=> (a.level||0)-(b.level||0)).map(c=>c.id);
+  flashIdx = 0; flashFlipped = false; flashRound = {remember:0, forget:0};
+  flashTab = 'review';
+  renderFlashcards();
+}
+
+function renderFlashReviewView(){
+  if(flashQueue.length===0){
+    return '<div class="card" style="padding:22px;text-align:center;color:#9aa7b2;font-size:14px;">🌸 还没有闪卡，去「卡片库」录几张吧～</div>';
+  }
+  if(flashIdx >= flashQueue.length){
+    let h = '<div class="card" style="margin:14px 12px;padding:24px;text-align:center;">';
+    h += '<div style="font-size:40px;margin-bottom:8px;">🎉</div>';
+    h += '<div style="font-size:17px;font-weight:700;color:#5b6b7a;">本轮复习完成！</div>';
+    h += '<div style="font-size:14px;color:#8a97a3;margin-top:6px;">记得 '+flashRound.remember+' 张 · 不记得 '+flashRound.forget+' 张</div>';
+    h += '<button class="btn" style="background:#F8C8D0;color:#fff;border:none;margin-top:14px;" onclick="flashTab=\'lib\';flashQueue=[];renderFlashcards()">返回卡片库</button>';
+    h += '</div>';
+    return h;
+  }
+  const c = (store.flashcards||[]).find(x=>x.id===flashQueue[flashIdx]);
+  if(!c){ flashIdx++; return renderFlashReviewView(); }
+  const left = flashQueue.length - flashIdx;
+  let h = '<div class="card" style="margin:14px 12px;padding:0;overflow:hidden;">';
+  h += '<div style="font-size:12px;color:#9aa7b2;padding:12px 16px 0;">还剩 '+left+' 张 · '+escapeHtml(c.module)+' · 掌握 '+(c.level||0)+'/5</div>';
+  h += '<div style="padding:18px 16px;min-height:120px;font-size:17px;color:#4a5a68;line-height:1.6;white-space:pre-wrap;">'+ (flashFlipped? escapeHtml(c.back) : escapeHtml(c.front)) +'</div>';
+  if(!flashFlipped){
+    h += '<div style="padding:0 16px 16px;"><button class="btn" style="background:#7BAFD4;color:#fff;border:none;width:100%;" onclick="flashFlipped=true;renderFlashcards()">👀 翻面看答案</button></div>';
+  } else {
+    h += '<div style="display:flex;gap:10px;padding:0 16px 16px;">';
+    h += '<button class="btn" style="background:#7BC99E;color:#fff;border:none;flex:1;" onclick="flashResult(true)">✓ 记得</button>';
+    h += '<button class="btn" style="background:#E8919B;color:#fff;border:none;flex:1;" onclick="flashResult(false)">✗ 不记得</button>';
+    h += '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+function flashResult(remember){
+  const c = (store.flashcards||[]).find(x=>x.id===flashQueue[flashIdx]);
+  if(c){
+    if(remember){ c.level = Math.min(5, (c.level||0)+1); flashRound.remember++; }
+    else { c.level = 0; flashRound.forget++; flashQueue.push(c.id); }
+    c.lastReview = todayKey();
+  }
+  flashFlipped = false;
+  flashIdx++;
+  saveStore();
+  renderFlashcards();
+}
+
 function onPageShow(page){
   if(page==='home'){ renderHome(); updateEbBadge(); }
   if(page==='plan') renderPlan();
@@ -3826,6 +3984,7 @@ function onPageShow(page){
   if(page==='setting') renderSetting();
   if(page==='review') renderReview();
   if(page==='ebbinghaus') renderEbbinghaus();
+  if(page==='flashcard') renderFlashcards();
   if(page==='diary') renderDiary();
   if(page==='garden'){ renderGarden(); maybeShowMorning(); }
   if(page==='secret') renderSecretGarden();
@@ -7707,6 +7866,17 @@ if(Object.keys(store.checkins).length===0 && !localStorage.getItem('xckq_initial
   store.checkins[dateKey(d)] = 4;
   saveStore();
   localStorage.setItem('xckq_initialized','1');
+}
+
+// 首次打开：放 3 张示例闪卡，帮助直接体验（仅一次）
+if((store.flashcards||[]).length===0 && !localStorage.getItem('xckq_flashcard_init')){
+  store.flashcards = [
+    {id:'fc_demo1', module:'常识判断', front:'行政处罚的种类主要有哪些？', back:'警告；罚款；没收违法所得、没收非法财物；责令停产停业；暂扣或吊销许可证、执照；行政拘留；以及法律行政法规规定的其他行政处罚。', created:Date.now(), level:0, lastReview:''},
+    {id:'fc_demo2', module:'言语理解', front:'“巧夺天工”一般用来形容什么？', back:'形容技艺极其精巧（多指人工胜过天然）。注意：不能用来形容自然景物本身。', created:Date.now(), level:0, lastReview:''},
+    {id:'fc_demo3', module:'判断推理', front:'类比推理中“种属关系”和“组成关系”如何区分？', back:'种属：A 是 B 的一种（如苹果是水果）；组成：A 是 B 的一部分（如轮胎是汽车的一部分）。可用“是……的一种”代入检验。', created:Date.now(), level:0, lastReview:''}
+  ];
+  saveStore();
+  localStorage.setItem('xckq_flashcard_init','1');
 }
 
 // ====================================================
