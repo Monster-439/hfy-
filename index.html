@@ -12881,8 +12881,14 @@ function ghPull(){
     var payload=JSON.parse(ghDecodeUnicode(f.content));
     var remoteSavedAt=payload.savedAt||remoteTime||0;
     if(remoteSavedAt > (GH.remoteSavedAt||0)){
+      // 花园事件特例：任一侧显式清空（gardenEvent={}）必须跨端生效，
+      // 否则 ghMerge 遇远端空对象会保留本机旧事件（驱虫/化解后另一端仍显示事件）
+      var remoteGardenEvent = (payload.data && payload.data.garden && payload.data.garden.gardenEvent) ? payload.data.garden.gardenEvent : null;
       GH.applying=true;
       store = ghMerge(store, payload.data);                  // 合并而非整文档覆盖：保留本机已设的考试目标等
+      if(remoteGardenEvent && Object.keys(remoteGardenEvent).length===0 && store.garden){
+        store.garden.gardenEvent = {};
+      }
       try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }catch(e){}
       GH.remoteSavedAt=remoteSavedAt; GH.v=payload.v||0; GH.lastSyncAt=Date.now(); ghSaveCfg();
       ghRefreshPage();
