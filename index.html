@@ -2074,6 +2074,7 @@ body.drawer-open .nav-cloud{display:none;}
         <div class="nav-item" data-page="secret"><span class="nav-icon">🌷</span>秘密花园</div>
         <div class="nav-item" data-page="tomato"><span class="nav-icon">🍅</span>番茄钟</div>
         <div class="nav-item" data-page="idea"><span class="nav-icon">💡</span>灵感库</div>
+        <div class="nav-item" data-page="subjflower"><span class="nav-icon">🌺</span>科目花园</div>
       </div>
     </div>
 
@@ -2124,6 +2125,7 @@ body.drawer-open .nav-cloud{display:none;}
 <!-- ===== 知识闪卡 ===== -->
 <div class="page" id="page-flashcard"></div>
 <div class="page" id="page-report"></div>
+<div class="page" id="page-subjflower"></div>
 
 <!-- ===== 首页总览 ===== -->
 <div class="page active" id="page-home">
@@ -3382,7 +3384,9 @@ function defaultStore(){
       nightCare: {},        // 夜间养护：{date:{diary, review, reviewScore}}
       diaryStreak: 0,       // 连续写日记天数
       lastDiaryDate: '',    // 最近写日记日期
-      nightUnlocks: {}      // 夜话限定花解锁 {moonflower, moonorchid}
+      nightUnlocks: {},     // 夜话限定花解锁 {moonflower, moonorchid}
+      subjectBonus: {},     // 科目对应花：手动浇水加成 {模块key: 加成成长值}
+      subjectBloom: {}      // 科目对应花：已绽放标记 {模块key: true}
     },
     achievements: {}, // 成就墙：已解锁成就 {id: 解锁日期}
     gacha: { tickets:0, pulled:[], coll:{} }, // 抽卡养花：扭蛋币数 / 抽卡历史 / 已收集图鉴
@@ -4110,6 +4114,80 @@ function renderReport(){
     options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ y:{ beginAtZero:true } } } });
 }
 
+// ============ 科目对应花 ============
+const SUBJECT_FLOWERS = {
+  common:   { id:'babybreath', name:'满天星', emoji:'✨', color:'#E6E1F2', language:'渺小却闪闪发光，像认真刷题的你' },
+  politics: { id:'sunflower',  name:'向日葵', emoji:'🌻', color:'#F4C04E', language:'永远朝着光的方向，影子就会落在身后' },
+  verbal:   { id:'gardenia',   name:'栀子花', emoji:'🤍', color:'#F7F4E9', language:'保持内心的干净与从容，自有芬芳' },
+  reasoning: { id:'iris',      name:'鸢尾',   emoji:'🦋', color:'#6A5ACD', language:'在风雨里也站成自己的姿态' },
+  quantity: { id:'plumbago',   name:'蓝雪花', emoji:'❄️', color:'#6B8DD4', language:'不必慌张赶路，按自己的节奏生长' },
+  data:     { id:'tulip',     name:'郁金香', emoji:'🌷', color:'#E891B5', language:'认真准备的人，终会遇到突如其来的惊喜' },
+};
+const SUBJ_TARGET = 150; // 某科累计做题达到该值即满成长（100%）
+
+function subjGrowth(key){
+  const done = moduleCumuDone(TOPICS[key].name);
+  const studyG = Math.min(100, Math.round(done/SUBJ_TARGET*100));
+  const bonus = (store.garden.subjectBonus && store.garden.subjectBonus[key]) || 0;
+  return { done:done, growth:Math.min(100, studyG+bonus), studyG:studyG, bonus:bonus };
+}
+
+function renderSubjFlower(){
+  const el = document.getElementById('page-subjflower');
+  if(!el) return;
+  const drops = (store.garden && store.garden.drops) || 0;
+  const grid = [];
+  let bloomedCount = 0;
+  for(const key in TOPICS){
+    const f = SUBJECT_FLOWERS[key]; if(!f) continue;
+    const g = subjGrowth(key);
+    const bloomed = (store.garden.subjectBloom && store.garden.subjectBloom[key]) || (g.growth>=100);
+    if(bloomed) bloomedCount++;
+    const size = 46 + Math.round(g.growth/100*34); // 字号随成长 46~80
+    const ring = g.growth;
+    const card = '<div style="background:#fff;border-radius:16px;padding:16px 12px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.05);position:relative">'
+      + (bloomed ? '<div style="position:absolute;top:8px;right:10px;font-size:12px;color:#e8607d">🌸 已绽放</div>' : '')
+      + '<div style="height:'+size+'px;line-height:'+size+'px;font-size:'+size+'px;filter:'+(g.growth<30?'grayscale(0.5)':'none')+'">'+f.emoji+'</div>'
+      + '<div style="font-weight:700;margin:6px 0 2px;color:#444">'+TOPICS[key].name+'</div>'
+      + '<div style="font-size:12px;color:#999;margin-bottom:8px">'+f.name+'</div>'
+      + '<div style="height:8px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:'+ring+'%;background:linear-gradient(90deg,'+f.color+',#e8607d);border-radius:6px"></div></div>'
+      + '<div style="font-size:12px;color:#e8607d;font-weight:600">成长 '+ring+'%</div>'
+      + '<div style="font-size:11px;color:#aaa;margin:2px 0 8px">已做题 '+g.done+' 道 · 满成长需 '+SUBJ_TARGET+' 道</div>'
+      + '<div style="font-size:11px;color:#bbb;line-height:1.5;min-height:30px">'+f.language+'</div>'
+      + '<button class="btn btn-outline" style="margin-top:8px;padding:5px 14px;font-size:13px" onclick="waterSubjFlower(\''+key+'\')">💧 浇水(+'+Math.min(8,100-g.growth)+')</button>'
+      + '</div>';
+    grid.push(card);
+  }
+  let html = '<div style="padding:18px 18px 40px">';
+  html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><h2 style="margin:0;font-size:20px">🌺 科目花园</h2>'
+    + '<span style="font-size:12px;color:#999">六科各有一朵花，做题越多长得越旺</span></div>';
+  html += '<div style="font-size:12px;color:#e8607d;margin:4px 0 14px">💧 当前水滴：<b>'+drops+'</b> · 已绽放 '+bloomedCount+'/6 科'
+    + (bloomedCount>=6 ? ' 🎉 全科绽放！' : '') + '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">'+grid.join('')+'</div>';
+  html += '<div style="margin-top:16px;font-size:12px;color:#aaa;line-height:1.7;background:#fff;border-radius:12px;padding:12px">'
+    + '🌱 成长值 = 该科累计做题量（满 '+SUBJ_TARGET+' 道即 100%）；浇水可额外 +8 成长（消耗 1 水滴），让心仪的花更快绽放。每朵花都对应一句陪你备考的花语。'
+    + '</div>';
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function waterSubjFlower(key){
+  ensureGarden();
+  const drops = store.garden.drops||0;
+  if(drops < 1){ toast('水滴不足，先去「🍅 番茄钟」专注攒水滴 💧'); return; }
+  const g = subjGrowth(key);
+  if(g.growth >= 100){ toast('「'+TOPICS[key].name+'」已经绽放啦 🌸'); return; }
+  const add = Math.min(8, 100 - g.growth);
+  store.garden.drops = drops - 1;
+  store.garden.subjectBonus = store.garden.subjectBonus || {};
+  store.garden.subjectBonus[key] = (store.garden.subjectBonus[key]||0) + add;
+  saveStore();
+  const nowBloom = subjGrowth(key).growth >= 100;
+  if(nowBloom){ store.garden.subjectBloom = store.garden.subjectBloom || {}; store.garden.subjectBloom[key] = true; toast('「'+TOPICS[key].name+'」绽放啦 🌸🌟'); }
+  else toast('给「'+TOPICS[key].name+'」浇了水，它更精神了 💧🌱');
+  renderSubjFlower();
+}
+
 function onPageShow(page){
   if(page==='home'){ renderHome(); updateEbBadge(); }
   if(page==='plan') renderPlan();
@@ -4128,6 +4206,7 @@ function onPageShow(page){
   if(page==='ebbinghaus') renderEbbinghaus();
   if(page==='flashcard') renderFlashcards();
   if(page==='report') renderReport();
+  if(page==='subjflower') renderSubjFlower();
   if(page==='diary') renderDiary();
   if(page==='garden'){ renderGarden(); maybeShowMorning(); }
   if(page==='secret') renderSecretGarden();
