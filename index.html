@@ -2666,6 +2666,7 @@ body.drawer-open .nav-cloud{display:none;}
       <div class="chart-tab active" data-etype="行测" onclick="switchExamType('行测')">行测</div>
       <div class="chart-tab" data-etype="申论" onclick="switchExamType('申论')">申论</div>
       <div class="chart-tab" data-etype="综应" onclick="switchExamType('综应')">综应</div>
+      <div class="chart-tab" data-etype="全部" onclick="switchExamType('全部')">全部</div>
     </div>
     <div class="chart-container"><canvas id="examChart"></canvas></div>
   </div>
@@ -7325,14 +7326,14 @@ function renderExamList(){
 }
 
 function renderExamChart(){
-  const exams = store.exams.filter(e=>e.type===examTypeFilter).sort((a,b)=>a.date.localeCompare(b.date));
+  const exams = (examTypeFilter==='全部' ? store.exams : store.exams.filter(e=>e.type===examTypeFilter)).sort((a,b)=>a.date.localeCompare(b.date));
   if(examChart) examChart.destroy();
   if(exams.length===0){
     const ctx = document.getElementById('examChart').getContext('2d');
     ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
     return;
   }
-  const labels = exams.map(e=>e.name.length>8?e.name.substring(0,8)+'…':e.name);
+  const labels = exams.map(e=>e.date);
   const scores = exams.map(e=>e.score);
   const rates = exams.map(e=>e.rate);
 
@@ -7344,7 +7345,7 @@ function renderExamChart(){
     ]},
     options:{
       responsive:true,
-      plugins:{legend:{position:'bottom',labels:{font:{size:11}}}},
+      plugins:{legend:{position:'bottom',labels:{font:{size:11}}},tooltip:{callbacks:{title:(items)=>{const e=exams[items[0].dataIndex];return (e&&e.name?e.name:'')+' · '+(e&&e.date?e.date:'');}}}},
       scales:{
         y:{beginAtZero:true,position:'left',grid:{color:'#f5f5f5'},title:{display:true,text:'得分'}},
         y1:{beginAtZero:true,max:100,position:'right',grid:{display:false},title:{display:true,text:'正确率(%)'}}
