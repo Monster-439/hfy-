@@ -12764,6 +12764,8 @@ function ghApi(method, path, body){
 function ghPath(){ return '/repos/'+GH.owner+'/'+GH.repo+'/contents/xckq-garden/sync.json'; }
 function ghInit(){
   ghLoadCfg();
+  // 仓库名默认填好，用户只需粘贴 Token 即可连接（降低多端同步的门槛）
+  if(!GH.repo){ GH.repo='xckq-garden'; ghSaveCfg(); }
   var t=document.getElementById('ghToken'), r=document.getElementById('ghRepo'), a=document.getElementById('ghAuto');
   if(t) t.value=GH.token; if(r) r.value=GH.repo; if(a) a.checked=GH.enabled;
   ghRenderPanel();
