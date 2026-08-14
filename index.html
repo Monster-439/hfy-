@@ -3866,6 +3866,60 @@ let flashFlipped = false;    // 当前卡是否翻面
 let flashRound = { remember:0, forget:0 }; // 本轮统计
 
 function fcInpStyle(){ return 'width:100%;box-sizing:border-box;border:1px solid #e6eaf0;border-radius:12px;padding:10px 12px;font-size:14px;color:#4a5a68;background:#fff;outline:none;resize:vertical;'; }
+let fcImgTmp = { fcFront:'', fcBack:'' };  // 新建闪卡临时图（拍照 / 选图）
+function fcFieldRow(id, ph){
+  const mini = 'background:#fff;border-radius:10px;padding:7px 10px;font-size:14px;line-height:1;cursor:pointer;';
+  return '<div style="display:flex;gap:8px;margin-bottom:6px;align-items:stretch;">'
+    + '<textarea id="'+id+'" placeholder="'+ph+'" style="'+fcInpStyle()+'height:64px;flex:1;"></textarea>'
+    + '<div style="display:flex;flex-direction:column;gap:6px;justify-content:center;">'
+    +   '<button type="button" class="btn" style="'+mini+'color:#E8919B;border:1px solid #F8C8D0;" onclick="fcDictate(\''+id+'\')" title="语音输入（中文）">🎤</button>'
+    +   '<button type="button" class="btn" style="'+mini+'color:#7BAFD4;border:1px solid #cfe3f3;" onclick="fcPickImg(\''+id+'\')" title="拍照 / 选图">📷</button>'
+    + '</div></div>'
+    + '<input type="file" id="'+id+'_img" accept="image/*" capture="environment" style="display:none" onchange="fcImgChosen(\''+id+'\')">'
+    + '<div id="'+id+'_prev" style="margin:0 0 10px;"></div>';
+}
+function fcDictate(id){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ toast('当前浏览器不支持语音输入，请手动输入～'); return; }
+  try{
+    const rec = new SR();
+    rec.lang = 'zh-CN'; rec.interimResults = false; rec.maxAlternatives = 1;
+    const ta = document.getElementById(id);
+    rec.onresult = (e)=>{ const t = e.results[0][0].transcript; ta.value = (ta.value? ta.value+' ':'') + t; };
+    rec.onerror = ()=>{ toast('语音识别失败，请重试或手动输入'); };
+    rec.start();
+    toast('🎤 正在听，说完会自动填入（'+ (id==='fcFront'?'正面':'背面') +'）');
+  }catch(err){ toast('无法启动语音，请手动输入'); }
+}
+function fcPickImg(id){ const el = document.getElementById(id+'_img'); if(el) el.click(); }
+function fcImgChosen(id){
+  const el = document.getElementById(id+'_img');
+  if(!el || !el.files || !el.files[0]) return;
+  fcFileToDataUrl(el.files[0], (url)=>{
+    fcImgTmp[id] = url;
+    const prev = document.getElementById(id+'_prev');
+    if(prev){ prev.innerHTML = '<img src="'+url+'" style="max-width:120px;max-height:90px;border-radius:10px;border:1px solid #eee;"><span style="font-size:12px;color:#c2cad2;margin-left:8px;cursor:pointer;" onclick="fcRemoveImg(\''+id+'\')">✕ 移除</span>'; }
+  });
+}
+function fcRemoveImg(id){ fcImgTmp[id]=''; const el=document.getElementById(id+'_img'); if(el) el.value=''; const prev=document.getElementById(id+'_prev'); if(prev) prev.innerHTML=''; }
+function fcFileToDataUrl(file, cb){
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const img = new Image();
+    img.onload = ()=>{
+      let w = img.width, h = img.height; const maxW = 900;
+      if(w > maxW){ h = Math.round(h*maxW/w); w = maxW; }
+      try{
+        const cv = document.createElement('canvas'); cv.width=w; cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        cb(cv.toDataURL('image/jpeg',0.82));
+      }catch(e){ cb(reader.result); }
+    };
+    img.onerror = ()=> cb(reader.result);
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
 function fcChipHtml(nm, cnt, active){
   const on = (flashFilter===nm);
   const bg = on ? '#F8C8D0' : '#f3f6f9';
@@ -3899,8 +3953,8 @@ function renderFlashLib(modCount, total){
   let h = '<div class="card" style="margin:0 12px 12px;padding:16px;">';
   h += '<div style="font-size:15px;font-weight:700;color:#5b6b7a;margin-bottom:10px;">➕ 新建闪卡</div>';
   h += '<div style="margin-bottom:10px;"><select id="fcModule" style="'+fcInpStyle()+'">' + Object.keys(TOPICS).map(k=>'<option value="'+TOPICS[k].name+'">'+TOPICS[k].name+'</option>').join('') + '</select></div>';
-  h += '<div style="margin-bottom:10px;"><textarea id="fcFront" placeholder="正面：知识点 / 问题（如：行政处罚的种类有哪些？）" style="'+fcInpStyle()+'height:64px;"></textarea></div>';
-  h += '<div style="margin-bottom:12px;"><textarea id="fcBack" placeholder="背面：答案 / 解析" style="'+fcInpStyle()+'height:64px;"></textarea></div>';
+  h += fcFieldRow('fcFront', '正面：知识点 / 问题（如：行政处罚的种类有哪些？）');
+  h += fcFieldRow('fcBack', '背面：答案 / 解析');
   h += '<button class="btn" style="background:#F8C8D0;color:#fff;border:none;width:100%;" onclick="addFlashcard()">保存闪卡</button>';
   h += '</div>';
 
@@ -3921,9 +3975,12 @@ function renderFlashLib(modCount, total){
       h += '<div style="font-size:13px;color:#E8919B;font-weight:600;">'+escapeHtml(c.module)+'</div>';
       h += '<span style="font-size:11px;color:#bcc6cf;background:#f5f7f9;padding:2px 8px;border-radius:10px;">掌握 '+(c.level||0)+'/5</span>';
       h += '</div>';
+      if(c.frontImg) h += '<img src="'+c.frontImg+'" style="max-width:100%;max-height:140px;border-radius:10px;margin:4px 0 6px;border:1px solid #eee;display:block;">';
       h += '<div style="font-size:15px;color:#4a5a68;margin:6px 0 2px;white-space:pre-wrap;">'+escapeHtml(c.front)+'</div>';
       h += '<details style="margin-top:2px;"><summary style="font-size:12px;color:#7BAFD4;cursor:pointer;">查看答案</summary>';
-      h += '<div style="font-size:14px;color:#5b6b7a;margin-top:6px;white-space:pre-wrap;line-height:1.6;">'+escapeHtml(c.back)+'</div></details>';
+      h += '<div style="font-size:14px;color:#5b6b7a;margin-top:6px;white-space:pre-wrap;line-height:1.6;">'+escapeHtml(c.back)+'</div>';
+      if(c.backImg) h += '<img src="'+c.backImg+'" style="max-width:100%;max-height:140px;border-radius:10px;margin-top:6px;border:1px solid #eee;display:block;">';
+      h += '</details>';
       h += '<div style="margin-top:8px;text-align:right;"><span style="font-size:12px;color:#c2cad2;cursor:pointer;" onclick="deleteFlashcard(\''+c.id+'\')">🗑 删除</span></div>';
       h += '</div>';
     });
@@ -3940,9 +3997,13 @@ function addFlashcard(){
   const mod = modEl.value;
   const front = frontEl.value.trim();
   const back = backEl.value.trim();
-  if(!front || !back){ toast('正面和背面都要填哦'); return; }
+  const fImg = fcImgTmp.fcFront || '';
+  const bImg = fcImgTmp.fcBack || '';
+  if(!front && !fImg){ toast('正面填文字或拍张题图哦'); return; }
+  if(!back && !bImg){ toast('背面填文字或拍张答案图哦'); return; }
   if(!store.flashcards) store.flashcards = [];
-  store.flashcards.push({ id:'fc_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), module:mod, front:front, back:back, created:Date.now(), level:0, lastReview:'' });
+  store.flashcards.push({ id:'fc_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), module:mod, front:front, back:back, frontImg:fImg, backImg:bImg, created:Date.now(), level:0, lastReview:'' });
+  fcImgTmp = { fcFront:'', fcBack:'' };
   saveStore();
   renderFlashcards();
   toast('已保存 🃏');
@@ -3982,7 +4043,15 @@ function renderFlashReviewView(){
   const left = flashQueue.length - flashIdx;
   let h = '<div class="card" style="margin:14px 12px;padding:0;overflow:hidden;">';
   h += '<div style="font-size:12px;color:#9aa7b2;padding:12px 16px 0;">还剩 '+left+' 张 · '+escapeHtml(c.module)+' · 掌握 '+(c.level||0)+'/5</div>';
-  h += '<div style="padding:18px 16px;min-height:120px;font-size:17px;color:#4a5a68;line-height:1.6;white-space:pre-wrap;">'+ (flashFlipped? escapeHtml(c.back) : escapeHtml(c.front)) +'</div>';
+  if(!flashFlipped){
+    h += '<div style="padding:18px 16px;min-height:120px;">';
+    if(c.frontImg) h += '<img src="'+c.frontImg+'" style="max-width:100%;max-height:160px;border-radius:10px;margin-bottom:8px;border:1px solid #eee;display:block;">';
+    h += '<div style="font-size:17px;color:#4a5a68;line-height:1.6;white-space:pre-wrap;">'+escapeHtml(c.front)+'</div></div>';
+  } else {
+    h += '<div style="padding:18px 16px;min-height:120px;">';
+    if(c.backImg) h += '<img src="'+c.backImg+'" style="max-width:100%;max-height:160px;border-radius:10px;margin-bottom:8px;border:1px solid #eee;display:block;">';
+    h += '<div style="font-size:17px;color:#5b6b7a;line-height:1.6;white-space:pre-wrap;">'+escapeHtml(c.back)+'</div></div>';
+  }
   if(!flashFlipped){
     h += '<div style="padding:0 16px 16px;"><button class="btn" style="background:#7BAFD4;color:#fff;border:none;width:100%;" onclick="flashFlipped=true;renderFlashcards()">👀 翻面看答案</button></div>';
   } else {
@@ -4132,9 +4201,38 @@ function subjGrowth(key){
   return { done:done, growth:Math.min(100, studyG+bonus), studyG:studyG, bonus:bonus };
 }
 
+function checkSubjBloom(){
+  ensureGarden();
+  const g = store.garden;
+  let newly = [];
+  for(const key in TOPICS){
+    const f = SUBJECT_FLOWERS[key]; if(!f) continue;
+    if(subjGrowth(key).growth >= 100 && !(g.subjectBloom && g.subjectBloom[key])){
+      g.subjectBloom = g.subjectBloom || {};
+      g.subjectBloom[key] = true;
+      newly.push(TOPICS[key].name);
+    }
+  }
+  if(newly.length){
+    g.drops = (g.drops||0) + newly.length*5;
+    saveStore();
+    newly.forEach(n=> toast('🌸「'+n+'」绽放！奖励 5 水滴 💧'));
+    let all = true;
+    for(const key in TOPICS){ const f=SUBJECT_FLOWERS[key]; if(!f) continue; if(!(g.subjectBloom && g.subjectBloom[key])){ all=false; break; } }
+    if(all && !g.subjectAllBloom){
+      g.subjectAllBloom = true;
+      g.drops = (g.drops||0) + 30;
+      g.coins = (g.coins||0) + 10;
+      saveStore();
+      toast('🎉 六科全部绽放！额外 +30 水滴、+10 金币，上岸花园满园飘香～');
+    }
+  }
+}
+
 function renderSubjFlower(){
   const el = document.getElementById('page-subjflower');
   if(!el) return;
+  checkSubjBloom();
   const drops = (store.garden && store.garden.drops) || 0;
   const grid = [];
   let bloomedCount = 0;
@@ -4143,11 +4241,16 @@ function renderSubjFlower(){
     const g = subjGrowth(key);
     const bloomed = (store.garden.subjectBloom && store.garden.subjectBloom[key]) || (g.growth>=100);
     if(bloomed) bloomedCount++;
-    const size = 46 + Math.round(g.growth/100*34); // 字号随成长 46~80
+    const eSize = 38 + Math.round(g.growth/100*34); // 字号随成长 38~72
     const ring = g.growth;
     const card = '<div style="background:#fff;border-radius:16px;padding:16px 12px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.05);position:relative">'
       + (bloomed ? '<div style="position:absolute;top:8px;right:10px;font-size:12px;color:#e8607d">🌸 已绽放</div>' : '')
-      + '<div style="height:'+size+'px;line-height:'+size+'px;font-size:'+size+'px;filter:'+(g.growth<30?'grayscale(0.5)':'none')+'">'+f.emoji+'</div>'
+      + '<div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:118px;">'
+      +   '<div style="font-size:'+eSize+'px;line-height:1;filter:'+(g.growth<30?'grayscale(0.5)':'none')+'">'+f.emoji+'</div>'
+      +   '<div style="width:4px;height:12px;background:#7FB069;"></div>'
+      +   '<div style="width:64px;height:9px;background:#D9A86C;border-radius:6px 6px 0 0;"></div>'
+      +   '<div style="width:56px;height:22px;background:#E7BE8A;clip-path:polygon(10% 0,90% 0,80% 100%,20% 100%);border-radius:0 0 6px 6px;"></div>'
+      + '</div>'
       + '<div style="font-weight:700;margin:6px 0 2px;color:#444">'+TOPICS[key].name+'</div>'
       + '<div style="font-size:12px;color:#999;margin-bottom:8px">'+f.name+'</div>'
       + '<div style="height:8px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:'+ring+'%;background:linear-gradient(90deg,'+f.color+',#e8607d);border-radius:6px"></div></div>'
@@ -4183,7 +4286,7 @@ function waterSubjFlower(key){
   store.garden.subjectBonus[key] = (store.garden.subjectBonus[key]||0) + add;
   saveStore();
   const nowBloom = subjGrowth(key).growth >= 100;
-  if(nowBloom){ store.garden.subjectBloom = store.garden.subjectBloom || {}; store.garden.subjectBloom[key] = true; toast('「'+TOPICS[key].name+'」绽放啦 🌸🌟'); }
+  if(nowBloom){ checkSubjBloom(); }
   else toast('给「'+TOPICS[key].name+'」浇了水，它更精神了 💧🌱');
   renderSubjFlower();
 }
