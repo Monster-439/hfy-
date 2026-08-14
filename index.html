@@ -4192,13 +4192,15 @@ const SUBJECT_FLOWERS = {
   quantity: { id:'nongke',     name:'深圳农科兰', emoji:'🌺', color:'#B5678F', language:'倾注心血的栽培终成无价，数字里也藏着耐心' },
   data:     { id:'protea',     name:'帝王花', emoji:'🪷', color:'#C77DA0', language:'王者之姿，扛得住风雨也开得出盛大' },
 };
-const SUBJ_TARGET = 150; // 某科累计做题达到该值即满成长（100%）
+const SUBJ_TARGET = 350; // 某科累计做题达到该值即满成长（100%）——提高门槛，避免轻易绽放
+const SUBJ_BONUS_CAP = 25; // 浇水加成封顶：浇水最多贡献 25% 成长，剩余 75% 必须靠真实做题
 
 function subjGrowth(key){
   const done = moduleCumuDone(TOPICS[key].name);
   const studyG = Math.min(100, Math.round(done/SUBJ_TARGET*100));
-  const bonus = (store.garden.subjectBonus && store.garden.subjectBonus[key]) || 0;
-  return { done:done, growth:Math.min(100, studyG+bonus), studyG:studyG, bonus:bonus };
+  const bonusRaw = (store.garden.subjectBonus && store.garden.subjectBonus[key]) || 0;
+  const bonus = Math.min(SUBJ_BONUS_CAP, bonusRaw); // 封顶，浇水顶多帮 25%
+  return { done:done, growth:Math.min(100, studyG+bonus), studyG:studyG, bonus:bonus, bonusRaw:bonusRaw };
 }
 
 function checkSubjBloom(){
@@ -4257,7 +4259,7 @@ function renderSubjFlower(){
       + '<div style="font-size:12px;color:#e8607d;font-weight:600">成长 '+ring+'%</div>'
       + '<div style="font-size:11px;color:#aaa;margin:2px 0 8px">已做题 '+g.done+' 道 · 满成长需 '+SUBJ_TARGET+' 道</div>'
       + '<div style="font-size:11px;color:#bbb;line-height:1.5;min-height:30px">'+f.language+'</div>'
-      + '<button class="btn btn-outline" style="margin-top:8px;padding:5px 14px;font-size:13px" onclick="waterSubjFlower(\''+key+'\')">💧 浇水(+'+Math.min(8,100-g.growth)+')</button>'
+      + '<button class="btn btn-outline" style="margin-top:8px;padding:5px 14px;font-size:13px" onclick="waterSubjFlower(\''+key+'\')">💧 浇水(+'+Math.min(3,100-g.growth, SUBJ_BONUS_CAP-((store.garden.subjectBonus&&store.garden.subjectBonus[key])||0))+')</button>'
       + '</div>';
     grid.push(card);
   }
@@ -4268,7 +4270,7 @@ function renderSubjFlower(){
     + (bloomedCount>=6 ? ' 🎉 全科绽放！' : '') + '</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">'+grid.join('')+'</div>';
   html += '<div style="margin-top:16px;font-size:12px;color:#aaa;line-height:1.7;background:#fff;border-radius:12px;padding:12px">'
-    + '🌱 成长值 = 该科累计做题量（满 '+SUBJ_TARGET+' 道即 100%）；浇水可额外 +8 成长（消耗 1 水滴），让心仪的花更快绽放。每朵花都对应一句陪你备考的花语。'
+    + '🌱 成长值 = 该科累计做题量（满 '+SUBJ_TARGET+' 道即 100%）；浇水每次 +3 成长（消耗 1 水滴），但浇水加成最多只到 25%，剩余 75% 必须靠真实做题才能绽放。每朵花都对应一句陪你备考的花语。'
     + '</div>';
   html += '</div>';
   el.innerHTML = html;
@@ -4280,7 +4282,9 @@ function waterSubjFlower(key){
   if(drops < 1){ toast('水滴不足，先去「🍅 番茄钟」专注攒水滴 💧'); return; }
   const g = subjGrowth(key);
   if(g.growth >= 100){ toast('「'+TOPICS[key].name+'」已经绽放啦 🌸'); return; }
-  const add = Math.min(8, 100 - g.growth);
+  const curBonus = (store.garden.subjectBonus && store.garden.subjectBonus[key]) || 0;
+  if(curBonus >= SUBJ_BONUS_CAP){ toast('「'+TOPICS[key].name+'」的浇水加成已封顶，多做该科题才能继续长大 🌿'); renderSubjFlower(); return; }
+  const add = Math.min(3, 100 - g.growth, SUBJ_BONUS_CAP - curBonus);
   store.garden.drops = drops - 1;
   store.garden.subjectBonus = store.garden.subjectBonus || {};
   store.garden.subjectBonus[key] = (store.garden.subjectBonus[key]||0) + add;
