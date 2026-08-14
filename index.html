@@ -2075,6 +2075,7 @@ body.drawer-open .nav-cloud{display:none;}
       <div class="nav-children">
         <div class="nav-item" data-page="exam"><span class="nav-icon">📄</span>试卷分析</div>
         <div class="nav-item" data-page="error"><span class="nav-icon">❌</span>错题记录</div>
+        <div class="nav-item" data-page="ebbinghaus"><span class="nav-icon">🧠</span>记忆复习<span class="nav-badge" id="ebBadge" style="display:none"></span></div>
         <div class="nav-item" data-page="bank"><span class="nav-icon">🗂️</span>我的题库</div>
       </div>
     </div>
@@ -3354,6 +3355,7 @@ function defaultStore(){
     },
     achievements: {}, // 成就墙：已解锁成就 {id: 解锁日期}
     gacha: { tickets:0, pulled:[], coll:{} }, // 抽卡养花：扭蛋币数 / 抽卡历史 / 已收集图鉴
+    ebbinghaus: { items: [] }, // 艾宾浩斯复习计划 [{id,srcDate,module,stage,interval,dueDate,done,doneDate}]
     inspiration: { custom: [] }, // 用户自己记录的灵感 {id,module,text,date}
     diary: {},         // 每晚日记 {date: {mood, meaningful, wish, feeling, thanks, ts}}
     review: {          // 内容复盘（自动从专注数据生成 + 今日建议）
@@ -3682,8 +3684,131 @@ function renderNavQuote(){
   el.innerHTML = '<span class="nq-emoji">💬</span>'+q+'<span class="nq-date">'+now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')+' 每日鸡汤</span>';
 }
 
+// ====================================================
+//  艾宾浩斯记忆复习（录入/完成做题后自动生成 1/2/4/7/15 天复习计划）
+// ====================================================
+function addDaysStr(dateStr, n){
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function addReviewSchedule(srcDate, module, count){
+  if(!module || module==='手动总计') return;
+  if(!store.ebbinghaus) store.ebbinghaus = {items:[]};
+  const intervals = [1,2,4,7,15];
+  intervals.forEach(function(iv){
+    const id = 'eb_'+srcDate+'_'+module+'_'+iv;
+    if(store.ebbinghaus.items.some(function(x){ return x.id===id; })) return;
+    store.ebbinghaus.items.push({
+      id:id, srcDate:srcDate, module:module, interval:iv, stage:intervals.indexOf(iv)+1,
+      dueDate:addDaysStr(srcDate, iv), done:false, doneDate:''
+    });
+  });
+  updateEbBadge();
+}
+function migrateEbbinghaus(){
+  if(!store.ebbinghaus) store.ebbinghaus = {items:[]};
+  if(store.ebbinghaus._init) return;
+  const cut = addDaysStr(todayKey(), -20);
+  const recs = store.records||{};
+  Object.keys(recs).forEach(function(d){
+    if(d < cut) return;
+    (recs[d]||[]).forEach(function(r){ if(r.module && r.module!=='手动总计') addReviewSchedule(d, r.module, r.done||0); });
+  });
+  // 久远的过期计划自动视为已复习，避免堆积成无法完成的 backlog
+  const lapsed = addDaysStr(todayKey(), -3);
+  store.ebbinghaus.items.forEach(function(it){ if(it.dueDate < lapsed) it.done = true; });
+  store.ebbinghaus._init = true;
+  try{ saveStore(); }catch(e){}
+}
+function dueReviewCount(){
+  return (store.ebbinghaus.items||[]).filter(function(it){ return !it.done && it.dueDate<=todayKey(); }).length;
+}
+function updateEbBadge(){
+  const el = document.getElementById('ebBadge');
+  if(!el) return;
+  const n = dueReviewCount();
+  if(n>0){ el.textContent = n>99?'99+':n; el.style.display='inline-block'; }
+  else el.style.display='none';
+}
+function renderEbbinghaus(){
+  const root = document.getElementById('page-ebbinghaus');
+  if(!root) return;
+  const items = store.ebbinghaus.items||[];
+  const today = todayKey();
+  const due = items.filter(function(it){ return !it.done && it.dueDate<=today; }).sort(function(a,b){ return a.dueDate<b.dueDate?-1:1; });
+  const upcoming = items.filter(function(it){ return !it.done && it.dueDate>today; }).sort(function(a,b){ return a.dueDate<b.dueDate?-1:1; });
+  const done = items.filter(function(it){ return it.done; }).sort(function(a,b){ return (b.doneDate||'')<(a.doneDate||'')?-1:1; }).slice(0,30);
+  const stageText = {1:'第1次',2:'第2次',3:'第3次',4:'第4次',5:'第5次'};
+  let html = '';
+  html += '<div class="card" style="margin:14px 12px;padding:16px;">';
+  html += '<div style="font-size:19px;font-weight:700;color:#5b6b7a;margin-bottom:6px;">🧠 记忆复习 · 艾宾浩斯遗忘曲线</div>';
+  html += '<div style="font-size:13px;color:#8a97a3;line-height:1.7;">每当你录入或完成一次做题，系统会自动为对应模块生成 <b>第 1 / 2 / 4 / 7 / 15 天</b> 的复习提醒。按时复习，把短期记忆变成长期记忆 🌿</div>';
+  html += '<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">';
+  html += ebStatBox('待复习', due.length, '#E8919B');
+  html += ebStatBox('即将到来', upcoming.length, '#7BAFD4');
+  html += ebStatBox('已完成', done.length, '#7BC99E');
+  html += '</div></div>';
+
+  html += '<div style="padding:0 12px;"><div style="font-size:15px;font-weight:700;color:#5b6b7a;margin:14px 4px 8px;">📌 今日待复习（'+due.length+'）</div>';
+  if(due.length===0){
+    html += '<div class="card" style="padding:22px;text-align:center;color:#9aa7b2;font-size:14px;">🌸 今天没有待复习的内容，去刷点题，明天就会长出复习提醒啦~</div>';
+  } else {
+    due.forEach(function(it){
+      const days = Math.max(0, dateDiff(it.srcDate, today));
+      html += ebReviewCard(it, days, true, 0);
+    });
+  }
+  html += '</div>';
+
+  if(upcoming.length){
+    html += '<div style="padding:0 12px;"><div style="font-size:15px;font-weight:700;color:#5b6b7a;margin:16px 4px 8px;">⏳ 即将到来（'+upcoming.length+'）</div>';
+    upcoming.slice(0,20).forEach(function(it){
+      const left = dateDiff(today, it.dueDate);
+      html += ebReviewCard(it, 0, false, left);
+    });
+    html += '</div>';
+  }
+
+  if(done.length){
+    html += '<div style="padding:0 12px;"><div style="font-size:15px;font-weight:700;color:#5b6b7a;margin:16px 4px 8px;">✅ 已完成复习（最近 '+done.length+'）</div>';
+    html += '<div class="card" style="padding:12px;display:flex;flex-wrap:wrap;gap:6px;">';
+    done.forEach(function(it){ html += '<span style="font-size:12px;background:#eef6f0;color:#5a9e74;padding:4px 9px;border-radius:12px;">'+escapeHtml(it.module)+' · '+stageText[it.stage]+'</span>'; });
+    html += '</div></div>';
+  }
+
+  root.innerHTML = html;
+  updateEbBadge();
+}
+function ebStatBox(label, val, color){
+  return '<div style="flex:1;min-width:90px;background:#fafbfc;border:1px solid #eef1f4;border-radius:14px;padding:12px;text-align:center;">'
+    + '<div style="font-size:24px;font-weight:800;color:'+color+';">'+val+'</div>'
+    + '<div style="font-size:12px;color:#9aa7b2;margin-top:2px;">'+label+'</div></div>';
+}
+function ebReviewCard(it, daysSince, isDue, daysLeft){
+  const stageText = {1:'第1次',2:'第2次',3:'第3次',4:'第4次',5:'第5次'};
+  let sub;
+  if(isDue){ sub = '学习于 '+it.srcDate+'（'+daysSince+' 天前）· '+stageText[it.stage]+'复习（'+it.interval+'天后）'; }
+  else { sub = '学习于 '+it.srcDate+' · '+stageText[it.stage]+'复习 · '+daysLeft+' 天后提醒'; }
+  return '<div class="card" style="padding:14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">'
+    + '<div style="padding-right:10px;"><div style="font-size:15px;font-weight:700;color:#5b6b7a;">'+escapeHtml(it.module)+'</div>'
+    + '<div style="font-size:12px;color:#9aa7b2;margin-top:3px;">'+sub+'</div></div>'
+    + '<button class="btn" style="background:#7BC99E;color:#fff;border:none;white-space:nowrap;flex:none;" onclick="doneReview(\''+it.id+'\')">✅ 完成复习</button>'
+    + '</div>';
+}
+function doneReview(id){
+  if(!store.ebbinghaus) return;
+  const it = store.ebbinghaus.items.find(function(x){ return x.id===id; });
+  if(!it) return;
+  it.done = true; it.doneDate = todayKey();
+  saveStore();
+  renderEbbinghaus();
+  if(document.getElementById('page-home') && document.getElementById('page-home').classList.contains('active')) renderHome();
+  toast('复习完成 🌿 记忆更牢啦');
+}
+
 function onPageShow(page){
-  if(page==='home') renderHome();
+  if(page==='home'){ renderHome(); updateEbBadge(); }
   if(page==='plan') renderPlan();
   if(page==='checkin') renderCheckin();
   if(page==='stats') renderStats();
@@ -3697,6 +3822,7 @@ function onPageShow(page){
   if(page==='quiz') renderQuiz();
   if(page==='setting') renderSetting();
   if(page==='review') renderReview();
+  if(page==='ebbinghaus') renderEbbinghaus();
   if(page==='diary') renderDiary();
   if(page==='garden'){ renderGarden(); maybeShowMorning(); }
   if(page==='secret') renderSecretGarden();
@@ -5821,6 +5947,7 @@ function showQuizResult(){
   store.records[today].push({
     module:quizState.module, done:writeDone, right:graded>0?correct:0, time:Date.now()
   });
+  addReviewSchedule(today, quizState.module, writeDone);
   const keyMap = {'常识判断':'common','时政热点':'politics','言语理解':'verbal','判断推理':'reasoning','数量关系':'quantity','资料分析':'data','申论':'shenlun'};
   const k = keyMap[quizState.module];
   if(k) store.stats[k] = (store.stats[k]||0) + writeDone;
@@ -6472,6 +6599,7 @@ function quickRecord(){
   const today = todayKey();
   if(!store.records[today]) store.records[today] = [];
   store.records[today].push({module,done,right,time:Date.now(),manual:true});
+  addReviewSchedule(today, module, done);
   // 更新累计
   const keyMap = {'常识判断':'common','时政热点':'politics','言语理解':'verbal','判断推理':'reasoning','数量关系':'quantity','资料分析':'data','申论':'shenlun'};
   const k = keyMap[module];
@@ -6605,6 +6733,7 @@ function saveModuleStatEdit(){
   const newManualRight = Math.max(0, enteredRight - moduleStatInApp.right);
   store.records[today] = recs.filter(r=>!(r.module===m && r.manual));
   if(newManualDone>0 || newManualRight>0) store.records[today].push({module:m, done:newManualDone, right:newManualRight, time:Date.now(), manual:true});
+  addReviewSchedule(today, m, newManualDone);
   // 同步累计做题数（保持与记录一致）
   const k = moduleToKey(m);
   if(k){
@@ -7554,6 +7683,7 @@ function renderErrors(){
 // 但首页总览是第一个页面，先显示首页
 document.getElementById('examDate').value = todayKey();
 renderHome();
+migrateEbbinghaus();
 renderCountdowns();
 // 每小时刷新一次考试倒计时，跨天自动更新
 setInterval(renderCountdowns, 3600000);
