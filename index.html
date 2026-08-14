@@ -3653,7 +3653,8 @@ function renderTopic(key){
   // done/right 为手动刷题量/正确数偏移，cumu/err 为累计做题数/错题数偏移（累计口径，跨日保留）
   const adj = getManual(key);
   const aDone = adj.done||0, aRight = adj.right||0, aCumu = adj.cumu||0, aErr = adj.err||0;
-  const tDone = todayDone + aDone;
+  // 今日做题量 = 仅系统今日自动累计（手动补录由用户点数字弹窗显式输入，不在此处混入）
+  const tDone = todayDone;
   const totalDone = (store.stats[key]||0) + aDone + aCumu;
   const totalErr2 = totalErr + todayWrong + aErr;
   // 正确率由系统根据「刷题量(累计做题数) 与 错误量(错题数)」自动计算：(累计做题数-错题数)/累计做题数，不提供手动修改
@@ -4715,7 +4716,8 @@ function openStatEdit(key, field){
   // 手动偏移（累计口径，跨日保留）
   const adj = getManual(key);
   const aDone=adj.done||0, aRight=adj.right||0, aCumu=adj.cumu||0, aErr=adj.err||0;
-  const tDone = todayDone + aDone, tRight=todayRight + aRight;
+  // 弹窗预填今日刷题量 = 纯系统今日（用户想补录就在弹窗内显式输入）
+  const tDone = todayDone, tRight=todayRight;
   const rate = tDone>0 ? Math.round(tRight/tDone*100):0;
   const totalDone = (store.stats[key]||0)+aDone+aCumu;
   const totalErr2 = totalErr+aErr;
@@ -6090,6 +6092,8 @@ function togglePlan(id){
       if(td){ td.done = p.done; td.finished = p.done ? todayKey() : ''; }
     }
     saveStore(); renderPlan(); renderTodoList();
+    // 首页的「今日计划完成情况」也要同步刷新视觉（之前只改了 store 没重渲首页，所以看起来点不动）
+    if(document.getElementById('page-home') && document.getElementById('page-home').classList.contains('active')) renderHome();
   }
 }
 
@@ -12231,6 +12235,11 @@ function addFocus(minutes, modOverride, opts){
     if(opts.todoId && store.todos){
       const td = store.todos.find(x=>x.id===opts.todoId);
       if(td && !td.done){ td.done = true; td.finished = t; }
+      // 反向同步：若该待办来自「今日计划」，把对应计划也自动勾掉（避免再去手动点计划）
+      if(td && td.done && td.planId && store.plans[t]){
+        const p = store.plans[t].find(x=>x.id===td.planId);
+        if(p && !p.done){ p.done = true; }
+      }
     }
   }
   saveStore();
