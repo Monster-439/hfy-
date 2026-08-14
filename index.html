@@ -3392,6 +3392,20 @@ function getManual(key){
   return m;
 }
 
+// 累计做题数 = 该模块所有日期 records 的 done 之和（自动+手动，跨日自动累加）
+function moduleCumuDone(name){
+  let s=0; const recs=store.records||{};
+  Object.keys(recs).forEach(function(d){ (recs[d]||[]).forEach(function(r){ if(r.module===name) s+=(r.done||0); }); });
+  return s;
+}
+// 累计错题数 = 自动错题本(store.errors) + 所有日期手动记录的(做题-正确)之和（跨日自动累加）
+function moduleCumuWrong(name){
+  let w=0; const recs=store.records||{};
+  Object.keys(recs).forEach(function(d){ (recs[d]||[]).forEach(function(r){ if(r.module===name && r.manual){ w+=Math.max(0,(r.done||0)-(r.right||0)); } }); });
+  w += (store.errors||[]).filter(function(e){return e.module===name;}).length;
+  return w;
+}
+
 function dateKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 
 function toast(msg){
@@ -3649,23 +3663,21 @@ function renderTopic(key){
   const todayRight = todayRecs.reduce((s,r)=>s+(r.right||0),0);
   const totalErr = store.errors.filter(e=>e.module===t.name).length;
   const todayWrong = todayWrongOf(t.name); // 今日做题数-正确数 自动算出的错题数
-  // 手动偏移（叠加在自动统计之上，不覆盖系统记录；各字段独立，可单独点击修改）
-  // done/right 为手动刷题量/正确数偏移，cumu/err 为累计做题数/错题数偏移（累计口径，跨日保留）
-  const adj = getManual(key);
-  const aDone = adj.done||0, aRight = adj.right||0, aCumu = adj.cumu||0, aErr = adj.err||0;
-  // 今日做题量 = 仅系统今日自动累计（手动补录由用户点数字弹窗显式输入，不在此处混入）
+  // 今日做题量 = 今天 records（自动+手动）之和；点数字弹出「按模块录入」即可手动修改
   const tDone = todayDone;
-  const totalDone = (store.stats[key]||0) + aDone + aCumu;
-  const totalErr2 = totalErr + todayWrong + aErr;
-  // 正确率由系统根据「刷题量(累计做题数) 与 错误量(错题数)」自动计算：(累计做题数-错题数)/累计做题数，不提供手动修改
+  // 累计做题量 = 所有日期 records 的 done 之和（自动累加，第二天 = 昨日累计 + 今日）
+  const totalDone = moduleCumuDone(t.name);
+  // 错题数 = 自动错题本 + 手动录入错题，跨日自动累加
+  const totalErr2 = moduleCumuWrong(t.name);
+  // 正确率由系统自动计算：(累计做题数-错题数)/累计做题数
   const rate = totalDone>0 ? Math.round((totalDone-totalErr2)/totalDone*100) : null;
   const rateText = rate===null ? '—' : rate+'%';
 
   document.getElementById('stats-'+key).innerHTML = `
-    <div class="stat-box"><div class="stat-num clickable" onclick="openStatEdit('${key}','todayDone')">${tDone}</div><div class="stat-label">今日做题量</div></div>
-    <div class="stat-box"><div class="stat-num blue clickable" onclick="openStatEdit('${key}','cumu')">${totalDone}</div><div class="stat-label">累计做题量</div></div>
+    <div class="stat-box"><div class="stat-num clickable" onclick="openModuleStatEdit('${t.name}')">${tDone}</div><div class="stat-label">今日做题量</div></div>
+    <div class="stat-box"><div class="stat-num blue clickable" onclick="openModuleStatEdit('${t.name}')">${totalDone}</div><div class="stat-label">累计做题量</div></div>
     <div class="stat-box"><div class="stat-num green">${rateText}</div><div class="stat-label">正确率（自动）</div></div>
-    <div class="stat-box"><div class="stat-num orange clickable" onclick="openStatEdit('${key}','err')">${totalErr2}</div><div class="stat-label">错题数</div></div>
+    <div class="stat-box"><div class="stat-num orange clickable" onclick="openModuleStatEdit('${t.name}')">${totalErr2}</div><div class="stat-label">错题数</div></div>
   `;
   // 刷题入口（每行：20题 + 🔄换一批 = 重新选一批 20 题）
   document.getElementById('drill-'+key).innerHTML = t.drills.map(d=>{
@@ -5830,12 +5842,9 @@ function renderHome(){
   let cumuTotal = 0, cumuErr = 0;
   Object.keys(TOPICS).forEach(function(key){
     const t = TOPICS[key];
-    const m = getManual(key);
-    // 累计 = store.stats + 手动偏移（done/cumu 均为累计口径）
-    const mdone = (store.stats[key]||0) + (m.done||0) + (m.cumu||0);
-    const merr = store.errors.filter(e=>e.module===t.name).length + todayWrongOf(t.name) + (m.err||0);
-    cumuTotal += mdone;
-    cumuErr += merr;
+    // 累计做题数/错题数：跨日自动累加（与六大模块页口径一致）
+    cumuTotal += moduleCumuDone(t.name);
+    cumuErr  += moduleCumuWrong(t.name);
   });
   const overallRate = cumuTotal>0 ? Math.round((cumuTotal-cumuErr)/cumuTotal*100) : null;
   document.getElementById('overviewCumuTotal').textContent = cumuTotal;
@@ -5851,10 +5860,9 @@ function renderHome(){
   document.getElementById('overviewTopics').innerHTML = Object.keys(TOPICS).map(key=>{
     const t = TOPICS[key];
     const recs2 = recs.filter(r=>r.module===t.name);
-    const m = getManual(key);
-    // 累计 = store.stats + 手动偏移（done/cumu 均为累计口径，跨日保留）
-    const totalDone = (store.stats[key]||0) + (m.done||0) + (m.cumu||0);
-    const totalErr = store.errors.filter(e=>e.module===t.name).length + todayWrongOf(t.name) + (m.err||0);
+    // 累计做题数/错题数：跨日自动累加（与模块页口径一致）
+    const totalDone = moduleCumuDone(t.name);
+    const totalErr = moduleCumuWrong(t.name);
     const rate = totalDone>0 ? Math.round((totalDone-totalErr)/totalDone*100)+'%' : '—';
     return `<div class="topic-card" onclick="goPage('${key}')">
       <div class="topic-card-head">
@@ -6129,9 +6137,8 @@ const MODULE_COURSE = {
 function computeWeakModules(){
   const arr = Object.keys(TOPICS).map(function(key){
     const t = TOPICS[key];
-    const m = getManual(key);
-    const totalDone = (store.stats[key]||0) + (m.cumu||0);
-    const totalErr = store.errors.filter(function(e){return e.module===t.name;}).length + todayWrongOf(t.name) + (m.err||0);
+    const totalDone = moduleCumuDone(t.name);
+    const totalErr = moduleCumuWrong(t.name);
     const rate = totalDone>0 ? Math.round((totalDone-totalErr)/totalDone*100) : null;
     // 越薄弱分越高：低正确率 + 错题多
     const score = (rate===null?60:(100-rate)) + Math.min(totalErr,30)*1.2;
