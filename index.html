@@ -2059,6 +2059,7 @@ body.drawer-open .nav-cloud{display:none;}
         <div class="nav-item" data-page="plan"><span class="nav-icon">📝</span>每日计划</div>
         <div class="nav-item" data-page="checkin"><span class="nav-icon">📅</span>打卡日历</div>
         <div class="nav-item" data-page="stats"><span class="nav-icon">📈</span>时长统计</div>
+        <div class="nav-item" data-page="report"><span class="nav-icon">📊</span>学习报告</div>
       </div>
     </div>
 
@@ -2122,6 +2123,7 @@ body.drawer-open .nav-cloud{display:none;}
 
 <!-- ===== 知识闪卡 ===== -->
 <div class="page" id="page-flashcard"></div>
+<div class="page" id="page-report"></div>
 
 <!-- ===== 首页总览 ===== -->
 <div class="page active" id="page-home">
@@ -4002,6 +4004,112 @@ function flashResult(remember){
   renderFlashcards();
 }
 
+// ============ 周 / 月 学习报告 ============
+let reportTab = 'week'; // 'week' | 'month'
+
+function reportPeriodRange(){
+  const now = new Date();
+  const todayK = dateKey(now);
+  if(reportTab==='week'){
+    const day = now.getDay();                 // 0=周日..6=周六
+    const diffToMon = (day===0 ? 6 : day-1);  // 距本周一
+    const mon = new Date(now); mon.setDate(now.getDate()-diffToMon); mon.setHours(0,0,0,0);
+    const end = new Date(now); end.setHours(23,59,59,999);
+    return { start:new Date(mon), end:new Date(end), label: dateKey(mon)+' ~ '+todayK };
+  } else {
+    const y = now.getFullYear(), m = now.getMonth();
+    const s = new Date(y,m,1); const e = new Date(now); e.setHours(23,59,59,999);
+    return { start:new Date(s), end:new Date(e), label: dateKey(s)+' ~ '+todayK };
+  }
+}
+
+// 聚合某一天的学习数据
+function dailyAgg(k){
+  const recs = (store.records && store.records[k]) || [];
+  let done=0, right=0, manualWrong=0;
+  recs.forEach(function(r){ done+=(r.done||0); right+=(r.right||0); if(r.manual) manualWrong+=Math.max(0,(r.done||0)-(r.right||0)); });
+  const focusMin = (store.garden && store.garden.focusDays && store.garden.focusDays[k]) || 0;
+  const tomatoes = (store.focusLog||[]).filter(function(x){return x.date===k;}).length;
+  const errCount = (store.errors||[]).filter(function(e){return e.date===k;}).length;
+  const checkin = (store.checkins && store.checkins[k]>0) ? 1 : 0;
+  return { done:done, right:right, focusMin:focusMin, tomatoes:tomatoes, wrong:manualWrong+errCount, checkin:checkin, active:((focusMin>0||done>0)?1:0) };
+}
+
+function reportSwitch(t){ reportTab = t; renderReport(); }
+
+function renderReport(){
+  const el = document.getElementById('page-report');
+  if(!el) return;
+  const range = reportPeriodRange();
+  const days = [];
+  const cur = new Date(range.start);
+  while(cur <= range.end){
+    const k = dateKey(cur);
+    days.push({ k:k, a:dailyAgg(k) });
+    cur.setDate(cur.getDate()+1);
+  }
+  let totalFocus=0, totalDone=0, totalRight=0, totalWrong=0, totalTom=0, activeDays=0, checkinDays=0;
+  const focusByDay=[], labels=[];
+  days.forEach(function(d){
+    totalFocus += d.a.focusMin; totalDone += d.a.done; totalRight += d.a.right;
+    totalWrong += d.a.wrong; totalTom += d.a.tomatoes;
+    activeDays += d.a.active; checkinDays += d.a.checkin;
+    focusByDay.push(Math.round(d.a.focusMin/60*10)/10);          // 小时
+    labels.push(d.k.slice(5));                                    // MM-DD
+  });
+  const acc = totalDone>0 ? Math.round(totalRight/totalDone*1000)/10 : 0;
+  const focusH = Math.round(totalFocus/60*10)/10;
+  const avgFocus = activeDays>0 ? Math.round(totalFocus/60/activeDays*10)/10 : 0;
+  const avgDone = activeDays>0 ? Math.round(totalDone/activeDays) : 0;
+  const modNames = [], modDone = [];
+  for(const key in TOPICS){
+    const nm = TOPICS[key].name; let s=0;
+    days.forEach(function(d){ (store.records[d.k]||[]).forEach(function(r){ if(r.module===nm) s+=(r.done||0); }); });
+    modNames.push(nm); modDone.push(s);
+  }
+  const title = reportTab==='week' ? '📊 本周学习报告' : '📊 本月学习报告';
+  const wkCls = reportTab==='week' ? 'active' : '';
+  const moCls = reportTab==='month' ? 'active' : '';
+  let tip;
+  if(activeDays===0){
+    tip = '这段时间还没开始记录～点开「🍅 番茄钟」专注 25 分钟，或去考点模块做几道题，报告就会丰富起来 🌱';
+  } else {
+    tip = '你'+ (reportTab==='week'?'本周':'本月') +'学习了 <b>'+activeDays+'</b> 天，共专注 <b>'+focusH+'</b> 小时、做题 <b>'+totalDone+'</b> 道，正确率 <b>'+acc+'%</b>。';
+    if(acc>0 && acc<70) tip += ' 正确率还有提升空间，建议把错题整理进「❌ 错题记录」并走一遍「🧠 记忆复习」🧠';
+    else if(acc>=70) tip += ' 正确率不错，保持节奏，记得用「🃏 知识闪卡」巩固薄弱点 🌿';
+  }
+  const card = function(ic,val,lab){ return '<div style="flex:1;min-width:120px;background:#fff;border-radius:14px;padding:14px 12px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.05)">'
+    + '<div style="font-size:22px">'+ic+'</div><div style="font-size:22px;font-weight:700;color:#e8607d;margin:4px 0">'+val+'</div>'
+    + '<div style="font-size:12px;color:#888">'+lab+'</div></div>'; };
+  let html = '';
+  html += '<div style="padding:18px 18px 40px">';
+  html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><h2 style="margin:0;font-size:20px">'+title+'</h2>'
+    + '<span style="font-size:12px;color:#999">'+range.label+'</span></div>';
+  html += '<div style="display:inline-flex;background:#f3f0ec;border-radius:20px;padding:4px;margin-bottom:16px">'
+    + '<button class="btn btn-outline" style="border:0;background:'+(reportTab==='week'?'#e8607d':'transparent')+';color:'+(reportTab==='week'?'#fff':'#666')+';border-radius:16px;padding:6px 18px" onclick="reportSwitch(\'week\')">本周</button>'
+    + '<button class="btn btn-outline" style="border:0;background:'+(reportTab==='month'?'#e8607d':'transparent')+';color:'+(reportTab==='month'?'#fff':'#666')+';border-radius:16px;padding:6px 18px" onclick="reportSwitch(\'month\')">本月</button></div>';
+  html += '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px">'
+    + card('⏱️', focusH+'h', '专注总时长')
+    + card('📝', totalDone, '做题总数')
+    + card('✅', acc+'%', '正确率')
+    + card('🍅', totalTom, '完成番茄')
+    + card('📅', activeDays+'天', '活跃天数')
+    + card('❌', totalWrong, '错题数') + '</div>';
+  html += '<div style="background:#fff;border-radius:14px;padding:14px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.05)">'
+    + '<div style="font-weight:600;margin-bottom:8px">📈 每日专注时长（小时）</div><div style="height:200px"><canvas id="reportFocusChart"></canvas></div></div>';
+  html += '<div style="background:#fff;border-radius:14px;padding:14px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.05)">'
+    + '<div style="font-weight:600;margin-bottom:8px">🧩 各模块做题量</div><div style="height:220px"><canvas id="reportModuleChart"></canvas></div></div>';
+  html += '<div style="background:linear-gradient(135deg,#fff6f0,#fdeef4);border-radius:14px;padding:14px;font-size:14px;line-height:1.7;color:#555">'
+    + '<div style="font-weight:600;color:#e8607d;margin-bottom:6px">💡 点评与建议</div>'+tip
+    + '<div style="margin-top:8px;font-size:12px;color:#aaa">日均专注 '+avgFocus+'h · 日均做题 '+avgDone+' 道 · 打卡 '+checkinDays+' 天</div></div>';
+  html += '</div>';
+  el.innerHTML = html;
+  makeChart('reportFocusChart', { type:'bar', data:{ labels:labels, datasets:[{ label:'专注(小时)', data:focusByDay, backgroundColor:'#f6b4c4', borderRadius:6 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ y:{ beginAtZero:true } } } });
+  makeChart('reportModuleChart', { type:'bar', data:{ labels:modNames, datasets:[{ label:'做题数', data:modDone, backgroundColor:'#a8d5ba', borderRadius:6 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ y:{ beginAtZero:true } } } });
+}
+
 function onPageShow(page){
   if(page==='home'){ renderHome(); updateEbBadge(); }
   if(page==='plan') renderPlan();
@@ -4019,6 +4127,7 @@ function onPageShow(page){
   if(page==='review') renderReview();
   if(page==='ebbinghaus') renderEbbinghaus();
   if(page==='flashcard') renderFlashcards();
+  if(page==='report') renderReport();
   if(page==='diary') renderDiary();
   if(page==='garden'){ renderGarden(); maybeShowMorning(); }
   if(page==='secret') renderSecretGarden();
