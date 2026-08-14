@@ -2528,6 +2528,16 @@ body.drawer-open .nav-cloud{display:none;}
       </div>
     </div>
   </div>
+  <!-- 学习热力图 -->
+  <div class="card">
+    <div class="ts-head">
+      <div class="ts-head-title"><span class="dot"></span>学习热力图</div>
+      <div class="ts-head-date" id="hmTotal">近半年 -- 天</div>
+    </div>
+    <div class="heatmap-tip">每天颜色代表当天学习投入（专注分钟 + 做题数）</div>
+    <div class="heatmap-scroll"><div class="heatmap-grid" id="heatmapGrid"></div></div>
+    <div class="heatmap-legend"><span>少</span><span class="hm-cell"></span><span class="hm-cell l1"></span><span class="hm-cell l2"></span><span class="hm-cell l3"></span><span class="hm-cell l4"></span><span>多</span></div>
+  </div>
   <!-- 今日专注 -->
   <div class="card">
     <div class="ts-head">
@@ -6932,6 +6942,41 @@ function renderStats(){
   if(el('distDateRange')) el('distDateRange').textContent = getDistDateLabel();
   renderDistPie();
   renderFocusLog();
+  renderHeatmap();
+}
+
+// 学习热力图：聚合 checkins（专注分钟）+ records（做题数），GitHub 风格格子
+function renderHeatmap(){
+  const grid = document.getElementById('heatmapGrid');
+  if(!grid) return;
+  const WEEKS = 26; // 展示近半年
+  const today = new Date();
+  const start = new Date(today);
+  start.setDate(start.getDate() - (WEEKS*7 - 1));
+  const sd = start.getDay();
+  start.setDate(start.getDate() - sd); // 对齐到周日，便于按周成列
+  const cells = [];
+  const d = new Date(start);
+  let activeDays = 0, totalVal = 0;
+  for(let i=0;i<WEEKS*7;i++){
+    const k = dateKey(d);
+    const f = (store.checkins && store.checkins[k])||0;
+    const recs = (store.records && store.records[k])||[];
+    const done = recs.reduce(function(s,r){return s+(r.done||0);},0);
+    const val = f + done; // 综合学习投入（专注分 + 做题数，单位近似分钟）
+    if(val>0){ activeDays++; totalVal += val; }
+    let lvl = 0;
+    if(val>0) lvl=1;
+    if(val>=30) lvl=2;
+    if(val>=60) lvl=3;
+    if(val>=120) lvl=4;
+    const tip = val>0 ? (k+'：学习 '+val+'（专注'+f+'分·做题'+(val-f)+'）') : (k+'：未学习');
+    cells.push('<div class="hm-cell'+(lvl?' l'+lvl:'')+'" title="'+tip+'"></div>');
+    d.setDate(d.getDate()+1);
+  }
+  grid.innerHTML = cells.join('');
+  const te = document.getElementById('hmTotal');
+  if(te) te.textContent = '近半年 '+activeDays+' 天有学习';
 }
 
 // 格式化分钟为 "X小时Y分钟" 或 "X分钟"
