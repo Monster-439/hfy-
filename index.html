@@ -4116,12 +4116,12 @@ function renderReport(){
 
 // ============ 科目对应花 ============
 const SUBJECT_FLOWERS = {
-  common:   { id:'babybreath', name:'满天星', emoji:'✨', color:'#E6E1F2', language:'渺小却闪闪发光，像认真刷题的你' },
-  politics: { id:'sunflower',  name:'向日葵', emoji:'🌻', color:'#F4C04E', language:'永远朝着光的方向，影子就会落在身后' },
-  verbal:   { id:'gardenia',   name:'栀子花', emoji:'🤍', color:'#F7F4E9', language:'保持内心的干净与从容，自有芬芳' },
-  reasoning: { id:'iris',      name:'鸢尾',   emoji:'🦋', color:'#6A5ACD', language:'在风雨里也站成自己的姿态' },
-  quantity: { id:'plumbago',   name:'蓝雪花', emoji:'❄️', color:'#6B8DD4', language:'不必慌张赶路，按自己的节奏生长' },
-  data:     { id:'tulip',     name:'郁金香', emoji:'🌷', color:'#E891B5', language:'认真准备的人，终会遇到突如其来的惊喜' },
+  common:   { id:'udumbara',   name:'优昙婆罗花', emoji:'💮', color:'#D9C9A3', language:'千年一现的祥瑞，默默积累的人终会等到自己的花期' },
+  politics: { id:'kinabalu',   name:'吉兰巴鲁金兰', emoji:'🌟', color:'#D4AF37', language:'黄金般稀有的价值，越难越显珍贵' },
+  verbal:   { id:'jadevine',   name:'绿玉藤', emoji:'💚', color:'#1FA882', language:'罕见的玉色，自成一道不随波逐流的语言' },
+  reasoning:{ id:'ghostorchid',name:'鬼兰', emoji:'🌫️', color:'#9FB6C9', language:'在幽暗里也活得骄傲而独立，独立思考最稀有' },
+  quantity: { id:'nongke',     name:'深圳农科兰', emoji:'🌺', color:'#B5678F', language:'倾注心血的栽培终成无价，数字里也藏着耐心' },
+  data:     { id:'protea',     name:'帝王花', emoji:'🪷', color:'#C77DA0', language:'王者之姿，扛得住风雨也开得出盛大' },
 };
 const SUBJ_TARGET = 150; // 某科累计做题达到该值即满成长（100%）
 
@@ -4160,7 +4160,7 @@ function renderSubjFlower(){
   }
   let html = '<div style="padding:18px 18px 40px">';
   html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><h2 style="margin:0;font-size:20px">🌺 科目花园</h2>'
-    + '<span style="font-size:12px;color:#999">六科各有一朵花，做题越多长得越旺</span></div>';
+    + '<span style="font-size:12px;color:#999">六科各有一朵稀有专属花，做题越多长得越旺（商店买不到）</span></div>';
   html += '<div style="font-size:12px;color:#e8607d;margin:4px 0 14px">💧 当前水滴：<b>'+drops+'</b> · 已绽放 '+bloomedCount+'/6 科'
     + (bloomedCount>=6 ? ' 🎉 全科绽放！' : '') + '</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">'+grid.join('')+'</div>';
