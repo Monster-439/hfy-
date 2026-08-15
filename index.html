@@ -3506,6 +3506,12 @@ function moduleStudyDays(name){
   Object.keys(recs).forEach(function(d){ (recs[d]||[]).forEach(function(r){ if(r.module===name && (r.done||0)>0) set[d]=1; }); });
   return Object.keys(set).length;
 }
+// 该科最近一次做题的日期（YYYY-MM-DD），用于科目花枯萎判定
+function moduleLastStudyDate(name){
+  let last=''; const recs=store.records||{};
+  Object.keys(recs).forEach(function(d){ (recs[d]||[]).forEach(function(r){ if(r.module===name && (r.done||0)>0){ if(d>last) last=d; } }); });
+  return last;
+}
 // 累计错题数 = 自动错题本(store.errors) + 所有日期手动记录的(做题-正确)之和（跨日自动累加）
 function moduleCumuWrong(name){
   let w=0; const recs=store.records||{};
@@ -4201,6 +4207,7 @@ const SUBJECT_FLOWERS = {
 const SUBJ_TARGET = 350;     // 某科累计做题量门槛（配合天数门槛）
 const SUBJ_BONUS_CAP = 25;   // 浇水加成封顶：浇水最多贡献 25% 成长
 const SUBJ_REQ_DAYS = 30;    // 该科需在不同天数学习满此值（防止几天集中爆刷就绽放）
+const SUBJ_WITHER_DAYS = 3;  // 该科连续 N 天没做题 → 花朵枯萎（成长按天衰减，最多掉 50%，做题即恢复）
 
 function subjGrowth(key){
   const name = TOPICS[key].name;
@@ -4212,7 +4219,15 @@ function subjGrowth(key){
   const volGrowth = Math.min(100, volG + bonus);
   const daysG = Math.min(100, Math.round(days/SUBJ_REQ_DAYS*100));   // 天数百分比
   const growth = Math.min(volGrowth, daysG); // 双门槛：题量够 且 分散学习够久，取较小值
-  return { done:done, days:days, growth:growth, volG:volG, daysG:daysG, bonus:bonus, bonusRaw:bonusRaw };
+  // 枯萎判定：连续 N 天没做题 → 成长按天衰减（最多掉 50%），做题即恢复（浇水不能解枯萎）
+  const lastStudy = moduleLastStudyDate(name);
+  const gap = lastStudy ? daysBetween(lastStudy, todayKey()) : 999;
+  const witherDays = Math.max(0, gap - SUBJ_WITHER_DAYS);
+  const withered = witherDays > 0;
+  const penalty = Math.min(50, witherDays * 10);
+  const displayGrowth = Math.max(0, growth - penalty);
+  return { done:done, days:days, growth:growth, volG:volG, daysG:daysG, bonus:bonus, bonusRaw:bonusRaw,
+           lastStudy:lastStudy, gap:gap, withered:withered, witherDays:witherDays, displayGrowth:displayGrowth };
 }
 
 function checkSubjBloom(){
@@ -4221,7 +4236,7 @@ function checkSubjBloom(){
   let newly = [];
   for(const key in TOPICS){
     const f = SUBJECT_FLOWERS[key]; if(!f) continue;
-    if(subjGrowth(key).growth >= 100 && !(g.subjectBloom && g.subjectBloom[key])){
+    if(subjGrowth(key).displayGrowth >= 100 && !(g.subjectBloom && g.subjectBloom[key])){
       g.subjectBloom = g.subjectBloom || {};
       g.subjectBloom[key] = true;
       newly.push(TOPICS[key].name);
@@ -4253,14 +4268,16 @@ function renderSubjFlower(){
   for(const key in TOPICS){
     const f = SUBJECT_FLOWERS[key]; if(!f) continue;
     const g = subjGrowth(key);
-    const bloomed = (store.garden.subjectBloom && store.garden.subjectBloom[key]) || (g.growth>=100);
+    const disp = g.displayGrowth;
+    const bloomed = (store.garden.subjectBloom && store.garden.subjectBloom[key]) || (disp>=100);
     if(bloomed) bloomedCount++;
-    const eSize = 38 + Math.round(g.growth/100*34); // 字号随成长 38~72
-    const ring = g.growth;
+    const eSize = 38 + Math.round(disp/100*34); // 字号随成长 38~72
+    const ring = disp;
     const card = '<div style="background:#fff;border-radius:16px;padding:16px 12px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.05);position:relative">'
       + (bloomed ? '<div style="position:absolute;top:8px;right:10px;font-size:12px;color:#e8607d">🌸 已绽放</div>' : '')
+      + (g.withered ? '<div style="position:absolute;top:8px;left:10px;font-size:12px;color:#b5894e">🥀 蔫了</div>' : '')
       + '<div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:118px;">'
-      +   '<div style="font-size:'+eSize+'px;line-height:1;filter:'+(g.growth<30?'grayscale(0.5)':'none')+'">'+f.emoji+'</div>'
+      +   '<div style="font-size:'+eSize+'px;line-height:1;filter:'+((disp<30||g.withered)?'grayscale(0.6)':'none')+'">'+f.emoji+'</div>'
       +   '<div style="width:4px;height:12px;background:#7FB069;"></div>'
       +   '<div style="width:64px;height:9px;background:#D9A86C;border-radius:6px 6px 0 0;"></div>'
       +   '<div style="width:56px;height:22px;background:#E7BE8A;clip-path:polygon(10% 0,90% 0,80% 100%,20% 100%);border-radius:0 0 6px 6px;"></div>'
@@ -4273,8 +4290,9 @@ function renderSubjFlower(){
       + '<div style="height:6px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:2px"><div style="height:100%;width:'+g.daysG+'%;background:#7FB069;border-radius:6px"></div></div>'
       + '<div style="font-size:10px;color:#bbb;margin-bottom:6px">天数 '+g.daysG+'%（满 '+SUBJ_REQ_DAYS+' 天）</div>'
       + '<div style="font-size:11px;color:#aaa;margin:2px 0 8px">已做 '+g.done+' 道 · 学习 '+g.days+'/'+SUBJ_REQ_DAYS+' 天</div>'
+      + (g.withered ? '<div style="font-size:11px;color:#c08a3e;margin:0 0 8px">🥀 已 '+g.witherDays+' 天没刷题，花朵枯萎中——来做题即可恢复精神</div>' : '')
       + '<div style="font-size:11px;color:#bbb;line-height:1.5;min-height:30px">'+f.language+'</div>'
-      + '<button class="btn btn-outline" style="margin-top:8px;padding:5px 14px;font-size:13px" onclick="waterSubjFlower(\''+key+'\')">💧 浇水(+'+Math.min(3,100-g.growth, SUBJ_BONUS_CAP-((store.garden.subjectBonus&&store.garden.subjectBonus[key])||0))+')</button>'
+      + '<button class="btn btn-outline" style="margin-top:8px;padding:5px 14px;font-size:13px" onclick="waterSubjFlower(\''+key+'\')">💧 浇水(+'+Math.min(3,100-disp, SUBJ_BONUS_CAP-((store.garden.subjectBonus&&store.garden.subjectBonus[key])||0))+')</button>'
       + '</div>';
     grid.push(card);
   }
@@ -4285,7 +4303,7 @@ function renderSubjFlower(){
     + (bloomedCount>=6 ? ' 🎉 全科绽放！' : '') + '</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">'+grid.join('')+'</div>';
   html += '<div style="margin-top:16px;font-size:12px;color:#aaa;line-height:1.7;background:#fff;border-radius:12px;padding:12px">'
-    + '🌱 成长 = 双门槛取低：①题量（满 '+SUBJ_TARGET+' 道即 100%）+ 浇水加成（单次 +3、封顶 25%）；②该科在 <b>'+SUBJ_REQ_DAYS+' 个不同天数</b>学习（防止几天集中爆刷）。两者都满才绽放——想快也快不了，得细水长流。每朵花都对应一句陪你备考的花语。'
+    + '🌱 成长 = 双门槛取低：①题量（满 '+SUBJ_TARGET+' 道即 100%）+ 浇水加成（单次 +3、封顶 25%）；②该科在 <b>'+SUBJ_REQ_DAYS+' 个不同天数</b>学习（防止几天集中爆刷）。两者都满才绽放——想快也快不了，得细水长流。⚠️ 连续 <b>'+SUBJ_WITHER_DAYS+' 天没刷题</b>，花朵会枯萎（成长按天掉、最多掉一半），来做题即恢复精神，浇水解不了枯萎。每朵花都对应一句陪你备考的花语。'
     + '</div>';
   html += '</div>';
   el.innerHTML = html;
@@ -4296,15 +4314,15 @@ function waterSubjFlower(key){
   const drops = store.garden.drops||0;
   if(drops < 1){ toast('水滴不足，先去「🍅 番茄钟」专注攒水滴 💧'); return; }
   const g = subjGrowth(key);
-  if(g.growth >= 100){ toast('「'+TOPICS[key].name+'」已经绽放啦 🌸'); return; }
+  if(g.displayGrowth >= 100){ toast('「'+TOPICS[key].name+'」已经绽放啦 🌸'); return; }
   const curBonus = (store.garden.subjectBonus && store.garden.subjectBonus[key]) || 0;
   if(curBonus >= SUBJ_BONUS_CAP){ toast('「'+TOPICS[key].name+'」的浇水加成已封顶，多做该科题才能继续长大 🌿'); renderSubjFlower(); return; }
-  const add = Math.min(3, 100 - g.growth, SUBJ_BONUS_CAP - curBonus);
+  const add = Math.min(3, 100 - g.displayGrowth, SUBJ_BONUS_CAP - curBonus);
   store.garden.drops = drops - 1;
   store.garden.subjectBonus = store.garden.subjectBonus || {};
   store.garden.subjectBonus[key] = (store.garden.subjectBonus[key]||0) + add;
   saveStore();
-  const nowBloom = subjGrowth(key).growth >= 100;
+  const nowBloom = subjGrowth(key).displayGrowth >= 100;
   if(nowBloom){ checkSubjBloom(); }
   else toast('给「'+TOPICS[key].name+'」浇了水，它更精神了 💧🌱');
   renderSubjFlower();
@@ -7431,9 +7449,11 @@ function doCheckin(reason){
     store.checkinReasons = store.checkinReasons||{};
     store.checkinReasons[selectedDate] = reason.trim();
   }
-  // 今日首次打卡 → 晒太阳回阳光
+  // 今日首次打卡 → 晒太阳回阳光；并记录「日历打卡日」，治愈相思病
   if(selectedDate===todayKey()){
     const g = store.garden;
+    g.lastCalCheckin = todayKey();
+    if(g.gardenEvent && g.gardenEvent.type==='away'){ g.gardenEvent = {}; }
     if(g.lastSunDay !== todayKey()){ g.lastSunDay = todayKey(); addSunlight(5,'打卡'); }
   }
   saveStore();
@@ -11049,6 +11069,7 @@ const BLOOM_TITLES = [
   '🪷 「{n}」养成成功，继续加油呀！'
 ];
 const COIN_PER_CHECKIN = 7; // 每累计 7 个专注打卡日送 1 金币
+const AWAY_DAYS = 3;        // 我的小花：连续 N 天没来「打卡日历」打卡 → 相思病（成长变慢），去打卡即可治愈
 
 // ===== 成就墙 + 抽卡养花 =====
 const ACHIEVEMENTS = [
@@ -11247,6 +11268,7 @@ function ensureGarden(){
   g.weatherCode = g.weatherCode||null;             // 真实天气码(WMO)
   g.weatherPending = g.weatherPending||false;      // 切换城市后是否正在获取
   g.gardenEvent = g.gardenEvent||{};               // {type, since} 当前进行中的事件
+  g.lastCalCheckin = g.lastCalCheckin||'';         // 最近一次「日历打卡」日期（用于相思病判定，与浇水/专注区分）
   g.dryDays = g.dryDays||0;                        // 连续未浇水天数
   g.healthyStreak = g.healthyStreak||0;            // 连续健康天数
   g.buffs = g.buffs||{};                            // 当日防护状态：遮阳⛱️/保暖🧣（存日期，跨天清空）
@@ -11387,6 +11409,8 @@ function renderGarden(){
   const phase = GROWTH_PHASES[phaseIdx];
   // 花园状态：按最后一次照料/专注距今天数判断
   const days = g.lastCare ? daysBetween(g.lastCare, todayKey()) : 99;
+  // 相思病判定：按最后一次「日历打卡」距今天数判断（与干旱=没浇水区分）
+  const calGap = g.lastCalCheckin ? daysBetween(g.lastCalCheckin, todayKey()) : 99;
   // ── 跨天结算：自然衰减 + 天气 + 干旱 + 健康连续（每天只结算一次）──
   if(g._lastTick !== todayKey()){
     let ticked = false;
@@ -11420,6 +11444,8 @@ function renderGarden(){
     if(g.weather==='rain' && g.gardenEvent && g.gardenEvent.type==='dry'){ g.gardenEvent = {}; }
     // 干旱判定：连续 2 天未浇水 → 触发干旱事件（成长减半）；但雨天不会干旱
     if(days>=2 && !g.gardenEvent.type && g.weather!=='rain'){ g.gardenEvent = {type:'dry', since:todayKey()}; }
+    // 相思病：连续 N 天没来「打卡日历」打卡 → 小花想你生病（成长变慢）；与干旱(没浇水)区分，治愈=去打卡
+    else if(calGap>=AWAY_DAYS && !g.gardenEvent.type){ g.gardenEvent = {type:'away', since:todayKey()}; }
     // 健康连续天数：健康度>=70 才算"养得好"
     if(g.health>=70){ g.healthyStreak = (g.healthyStreak||0)+1; } else { g.healthyStreak = 0; }
     g._lastTick = todayKey();
@@ -11432,6 +11458,7 @@ function renderGarden(){
   if(evType==='bug'){ statusEmoji='🐛'; statusText='有虫虫在咬我了，快帮我除虫虫！'; statusClass='warn'; }
   else if(evType==='root'){ statusEmoji='💧'; statusText='喝水喝太多，脚脚烂掉啦～用控根剂救我'; statusClass='warn'; }
   else if(evType==='dry'){ statusEmoji='🏜️'; statusText='渴渴渴～快给我喝点水水'; statusClass='warn'; }
+  else if(evType==='away'){ statusEmoji='💔'; statusText='你 '+calGap+' 天没来打卡，小花想你想到生病啦～快去「📅 打卡日历」陪它'; statusClass='warn'; }
   else if(days===0){ statusEmoji='🌟'; statusText='我今天状态超棒！'; statusClass='good'; }
   else if(days===1){ statusEmoji='😊'; statusText='还不错，记得浇水哦'; statusClass='good'; }
   else if(days===2){ statusEmoji='💧'; statusText='有点渴了，快照顾我'; }
@@ -11531,6 +11558,7 @@ function renderGardenEvent(){
     bug:  {t:'🐛 长虫了！', sub:'花花被小虫子盯上了，成长已暂停', emoji:'🐛', c:'#E8919B', cure:'med',  med:'bug'},
     root: {t:'💧 浇水太多烂根！', sub:'水浇太多，根部泡坏了，成长已暂停', emoji:'💧', c:'#7FB069', cure:'med',  med:'root'},
     dry:  {t:'🏜️ 干旱了！', sub:'太久没浇水，花花渴坏了，成长减半', emoji:'🏜️', c:'#378ADD', cure:'water'},
+    away: {t:'💔 相思病！', sub:'太久没来打卡，小花想你想到生病了，成长变慢', emoji:'💔', c:'#B98AD1', cure:'checkin'},
   }[ev.type];
   if(!ev.type){
     g._eventNotified = '';
@@ -11544,6 +11572,9 @@ function renderGardenEvent(){
     if(def.cure==='water'){
       badge.innerHTML = def.emoji+' '+def.t+' · 点我去浇水化解';
       badge.onclick = ()=>focusWaterHint();
+    } else if(def.cure==='checkin'){
+      badge.innerHTML = def.emoji+' '+def.t+' · 点我去打卡陪伴 📅';
+      badge.onclick = ()=>goCheckinHint();
     } else {
       const d = ITEM_DEFS[def.med];
       const have = (g.meds[def.med]||0)>0;
@@ -11562,8 +11593,8 @@ function renderGardenEvent(){
 function applyEventVisual(type){
   const stage = document.getElementById('flowerStage');
   if(!stage) return;
-  stage.classList.remove('event-bug','event-dry','event-root');
-  stage.querySelectorAll('.bug-crawl,.pot-crack').forEach(e=>e.remove());
+  stage.classList.remove('event-bug','event-dry','event-root','event-away');
+  stage.querySelectorAll('.bug-crawl,.pot-crack,.away-heart').forEach(e=>e.remove());
   if(type==='bug'){
     stage.classList.add('event-bug');
     const spots = [[28,58],[92,72],[54,40]];
@@ -11582,6 +11613,11 @@ function applyEventVisual(type){
     crack.className = 'pot-crack';
     crack.innerHTML = '<svg viewBox="0 0 120 55"><path d="M30 2 L42 20 L33 36 L48 54 M72 2 L62 18 L74 33 L58 54 M52 6 L57 30 L50 54" stroke="#7a4a2a" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>';
     stage.appendChild(crack);
+  } else if(type==='away'){
+    stage.classList.add('event-away');
+    const h = document.createElement('div');
+    h.className = 'away-heart'; h.textContent = '💔';
+    stage.appendChild(h);
   }
 }
 
@@ -11592,10 +11628,13 @@ function showGardenEventPopup(ev){
     bug:  {t:'🐛 长虫了！', sub:'花花被小虫子盯上了，成长已暂停，赶紧除虫才能继续长大～', emoji:'🐛', c:'#E8919B', cure:'med', med:'bug'},
     root: {t:'💧 浇水太多烂根！', sub:'水浇太多，根部泡坏了，成长已暂停，用控根剂救一下吧～', emoji:'💧', c:'#7FB069', cure:'med', med:'root'},
     dry:  {t:'🏜️ 干旱了！', sub:'太久没浇水，花花渴坏了，成长直接减半，快去浇水！', emoji:'🏜️', c:'#378ADD', cure:'water'},
+    away: {t:'💔 相思病！', sub:'太久没来打卡，小花想你想到生病了，成长变慢～去「📅 打卡日历」打一次卡陪陪它就好啦！', emoji:'💔', c:'#B98AD1', cure:'checkin'},
   }[ev.type] || {t:'有状况', sub:'', emoji:'⚠️', c:'#E8919B', cure:'med', med:'bug'};
   let btnHtml;
   if(def.cure==='water'){
     btnHtml = '<button class="btn btn-outline ge-btn" onclick="focusWaterHint()">去浇水化解 💧</button>';
+  } else if(def.cure==='checkin'){
+    btnHtml = '<button class="btn btn-outline ge-btn" onclick="goCheckinHint()">去打卡陪伴 📅</button>';
   } else {
     const d = ITEM_DEFS[def.med];
     const have = (g.meds[def.med]||0)>0;
@@ -11712,18 +11751,19 @@ function addSunlight(n, reason){
 const EVENT_INFO = {
   bug:  {t:'🐛 长虫了！',      cure:'med',  med:'bug'},   // 除虫药
   root: {t:'💧 浇水太多烂根！', cure:'med',  med:'root'},  // 控根剂
-  dry:  {t:'🏜️ 干旱了！',       cure:'water'}            // 浇水化解（不再用营养液）
+  dry:  {t:'🏜️ 干旱了！',       cure:'water'},           // 浇水化解（不再用营养液）
+  away: {t:'💔 相思病！',       cure:'checkin'}           // 去打卡日历打一次卡治愈
 };
 // 仅清除事件花上特效（不重绘 SVG，保留正在播放的用药动画）
 function clearEventVisual(){
   const stage = document.getElementById('flowerStage');
   if(!stage) return;
-  stage.classList.remove('event-bug','event-dry','event-root');
+  stage.classList.remove('event-bug','event-dry','event-root','event-away');
   stage.querySelectorAll('.bug-crawl').forEach(e=>{
     e.classList.add('bug-fly');                       // 除虫后虫子飞走
     setTimeout(()=>{ if(e.parentNode) e.parentNode.removeChild(e); }, 720);
   });
-  stage.querySelectorAll('.pot-crack').forEach(e=>e.remove());
+  stage.querySelectorAll('.pot-crack,.away-heart').forEach(e=>e.remove());
 }
 // ── 用药化解事件（必须对症下药）──
 function useMed(medKey){
@@ -11731,6 +11771,7 @@ function useMed(medKey){
   const g = store.garden;
   if((g.meds[medKey]||0)<=0){ toast('没有'+ITEM_DEFS[medKey].name+'，去养护背包合成或商店购买～'); return; }
   if(!g.gardenEvent.type){ toast('当前没有需要化解的事件哦'); return; }
+  if(g.gardenEvent.type==='away'){ toast('相思病不用吃药～去「打卡日历」打一次卡就好啦 📅'); return; }
   const info = EVENT_INFO[g.gardenEvent.type];
   if(info.cure==='water'){
     toast('「'+ITEM_DEFS[medKey].name+'」对干旱没用哦，去浇水就能化解～');
@@ -11767,6 +11808,7 @@ function growthEfficiency(){
   const h = g.health||0;
   eff *= (h>=60 ? 1.0 : (h>=40 ? 0.85 : 0.7));  // 健康差 → 成长打折
   if(g.gardenEvent.type==='dry') eff *= 0.5;    // 干旱额外减半
+  if(g.gardenEvent.type==='away') eff *= 0.5;   // 相思病：想你想到没精神，成长变慢
   return eff;
 }
 function boostGrowth(amount, label){
@@ -11844,6 +11886,12 @@ function focusWaterHint(){
   const wt = document.getElementById('waterTiers');
   if(wt){ wt.scrollIntoView({behavior:'smooth', block:'center'}); wt.classList.add('wt-flash'); setTimeout(()=>wt.classList.remove('wt-flash'),1200); }
   toast('💧 点下面的浇水档位给小花喝口水，干旱就化解啦～');
+}
+// ── 相思病：去「打卡日历」打一次卡即可治愈 ──
+function goCheckinHint(){
+  closeGardenEventPopup();
+  onPageShow('checkin');
+  toast('📅 去「打卡日历」打一次卡，小花的相思病就好啦～');
 }
 // ── 花朵复活（稀有道具）：仅当花蔫了/冻坏时可用 ──
 function useRevive(){
@@ -14284,6 +14332,9 @@ function renderQuizComplete(){
 /* 烂根：花盆破裂裂纹 */
 .pot-crack{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);width:120px;height:55px;z-index:6;pointer-events:none;}
 .pot-crack svg{width:100%;height:100%;}
+.away-heart{position:absolute;left:62%;top:14px;font-size:22px;pointer-events:none;z-index:7;animation:awayHeart 2.2s ease-in-out infinite;}
+@keyframes awayHeart{0%,100%{transform:translateY(0) rotate(-6deg);opacity:.85;}50%{transform:translateY(-7px) rotate(6deg);opacity:1;}}
+.garden-stage.event-away{filter:saturate(.8) brightness(.97);}
 .garden-stage.event-root svg{transform:rotate(-7deg) translateY(3px);transform-origin:50% 92%;transition:transform .6s;}
 .garden-stage.event-root::after{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 85%, rgba(120,70,40,.25), transparent 55%);animation:rootRot 1.6s ease-in-out infinite;pointer-events:none;}
 @keyframes rootRot{0%,100%{opacity:.5;}50%{opacity:.9;}}
