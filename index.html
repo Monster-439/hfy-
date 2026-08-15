@@ -3500,6 +3500,12 @@ function moduleCumuDone(name){
   Object.keys(recs).forEach(function(d){ (recs[d]||[]).forEach(function(r){ if(r.module===name) s+=(r.done||0); }); });
   return s;
 }
+// 该科在多少「不同天数」有过做题记录（用于科目花天数门槛，防止几天集中爆刷）
+function moduleStudyDays(name){
+  const set = {}; const recs = store.records||{};
+  Object.keys(recs).forEach(function(d){ (recs[d]||[]).forEach(function(r){ if(r.module===name && (r.done||0)>0) set[d]=1; }); });
+  return Object.keys(set).length;
+}
 // 累计错题数 = 自动错题本(store.errors) + 所有日期手动记录的(做题-正确)之和（跨日自动累加）
 function moduleCumuWrong(name){
   let w=0; const recs=store.records||{};
@@ -4192,15 +4198,21 @@ const SUBJECT_FLOWERS = {
   quantity: { id:'nongke',     name:'深圳农科兰', emoji:'🌺', color:'#B5678F', language:'倾注心血的栽培终成无价，数字里也藏着耐心' },
   data:     { id:'protea',     name:'帝王花', emoji:'🪷', color:'#C77DA0', language:'王者之姿，扛得住风雨也开得出盛大' },
 };
-const SUBJ_TARGET = 350; // 某科累计做题达到该值即满成长（100%）——提高门槛，避免轻易绽放
-const SUBJ_BONUS_CAP = 25; // 浇水加成封顶：浇水最多贡献 25% 成长，剩余 75% 必须靠真实做题
+const SUBJ_TARGET = 350;     // 某科累计做题量门槛（配合天数门槛）
+const SUBJ_BONUS_CAP = 25;   // 浇水加成封顶：浇水最多贡献 25% 成长
+const SUBJ_REQ_DAYS = 30;    // 该科需在不同天数学习满此值（防止几天集中爆刷就绽放）
 
 function subjGrowth(key){
-  const done = moduleCumuDone(TOPICS[key].name);
-  const studyG = Math.min(100, Math.round(done/SUBJ_TARGET*100));
+  const name = TOPICS[key].name;
+  const done = moduleCumuDone(name);
+  const days = moduleStudyDays(name);
+  const volG = Math.min(100, Math.round(done/SUBJ_TARGET*100));      // 题量百分比
   const bonusRaw = (store.garden.subjectBonus && store.garden.subjectBonus[key]) || 0;
-  const bonus = Math.min(SUBJ_BONUS_CAP, bonusRaw); // 封顶，浇水顶多帮 25%
-  return { done:done, growth:Math.min(100, studyG+bonus), studyG:studyG, bonus:bonus, bonusRaw:bonusRaw };
+  const bonus = Math.min(SUBJ_BONUS_CAP, bonusRaw);                  // 浇水封顶
+  const volGrowth = Math.min(100, volG + bonus);
+  const daysG = Math.min(100, Math.round(days/SUBJ_REQ_DAYS*100));   // 天数百分比
+  const growth = Math.min(volGrowth, daysG); // 双门槛：题量够 且 分散学习够久，取较小值
+  return { done:done, days:days, growth:growth, volG:volG, daysG:daysG, bonus:bonus, bonusRaw:bonusRaw };
 }
 
 function checkSubjBloom(){
@@ -4255,9 +4267,12 @@ function renderSubjFlower(){
       + '</div>'
       + '<div style="font-weight:700;margin:6px 0 2px;color:#444">'+TOPICS[key].name+'</div>'
       + '<div style="font-size:12px;color:#999;margin-bottom:8px">'+f.name+'</div>'
-      + '<div style="height:8px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:'+ring+'%;background:linear-gradient(90deg,'+f.color+',#e8607d);border-radius:6px"></div></div>'
-      + '<div style="font-size:12px;color:#e8607d;font-weight:600">成长 '+ring+'%</div>'
-      + '<div style="font-size:11px;color:#aaa;margin:2px 0 8px">已做题 '+g.done+' 道 · 满成长需 '+SUBJ_TARGET+' 道</div>'
+      + '<div style="font-size:12px;color:#e8607d;font-weight:600;margin-bottom:3px">成长 '+ring+'%（双门槛取低）</div>'
+      + '<div style="height:6px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:2px"><div style="height:100%;width:'+g.volG+'%;background:'+f.color+';border-radius:6px"></div></div>'
+      + '<div style="font-size:10px;color:#bbb;margin-bottom:4px">题量 '+g.volG+'%（满 '+SUBJ_TARGET+' 道）</div>'
+      + '<div style="height:6px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:2px"><div style="height:100%;width:'+g.daysG+'%;background:#7FB069;border-radius:6px"></div></div>'
+      + '<div style="font-size:10px;color:#bbb;margin-bottom:6px">天数 '+g.daysG+'%（满 '+SUBJ_REQ_DAYS+' 天）</div>'
+      + '<div style="font-size:11px;color:#aaa;margin:2px 0 8px">已做 '+g.done+' 道 · 学习 '+g.days+'/'+SUBJ_REQ_DAYS+' 天</div>'
       + '<div style="font-size:11px;color:#bbb;line-height:1.5;min-height:30px">'+f.language+'</div>'
       + '<button class="btn btn-outline" style="margin-top:8px;padding:5px 14px;font-size:13px" onclick="waterSubjFlower(\''+key+'\')">💧 浇水(+'+Math.min(3,100-g.growth, SUBJ_BONUS_CAP-((store.garden.subjectBonus&&store.garden.subjectBonus[key])||0))+')</button>'
       + '</div>';
@@ -4270,7 +4285,7 @@ function renderSubjFlower(){
     + (bloomedCount>=6 ? ' 🎉 全科绽放！' : '') + '</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">'+grid.join('')+'</div>';
   html += '<div style="margin-top:16px;font-size:12px;color:#aaa;line-height:1.7;background:#fff;border-radius:12px;padding:12px">'
-    + '🌱 成长值 = 该科累计做题量（满 '+SUBJ_TARGET+' 道即 100%）；浇水每次 +3 成长（消耗 1 水滴），但浇水加成最多只到 25%，剩余 75% 必须靠真实做题才能绽放。每朵花都对应一句陪你备考的花语。'
+    + '🌱 成长 = 双门槛取低：①题量（满 '+SUBJ_TARGET+' 道即 100%）+ 浇水加成（单次 +3、封顶 25%）；②该科在 <b>'+SUBJ_REQ_DAYS+' 个不同天数</b>学习（防止几天集中爆刷）。两者都满才绽放——想快也快不了，得细水长流。每朵花都对应一句陪你备考的花语。'
     + '</div>';
   html += '</div>';
   el.innerHTML = html;
