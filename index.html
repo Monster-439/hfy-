@@ -1980,6 +1980,32 @@ body.drawer-open .nav-cloud{display:none;}
 
 .review-side-tip{margin-top:10px;font-size:11px;color:#A98A98;line-height:1.7;text-align:center;}
 
+/* ===== 今日建议分时段排程 V2 ===== */
+.adv-blocks{display:flex;flex-direction:column;gap:12px;margin-bottom:14px;}
+.adv-block{background:linear-gradient(135deg,rgba(255,245,247,0.85),rgba(252,231,240,0.6));border:1px solid #FAD0DD;border-radius:14px;padding:12px 14px;box-shadow:0 3px 10px rgba(232,160,190,0.12);}
+.adv-block-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px dashed rgba(212,95,132,0.18);}
+.adv-block-emoji{font-size:18px;line-height:1;}
+.adv-block-time{font-size:11px;color:#D35F84;font-weight:700;background:#FFE4EC;padding:3px 8px;border-radius:8px;letter-spacing:0.3px;}
+.adv-block-label{font-size:14px;font-weight:700;color:#B46A7E;letter-spacing:0.5px;}
+.adv-block-items{display:flex;flex-direction:column;gap:9px;}
+.adv-item{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;background:rgba(255,255,255,0.7);border-radius:10px;border:1px solid rgba(250,208,221,0.6);}
+.adv-item-tag{flex:0 0 auto;font-size:11px;font-weight:700;color:#fff;background:linear-gradient(135deg,#E8919B,#D35F84);padding:4px 8px;border-radius:8px;align-self:flex-start;margin-top:2px;letter-spacing:0.3px;}
+.adv-item-body{flex:1;min-width:0;}
+.adv-item-text{font-size:13px;color:#6E5560;line-height:1.75;font-weight:600;}
+.adv-item-reason{font-size:11px;color:#A98A98;line-height:1.65;margin-top:3px;padding-left:8px;border-left:2px solid #FAD0DD;}
+
+/* 状态调整卡片 */
+.adv-statecard{background:linear-gradient(135deg,#FFF8F0,#FFEFE0);border:1px solid #F8D8B0;border-radius:14px;padding:12px 14px;margin-bottom:14px;}
+.adv-state-row{display:flex;gap:10px;align-items:flex-start;padding:7px 0;font-size:12.5px;color:#6E5560;line-height:1.7;}
+.adv-state-row + .adv-state-row{border-top:1px dashed rgba(232,160,190,0.18);padding-top:9px;margin-top:4px;}
+.adv-state-icon{flex:0 0 22px;font-size:16px;line-height:1.4;text-align:center;}
+.adv-state-row div{flex:1;}
+
+/* 日记/长尾提示 */
+.adv-hint{font-size:12px;line-height:1.75;padding:9px 12px;border-radius:10px;margin-bottom:8px;color:#6E5560;}
+.diary-hint{background:#FFF5F7;border:1px solid #FAD0DD;color:#B46A7E;}
+.long-hint{background:#F0F7FF;border:1px solid #C5DAF0;color:#4A6A88;}
+
 /* ========== 每晚日记（V2 · 主题卡片） ========== */
 .diary-hero{background:linear-gradient(135deg,rgba(255,224,236,0.92),rgba(252,231,240,0.92));border:1px solid #FAD0DD;border-radius:20px;padding:22px;margin-bottom:14px;text-align:center;box-shadow:0 8px 22px rgba(232,160,190,0.22);}
 .diary-hero-date{font-size:13px;color:#A98A98;margin-bottom:4px;letter-spacing:0.5px;}
@@ -7441,7 +7467,20 @@ function confirmCheckin(){
 }
 
 // 真正写入打卡（累加：同一天再次确认 = 已有时长 + 本次所选，不覆盖）
-function doCheckin(reason){
+function awayCureProgress(){
+  const g = store.garden;
+  if(!g.gardenEvent || g.gardenEvent.type !== 'away') return null;
+  const today = todayKey();
+  const ci = store.checkins || {};
+  let streak = 0;
+  if(ci[today]) streak = 1;
+  let d = new Date(today+'T00:00:00'); d.setDate(d.getDate()-1);
+  while(ci[dateKey(d)]){ streak++; d.setDate(d.getDate()-1); }
+  if(streak >= 3) return { progress:100, streak, clear:true,  eff:1.0,  needMore:0, msg:'连续打卡 3 天，相思病痊愈啦' };
+  if(streak === 2) return { progress:75,  streak, clear:false, eff:0.85, needMore:1, msg:'相思病缓解 75%——再连 1 天即痊愈' };
+  if(streak === 1) return { progress:50,  streak, clear:false, eff:0.7,  needMore:2, msg:'相思病缓解 50%——再连打 2 天即可痊愈' };
+  return                     { progress:0,   streak, clear:false, eff:0.5,  needMore:3, msg:'快去日历打卡 1 次，开启治愈' };
+} function doCheckin(reason){
   const existing = store.checkins[selectedDate]||0;
   const added = selectedMins/60;
   store.checkins[selectedDate] = existing + added;
@@ -7453,7 +7492,16 @@ function doCheckin(reason){
   if(selectedDate===todayKey()){
     const g = store.garden;
     g.lastCalCheckin = todayKey();
-    if(g.gardenEvent && g.gardenEvent.type==='away'){ g.gardenEvent = {}; }
+    if(g.gardenEvent && g.gardenEvent.type==='away'){
+      const p = awayCureProgress();
+      if(p.clear){
+        g.gardenEvent = {};
+        g._eventNotified = '';
+        setTimeout(()=>toast(p.msg+' 💗'), 220);
+      } else {
+        setTimeout(()=>toast(p.msg+'（进度 '+p.progress+'%，还差 '+p.needMore+' 天）'), 220);
+      }
+    }
     if(g.lastSunDay !== todayKey()){ g.lastSunDay = todayKey(); addSunlight(5,'打卡'); }
   }
   saveStore();
@@ -8740,6 +8788,113 @@ function genDiaryCareV2(yesterdayStr){
   return (msgs.length>6 ? msgs.slice(0,6) : msgs).join(' ');
 }
 
+// 今日建议分时段排程（基于昨日数据生成 4 个时段块 + 状态卡片 + 日记提示 + 长尾）
+function genAdviceBlocks(s){
+  const blocks = [];
+  // 晨间启动：基于昨日状态决定
+  const morn = { time:'07:30-09:00', emoji:'🌅', label:'晨间启动', items:[] };
+  if(s.focusMin === 0){
+    morn.items.push({ tag:'启动', text:'只做 1 件小事——5 道常识判断热手（≤5 分钟）', reason:'昨日 0 专注，从最小动作破冰' });
+    morn.items.push({ tag:'状态', text:'早起喝 300ml 温水 + 拉开窗帘晒 5 分钟阳光（+5 阳光值）', reason:'给大脑一个明确的"开机仪式"' });
+  } else if(s.focusMin < 120){
+    morn.items.push({ tag:'起步', text:'从 1 个 25 分钟番茄钟起步——挑最弱的科目（看错题本）', reason:'昨日专注不足，今日先稳住节奏' });
+  } else {
+    morn.items.push({ tag:'黄金', text:'黄金 90 分钟：常识 8 + 言语 7 题（限时 60 分钟内）', reason:'早起大脑清新，是抢分最高效时段' });
+  }
+  blocks.push(morn);
+
+  // 午后主力：聚焦弱科攻坚（基于错题模块）
+  if(s.topErrModule && s.errors >= 3){
+    blocks.push({
+      time:'09:00-11:30', emoji:'📚', label:'弱科攻坚', items:[
+        { tag:'弱科', text:`「${s.topErrModule}」专项 40 题（限时 60 分钟）+ 当场对答案`, reason:`昨日 ${s.topErrModule} 错最多（${s.topErrCount} 道），今日集中拔刺` },
+        { tag:'复盘', text:`用 1 个番茄钟写下「${s.topErrModule}」的 3 个卡点关键词`, reason:'让错题本从"流水账"变"诊断书"' }
+      ]
+    });
+  } else if (s.done > 0){
+    blocks.push({
+      time:'09:00-11:30', emoji:'📚', label:'午后主力', items:[
+        { tag:'主刷', text:`判断推理 12 题 + 数量关系 8 题（限时 75 分钟）`, reason:`昨日共做 ${s.done} 题，今天继续推 ${s.done>=30?'保量':'提量'}` }
+      ]
+    });
+  } else {
+    blocks.push({
+      time:'09:00-11:30', emoji:'📚', label:'午后主力', items:[
+        { tag:'启动', text:'只做 1 个番茄钟——常识 8 题（限时 12 分钟）', reason:'昨日没做题，今天从最容易的模块开始' }
+      ]
+    });
+  }
+
+  // 下午补充：根据计划完成率
+  if(s.planTotal > 0 && s.planDone < s.planTotal){
+    const remain = s.planTotal - s.planDone;
+    blocks.push({
+      time:'14:00-16:30', emoji:'☀️', label:'下午补位', items:[
+        { tag:'合并', text:`把昨日未完成的 ${remain} 项挪到今天 14:00 黄金时段`, reason:`昨日完成率 ${s.planRate}%，今日合并处理` },
+        { tag:'资料', text:'资料分析 5 题（限时 25 分钟）——练速算手感', reason:'资料分析提分最快，每天练一组' }
+      ]
+    });
+  } else {
+    blocks.push({
+      time:'14:00-16:30', emoji:'☀️', label:'下午补充', items:[
+        { tag:'模考', text:'限时做 1 套真题（资料分析+判断推理，严格 120 分钟）', reason:'每周固定 1 次全真模考，今日是好窗口' },
+        { tag:'拉伸', text:'每完成 4 个番茄钟，起身拉伸 5 分钟', reason:'保护颈椎+提神，下午精力更稳' }
+      ]
+    });
+  }
+
+  // 晚间收尾：错题+日记+夜话
+  const eve = { time:'20:00-22:00', emoji:'🌙', label:'晚间收尾', items:[] };
+  if(s.errors >= 3){
+    eve.items.push({ tag:'复盘', text:`整理今日错题（限时 25 分钟）——按模块归类 + 写卡点关键词`, reason:`昨日 ${s.errors} 道错题，今晚趁热打铁` });
+  } else {
+    eve.items.push({ tag:'复盘', text:'快速过 1 遍今日错题（限时 10 分钟）', reason:'把卡点关键词存进错题本' });
+  }
+  eve.items.push({ tag:'日记', text:'写今晚日记：心情 + 想感谢的 1 件事 + 明日 3 项 To Do', reason:'让 AI 越来越懂你，并提前给明天的自己铺路' });
+  eve.items.push({ tag:'界限', text:'23:00 后关掉所有备考群+番茄钟，23:30 前上床', reason:'熬夜是专注最大的杀手——今天到此为止' });
+  blocks.push(eve);
+
+  // 状态调整卡片（升级：3 条具体动作）
+  const stateCard = { danger:'', tip:'', remind:'' };
+  if(s.focusMin >= 360){
+    stateCard.danger = '⚠️ 昨日高强度（' + (s.focusMin/60).toFixed(1) + ' 小时），今天身体可能被透支——别再加量。';
+    stateCard.tip    = '✅ 今日对策：番茄钟从 25/5 改 30/7，每完成 4 个起身散步 10 分钟 + 午休 20 分钟。';
+    stateCard.remind = '🌿 长期照顾：连续 3 天 ≥6h 高强度，会出现"假性专注"——效率打折但自己不知道。';
+  } else if(s.focusMin >= 180){
+    stateCard.danger = '🟡 昨日节奏合适（' + (s.focusMin/60).toFixed(1) + ' 小时），今日可保持同样强度。';
+    stateCard.tip    = '✅ 今日对策：沿用 25/5 番茄钟，下午 3 点主动起来倒杯温水 + 肩颈放松 5 分钟。';
+    stateCard.remind = '🌿 长期照顾：每周留出半天"完全不想学习"——避免连续紧绷导致 burnout。';
+  } else if(s.focusMin > 0){
+    stateCard.danger = '🟠 昨日偏弱（' + s.focusMin + ' 分钟），今日先把"启动门槛"降到最低。';
+    stateCard.tip    = '✅ 今日对策：第一个番茄钟从最简单的事开始（哪怕只做 5 道常识），用"完成感"给自己续航。';
+    stateCard.remind = '🌿 长期照顾：今晚 23:30 前入睡，明早 7:00 起 + 30 分钟晨读，比"硬熬夜"更划算。';
+  } else {
+    stateCard.danger = '🔴 昨日完全没开工，今天最重要的是"先开始"——1 个 25 分钟番茄钟就够。';
+    stateCard.tip    = '✅ 今日对策：把今天拆成 5 个 25 分钟块，每块做最小的事——比如常识 5 题、言语 5 题、判断 5 题。';
+    stateCard.remind = '🌿 长期照顾：今晚写日记时，问自己"是什么让我昨晚/早上打不开"——找根因而不是自责。';
+  }
+  if(s.accRate && s.accRate < 60 && s.done >= 10){
+    stateCard.remind += '  此外昨日正确率仅 ' + s.accRate + '%，是"刷了但没进脑子"信号——今晚加 1 个番茄钟回看错题思路。';
+  }
+
+  // 日记提示：告诉用户今晚日记该重点写下什么
+  const diaryHintParts = [];
+  if(s.errors >= 5) diaryHintParts.push('重点写下「错题背后的思路卡点关键词」');
+  if(s.focusMin < 120) diaryHintParts.push('写下「为什么昨天专注不够」的真实原因');
+  if(s.planRate !== undefined && s.planRate < 50) diaryHintParts.push('复盘「昨日计划未完成」的卡点——是计划太满还是执行被打断');
+  diaryHintParts.push('记下「今天最想感谢的 1 件事」（哪怕只是好好睡了一觉）');
+  const diaryHint = '今晚日记建议：' + diaryHintParts.join('；') + '。';
+
+  // 长尾提醒：周三/四/五 提示周末复盘；月末提示月复盘
+  const wd = new Date().getDay();
+  let longTerm = null;
+  if(wd === 3 || wd === 4) longTerm = { active:true, text:'本周六花 90 分钟做一次「周末深度复盘」：错题本全过一遍 + 看番茄钟曲线找节奏低点。' };
+  else if(wd === 5)       longTerm = { active:true, text:'明天是周六——建议下午 14:00-15:30 做 90 分钟「周末深度复盘」，让一周的努力不白费。' };
+  else if(new Date().getDate() >= 28) longTerm = { active:true, text:'本月底前花 2 小时做一次「月度复盘」：看科目均衡度 + 错题趋势 + 番茄钟曲线，决定下月节奏。' };
+
+  return { blocks, stateCard, diaryHint, longTerm };
+}
+
 // 具体建议：基于昨日数据生成 5 条 To Do，每条都有时间块+动作+输出
 function genTodayAdviceV2(yesterdayStr){
   const s2 = dayStatOf(yesterdayStr);
@@ -8796,7 +8951,10 @@ function genTodayAdviceV2(yesterdayStr){
   const care = genDiaryCareV2(yesterdayStr);
   if(care){ todos.unshift({tag:'懂你', text: care}); }
 
-  return {todos: todos.slice(0,6), statusTips};
+  // 升级：分时段排程 + 状态卡片 + 日记提示 + 长尾提醒
+  const blocksInfo = genAdviceBlocks(s2);
+
+  return {todos: todos.slice(0,6), statusTips, blocks:blocksInfo.blocks, stateCard:blocksInfo.stateCard, diaryHint:blocksInfo.diaryHint, longTerm:blocksInfo.longTerm};
 }
 
 function ensureAutoReports(){
@@ -9039,16 +9197,66 @@ function renderReview(){
   }
   html += '</div>';
 
-  // 今日建议（始终基于昨日）
-  if(adv && adv.todos && adv.todos.length){
+  // 今日建议（始终基于昨日）：新版分时段排程 + 状态卡片 + 日记/长尾提示
+  if(adv){
     html += `<div class="review-card">
       <div class="review-card-head">
         <div class="review-card-title">🌟 今日建议 To Do · ${today}</div>
-        <div class="review-card-meta">基于 ${yesterday} 自动推荐</div>
-      </div>
-      ${adv.todos.map(t=>`<div class="review-todo"><div class="review-todo-tag">${t.tag}</div><div class="review-todo-content">${escHtml(t.text)}</div></div>`).join('')}
-      ${adv.statusTips?`<div class="review-section">🧘 <b>状态调整建议</b>：${escHtml(adv.statusTips)}</div>`:''}
-    </div>`;
+        <div class="review-card-meta">基于 ${yesterday} 自动推荐 · ${adv.blocks?adv.blocks.length:0} 个时段</div>
+      </div>`;
+
+    // ① 分时段排程（升级版）
+    if(adv.blocks && adv.blocks.length){
+      html += '<div class="adv-blocks">';
+      adv.blocks.forEach(b=>{
+        html += `<div class="adv-block">
+          <div class="adv-block-head">
+            <span class="adv-block-emoji">${b.emoji}</span>
+            <span class="adv-block-time">${b.time}</span>
+            <span class="adv-block-label">${b.label}</span>
+          </div>
+          <div class="adv-block-items">`;
+        b.items.forEach(it=>{
+          html += `<div class="adv-item">
+            <span class="adv-item-tag">${it.tag}</span>
+            <div class="adv-item-body">
+              <div class="adv-item-text">${escHtml(it.text)}</div>
+              ${it.reason ? '<div class="adv-item-reason">依据：'+escHtml(it.reason)+'</div>' : ''}
+            </div>
+          </div>`;
+        });
+        html += '</div></div>';
+      });
+      html += '</div>';
+    }
+
+    // ② 状态调整卡片（升级：3 条具体动作）
+    if(adv.stateCard){
+      const sc = adv.stateCard;
+      html += '<div class="adv-statecard">';
+      if(sc.danger) html += `<div class="adv-state-row"><span class="adv-state-icon danger-icon">⚠️</span><div>${escHtml(sc.danger)}</div></div>`;
+      if(sc.tip)    html += `<div class="adv-state-row"><span class="adv-state-icon tip-icon">✅</span><div>${escHtml(sc.tip)}</div></div>`;
+      if(sc.remind) html += `<div class="adv-state-row"><span class="adv-state-icon long-icon">🌿</span><div>${escHtml(sc.remind)}</div></div>`;
+      html += '</div>';
+    }
+
+    // ③ 兜底老 todos（如果未来 genTodayAdviceV2 失败）
+    if(adv.todos && adv.todos.length && (!adv.blocks || !adv.blocks.length)){
+      adv.todos.forEach(t=>{
+        html += `<div class="review-todo"><div class="review-todo-tag">${t.tag}</div><div class="review-todo-content">${escHtml(t.text)}</div></div>`;
+      });
+    }
+
+    // ④ 日记提示 + 长尾提醒
+    if(adv.diaryHint) html += `<div class="adv-hint diary-hint">📝 ${escHtml(adv.diaryHint)}</div>`;
+    if(adv.longTerm && adv.longTerm.active) html += `<div class="adv-hint long-hint">📅 ${escHtml(adv.longTerm.text)}</div>`;
+
+    // ⑤ 兼容老的 statusTips（如果存在且不在 stateCard 中）
+    if(adv.statusTips && !adv.stateCard){
+      html += `<div class="review-section">🧘 <b>状态调整建议</b>：${escHtml(adv.statusTips)}</div>`;
+    }
+
+    html += '</div>';
   }
 
   document.getElementById('page-review').innerHTML = html;
@@ -11573,7 +11781,9 @@ function renderGardenEvent(){
       badge.innerHTML = def.emoji+' '+def.t+' · 点我去浇水化解';
       badge.onclick = ()=>focusWaterHint();
     } else if(def.cure==='checkin'){
-      badge.innerHTML = def.emoji+' '+def.t+' · 点我去打卡陪伴 📅';
+      const p = awayCureProgress();
+      const tag = p ? ('已缓解 '+p.progress+'%') : '快去打卡';
+      badge.innerHTML = def.emoji+' '+def.t+' · '+tag+' · 点我去打卡 📅';
       badge.onclick = ()=>goCheckinHint();
     } else {
       const d = ITEM_DEFS[def.med];
@@ -11630,6 +11840,13 @@ function showGardenEventPopup(ev){
     dry:  {t:'🏜️ 干旱了！', sub:'太久没浇水，花花渴坏了，成长直接减半，快去浇水！', emoji:'🏜️', c:'#378ADD', cure:'water'},
     away: {t:'💔 相思病！', sub:'太久没来打卡，小花想你想到生病了，成长变慢～去「📅 打卡日历」打一次卡陪陪它就好啦！', emoji:'💔', c:'#B98AD1', cure:'checkin'},
   }[ev.type] || {t:'有状况', sub:'', emoji:'⚠️', c:'#E8919B', cure:'med', med:'bug'};
+  // 相思病：根据当前进度定制文案（不能一次打卡就好）
+  if(ev.type==='away'){
+    const p = awayCureProgress();
+    const days = (p && p.needMore>0) ? `还要连续打卡 ${p.needMore} 天` : '马上就能痊愈';
+    def.sub = '太久没来打卡了，小花想念主人想念到生病。<br>当前进度 <b>'+p.progress+'%</b>——'+days+'（每次打 1 次日历卡 +25%）。<br>治法不是猛药，是「连续 3 天主动打卡」的真心陪伴。';
+    def.t = '相思病！';
+  }
   let btnHtml;
   if(def.cure==='water'){
     btnHtml = '<button class="btn btn-outline ge-btn" onclick="focusWaterHint()">去浇水化解 💧</button>';
@@ -11771,7 +11988,7 @@ function useMed(medKey){
   const g = store.garden;
   if((g.meds[medKey]||0)<=0){ toast('没有'+ITEM_DEFS[medKey].name+'，去养护背包合成或商店购买～'); return; }
   if(!g.gardenEvent.type){ toast('当前没有需要化解的事件哦'); return; }
-  if(g.gardenEvent.type==='away'){ toast('相思病不用吃药～去「打卡日历」打一次卡就好啦 📅'); return; }
+  if(g.gardenEvent.type==='away'){ const p=awayCureProgress(); toast('相思病不用吃药～连续打卡 3 天才能痊愈（当前 '+p.progress+'%），去日历打卡即可'); return; }
   const info = EVENT_INFO[g.gardenEvent.type];
   if(info.cure==='water'){
     toast('「'+ITEM_DEFS[medKey].name+'」对干旱没用哦，去浇水就能化解～');
@@ -11808,7 +12025,10 @@ function growthEfficiency(){
   const h = g.health||0;
   eff *= (h>=60 ? 1.0 : (h>=40 ? 0.85 : 0.7));  // 健康差 → 成长打折
   if(g.gardenEvent.type==='dry') eff *= 0.5;    // 干旱额外减半
-  if(g.gardenEvent.type==='away') eff *= 0.5;   // 相思病：想你想到没精神，成长变慢
+  if(g.gardenEvent.type==='away'){
+    const p = awayCureProgress();
+    eff *= (p ? p.eff : 0.5);  // 相思病按进度渐进恢复（0.5→0.7→0.85→1.0）
+  }
   return eff;
 }
 function boostGrowth(amount, label){
