@@ -4397,17 +4397,80 @@ function milestoneProgress(ms){
   return Math.round(done / ms.tasks.length * 100);
 }
 function overallGoalProgress(){
+  // 按任务量加权：空里程碑（无任务且未完成）不计入分子也不计入分母，不再拉低总分
   const ms = store.goals.milestones || [];
-  if(!ms.length) return 0;
-  let sum = 0;
-  ms.forEach(function(m){ sum += milestoneProgress(m); });
-  return Math.round(sum / ms.length);
+  let done = 0, total = 0;
+  ms.forEach(function(m){
+    const tasks = m.tasks || [];
+    if(tasks.length){
+      done += tasks.filter(function(t){ return t.done; }).length;
+      total += tasks.length;
+    } else if(m.done){
+      done += 1; total += 1;   // 无任务但被手动标记达成，计 1/1
+    }
+  });
+  if(!total) return 0;
+  return Math.round(done / total * 100);
 }
 function moduleAccByKey(key){
   if(!key || !TOPICS[key]) return null;
   const name = TOPICS[key].name;
   const done = moduleCumuDone(name), wrong = moduleCumuWrong(name);
   return done>0 ? Math.round((done-wrong)/done*100) : null;
+}
+function moduleCountByKey(key){
+  if(!key || !TOPICS[key]) return 0;
+  return moduleCumuDone(TOPICS[key].name);
+}
+// 当前进行中的阶段：第一个未达 100% 且未归档的里程碑（用于高亮）
+function currentMilestoneIndex(){
+  const ms = store.goals.milestones || [];
+  for(let i=0;i<ms.length;i++){
+    if(ms[i].archived) continue;
+    if(milestoneProgress(ms[i]) < 100) return i;
+  }
+  for(let i=ms.length-1;i>=0;i--){ if(!ms[i].archived) return i; }
+  return -1;
+}
+// 阶段风险预警
+function milestoneRisk(m){
+  if(!m || !m.deadline) return null;
+  const d = goalDaysLeft(m.deadline);
+  if(d === null) return null;
+  const p = milestoneProgress(m);
+  if(d < 0 && p < 100) return { level:'red', text:'⚠️ 已逾期 '+Math.abs(d)+' 天，进度仅 '+p+'%' };
+  if(d <= 7 && p < 80) return { level:'red', text:'⚠️ 还剩 '+d+' 天，进度偏慢' };
+  if(d <= 14 && p < 50) return { level:'orange', text:'⏳ 还剩 '+d+' 天，加油赶进度' };
+  return null;
+}
+// 任务自动联动：关联科目达到阈值（正确率/题量）时自动勾选完成（只增不删，手动取消后停止）
+function evalAutoTasks(){
+  ensureGoals();
+  const ms = store.goals.milestones || [];
+  let changed = false, newlyDone = 0;
+  ms.forEach(function(m){
+    (m.tasks||[]).forEach(function(t){
+      if(!t.auto || t.done || t.autoDisabled) return;
+      const key = t.linked; if(!key) return;
+      const acc = moduleAccByKey(key), cnt = moduleCountByKey(key);
+      const accOk = (t.auto.accMin==null) || (acc!=null && acc>=t.auto.accMin);
+      const cntOk = (t.auto.countMin==null) || (cnt>=t.auto.countMin);
+      if(accOk && cntOk){ t.done = true; t.autoDone = true; changed = true; newlyDone++; }
+    });
+  });
+  if(changed){
+    ms.forEach(function(m){
+      if(m.tasks.length && m.tasks.every(function(x){ return x.done; })) m.done = true;
+      if(milestoneProgress(m) >= 100 && !m.celebrated){
+        m.celebrated = true;
+        if(!m.achievedAt) m.achievedAt = Date.now();
+        if(typeof celebrateMilestone==='function') celebrateMilestone(m);
+      }
+    });
+    saveStore();
+    if(typeof toast==='function' && newlyDone) toast('🤖 已根据刷题数据自动完成 '+newlyDone+' 个任务');
+  }
+  return changed;
 }
 function openGoalsPopup(inner){
   const card = document.getElementById('goalsPopupCard');
@@ -4525,6 +4588,12 @@ function editGoalTask(msId, tId){
     + '<input id="gTaskText" value="'+ escapeHtml(cur.text) +'" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如：看完言语理解前3章">'
     + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">关联科目（可选，自动显示正确率）</div>'
     + '<select id="gTaskLinked" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none;background:#fff">'+selOpts+'</select>'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">自动完成规则（可选，达标后自动勾选）</div>'
+    + '<div style="display:flex;gap:8px">'
+    + '<input id="gTaskAccMin" type="number" min="0" max="100" inputmode="numeric" value="'+((cur.auto&&cur.auto.accMin!=null)?cur.auto.accMin:'')+'" style="flex:1;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="正确率≥%">'
+    + '<input id="gTaskCountMin" type="number" min="0" inputmode="numeric" value="'+((cur.auto&&cur.auto.countMin!=null)?cur.auto.countMin:'')+'" style="flex:1;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="累计题量≥">'
+    + '</div>'
+    + '<div style="font-size:11px;color:#bbb;margin-top:4px">需先选关联科目；两项都留空则手动勾选。手动取消后不再自动。</div>'
     + '<div style="display:flex;gap:10px;margin-top:14px">'
     + '<button class="btn popup-btn" style="background:#eee;color:#888;box-shadow:none" onclick="closeGoalsPopup()">取消</button>'
     + '<button class="btn popup-btn" onclick="saveGoalTask(\''+msId+'\',\''+(tId||'')+'\')">保存</button></div>';
@@ -4537,11 +4606,14 @@ function saveGoalTask(msId, tId){
   const text = (document.getElementById('gTaskText').value||'').trim();
   if(!text){ if(typeof toast==='function') toast('任务内容不能为空～'); return; }
   const linked = document.getElementById('gTaskLinked').value || null;
+  const accMin = parseInt(document.getElementById('gTaskAccMin').value, 10);
+  const countMin = parseInt(document.getElementById('gTaskCountMin').value, 10);
+  const auto = (accMin>0 || countMin>0) ? { accMin: isNaN(accMin)?null:accMin, countMin: isNaN(countMin)?null:countMin } : null;
   if(tId){
     const t = m.tasks.find(function(x){ return x.id===tId; });
-    if(t){ t.text = text; t.linked = linked; }
+    if(t){ t.text = text; t.linked = linked; t.auto = auto; t.autoDisabled = false; t.autoDone = false; }
   } else {
-    m.tasks.push({ id:'tk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), text:text, done:false, linked:linked });
+    m.tasks.push({ id:'tk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), text:text, done:false, linked:linked, auto:auto });
   }
   saveStore();
   closeGoalsPopup();
@@ -4554,9 +4626,15 @@ function toggleGoalTask(msId, tId){
   const t = m.tasks.find(function(x){ return x.id===tId; });
   if(!t) return;
   t.done = !t.done;
+  if(t.auto){
+    if(!t.done){ t.autoDisabled = true; t.autoDone = false; }  // 手动取消 → 停止自动
+    else { t.autoDisabled = false; t.autoDone = false; }        // 手动勾选 → 不再是“自动”标记
+  }
   if(m.tasks.length && m.tasks.every(function(x){ return x.done; })) m.done = true;
   if(milestoneProgress(m) >= 100 && !m.celebrated){
     m.celebrated = true;
+    if(!m.achievedAt) m.achievedAt = Date.now();
+    if(typeof celebrateMilestone==='function') celebrateMilestone(m);
     if(typeof toast==='function') toast('🎉「'+m.title+'」全部任务完成，阶段达成！');
   }
   saveStore();
@@ -4571,14 +4649,68 @@ function deleteGoalTask(msId, tId){
   saveStore();
   renderGoals();
 }
+// 阶段达成立即撒花
+function celebrateMilestone(m){
+  let box = document.getElementById('goalCelebrateBox');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'goalCelebrateBox';
+    box.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden';
+    document.body.appendChild(box);
+  }
+  box.querySelectorAll('.popup-confetti').forEach(function(e){ e.remove(); });
+  const emojis = ['🎉','🌟','💖','🌸','⭐','✨','💛','🌼','🏆'];
+  for(let i=0;i<26;i++){
+    const s = document.createElement('span');
+    s.className = 'popup-confetti';
+    s.textContent = emojis[Math.floor(Math.random()*emojis.length)];
+    s.style.left = (Math.random()*100)+'%';
+    s.style.animationDelay = (Math.random()*0.6)+'s';
+    s.style.fontSize = (14+Math.random()*16)+'px';
+    box.appendChild(s);
+  }
+  setTimeout(function(){ box.querySelectorAll('.popup-confetti').forEach(function(e){ e.remove(); }); }, 2400);
+}
+// 阶段排序（上下移动）
+function moveMilestone(id, dir){
+  ensureGoals();
+  const ms = store.goals.milestones;
+  const i = ms.findIndex(function(x){ return x.id===id; });
+  if(i<0) return;
+  const j = i + (dir==='up' ? -1 : 1);
+  if(j<0 || j>=ms.length) return;
+  const tmp = ms[i]; ms[i] = ms[j]; ms[j] = tmp;
+  saveStore(); renderGoals();
+}
+// 归档 / 恢复
+function archiveMilestone(id){
+  ensureGoals();
+  const m = store.goals.milestones.find(function(x){ return x.id===id; });
+  if(!m) return;
+  m.archived = true;
+  if(!m.achievedAt) m.achievedAt = Date.now();
+  saveStore();
+  if(typeof toast==='function') toast('📦 已归档「'+m.title+'」');
+  renderGoals();
+}
+function unarchiveMilestone(id){
+  ensureGoals();
+  const m = store.goals.milestones.find(function(x){ return x.id===id; });
+  if(!m) return;
+  m.archived = false;
+  saveStore(); renderGoals();
+}
 function renderGoals(){
   const el = document.getElementById('page-goals');
   if(!el) return;
   ensureGoals();
   const g = store.goals;
+  evalAutoTasks();                 // 打开页面时根据刷题数据自动推进任务
   const root = g.root;
   const rootDays = goalDaysLeft(root.deadline);
   const overall = overallGoalProgress();
+  const curIdx = currentMilestoneIndex();
+  const risks = (g.milestones||[]).filter(function(m){ return !m.archived && milestoneRisk(m); });
   let html = '<div style="padding:18px 18px 40px">';
   html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><h2 style="margin:0;font-size:20px">🎯 目标拆解</h2>'
     + '<button class="btn btn-outline" style="margin-left:auto;padding:5px 12px;font-size:13px" onclick="editRootGoal()">✏️ 编辑目标</button></div>';
@@ -4598,23 +4730,41 @@ function renderGoals(){
   html += '<div style="margin-top:14px"><div style="display:flex;justify-content:space-between;font-size:12px;color:#888;margin-bottom:4px"><span>总进度</span><span style="font-weight:700;color:#e8607d">'+overall+'%</span></div>'
     + '<div style="height:10px;background:#f0ece8;border-radius:6px;overflow:hidden"><div style="height:100%;width:'+overall+'%;background:linear-gradient(90deg,#f6b4c4,#e8607d);border-radius:6px"></div></div></div>';
   html += '</div>';
+  if(risks.length){
+    html += '<div style="margin-bottom:16px;background:#fff4f1;border:1px solid #f5c9bd;border-radius:14px;padding:12px 14px">'
+      + '<div style="font-size:13px;font-weight:700;color:#e8607d;margin-bottom:6px">⚠️ 阶段风险提醒（'+risks.length+'）</div>';
+    risks.forEach(function(m){
+      const r = milestoneRisk(m);
+      html += '<div style="font-size:12px;color:#a8553f;line-height:1.6">· 「'+escapeHtml(m.title)+'」'+r.text+'</div>';
+    });
+    html += '</div>';
+  }
   html += '<div style="display:flex;align-items:center;gap:10px;margin:6px 0 14px"><h3 style="margin:0;font-size:16px;color:#555">🪴 阶段里程碑</h3>'
     + '<button class="btn btn-outline" style="margin-left:auto;padding:6px 14px;font-size:13px;border-color:#e8607d;color:#e8607d" onclick="editMilestone()">＋ 添加里程碑</button></div>';
-  const ms = g.milestones;
-  if(!ms.length){
+  const active = (g.milestones||[]).filter(function(m){ return !m.archived; });
+  if(!active.length){
     html += '<div style="background:#fff;border-radius:14px;padding:24px;text-align:center;color:#bbb;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.04)">还没有里程碑，点「＋ 添加里程碑」把大目标拆成一步步小阶段吧 🌱</div>';
   } else {
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">';
-    ms.forEach(function(m){
+    active.forEach(function(m, i){
       const p = milestoneProgress(m);
+      const isCur = (i === curIdx);
       const pColor = p>=100?'#7FB069':(p>=50?'#e8a13a':'#e8607d');
-      let card = '<div style="background:#fff;border-radius:16px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:4px solid '+pColor+'">';
-      card += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
-        + '<span style="font-size:26px">'+ (m.emoji||'🎯') +'</span>'
+      const risk = milestoneRisk(m);
+      let card = '<div style="background:#fff;border-radius:16px;padding:16px;box-shadow:'+(isCur?'0 4px 16px rgba(232,96,125,.28)':'0 2px 8px rgba(0,0,0,.05)')+';border-top:4px solid '+(isCur?'#e8607d':pColor)+'">';
+      card += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'
+        + '<span style="font-size:11px;font-weight:700;color:#fff;background:'+(isCur?'#e8607d':'#cdbcc4')+';padding:2px 7px;border-radius:999px;white-space:nowrap">第'+(i+1)+'阶段</span>'
+        + (isCur?'<span style="font-size:10px;font-weight:700;color:#e8607d;background:#fdeef4;padding:2px 7px;border-radius:999px">进行中</span>':'')
+        + '<span style="font-size:24px;line-height:1">'+ (m.emoji||'🎯') +'</span>'
         + '<span style="font-weight:700;font-size:15px;color:#444;flex:1">'+ escapeHtml(m.title) +'</span>'
         + '<span style="cursor:pointer;font-size:13px;color:#bbb" onclick="editMilestone(\''+m.id+'\')">✏️</span>'
         + '<span style="cursor:pointer;font-size:13px;color:#bbb" onclick="deleteMilestone(\''+m.id+'\')">🗑️</span></div>';
-      card += '<div style="margin-bottom:8px">'+ goalDeadlineBadge(m.deadline) +'</div>';
+      card += '<div style="display:flex;gap:10px;margin-bottom:8px;flex-wrap:wrap">'
+        + '<span style="cursor:pointer;font-size:11px;color:#bbb;'+(i===0?'visibility:hidden':'')+'" onclick="moveMilestone(\''+m.id+'\',\'up\')">⬆️ 上移</span>'
+        + '<span style="cursor:pointer;font-size:11px;color:#bbb;'+(i===active.length-1?'visibility:hidden':'')+'" onclick="moveMilestone(\''+m.id+'\',\'down\')">⬇️ 下移</span>'
+        + '<span style="cursor:pointer;font-size:11px;color:#bbb;margin-left:auto" onclick="archiveMilestone(\''+m.id+'\')">📦 归档</span></div>';
+      card += '<div style="margin-bottom:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+ goalDeadlineBadge(m.deadline) +'</div>';
+      if(risk) card += '<div style="font-size:11px;font-weight:600;color:'+(risk.level==='red'?'#e8607d':'#e8a13a')+';background:'+(risk.level==='red'?'#fdeef2':'#fdf3e6')+';padding:4px 8px;border-radius:8px;margin-bottom:8px">'+risk.text+'</div>';
       if(m.note) card += '<div style="font-size:12px;color:#999;margin-bottom:8px;line-height:1.5">'+ escapeHtml(m.note) +'</div>';
       card += '<div style="display:flex;justify-content:space-between;font-size:12px;color:#888;margin-bottom:4px"><span>进度</span><span style="font-weight:700;color:'+pColor+'">'+p+'%</span></div>'
         + '<div style="height:8px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:'+p+'%;background:'+pColor+';border-radius:6px"></div></div>';
@@ -4623,10 +4773,12 @@ function renderGoals(){
         m.tasks.forEach(function(t){
           const acc = t.linked ? moduleAccByKey(t.linked) : null;
           const shortName = t.linked && TOPICS[t.linked] ? TOPICS[t.linked].name.slice(0,2) : '';
+          const autoBadge = t.auto ? '<span title="达标自动完成" style="font-size:10px;color:#9b59b6;background:#f3e9f9;padding:2px 6px;border-radius:8px;white-space:nowrap">🤖 自动</span>' : '';
           card += '<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-top:1px dashed #f0e9ec">'
             + '<span style="cursor:pointer;font-size:16px;line-height:1.3;'+(t.done?'':'color:#ccc')+'" onclick="toggleGoalTask(\''+m.id+'\',\''+t.id+'\')">'+(t.done?'✅':'⬜️')+'</span>'
             + '<span style="flex:1;font-size:13px;color:'+(t.done?'#aaa':'#555')+';text-decoration:'+(t.done?'line-through':'none')+';line-height:1.4">'+ escapeHtml(t.text) +'</span>';
           if(acc!==null) card += '<span style="font-size:10px;color:#4a9d6b;background:#eef7ee;padding:2px 6px;border-radius:8px;white-space:nowrap">📊 '+shortName+' '+acc+'%</span>';
+          card += autoBadge;
           card += '<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="editGoalTask(\''+m.id+'\',\''+t.id+'\')">✏️</span>'
             + '<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="deleteGoalTask(\''+m.id+'\',\''+t.id+'\')">🗑️</span>';
           card += '</div>';
@@ -4640,6 +4792,40 @@ function renderGoals(){
       html += card;
     });
     html += '</div>';
+  }
+  // 已归档阶段
+  const archived = (g.milestones||[]).filter(function(m){ return m.archived; });
+  if(archived.length){
+    html += '<div style="margin-top:22px"><div style="font-size:14px;font-weight:700;color:#888;margin-bottom:10px">📦 已归档阶段（'+archived.length+'）</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">';
+    archived.forEach(function(m){
+      const p = milestoneProgress(m);
+      const linkedAcc = (m.tasks||[]).filter(function(t){ return t.linked; }).map(function(t){ const a=moduleAccByKey(t.linked); return a!=null?TOPICS[t.linked].name.slice(0,2)+' '+a+'%':null; }).filter(Boolean);
+      const dateStr = m.achievedAt ? new Date(m.achievedAt).toLocaleDateString('zh-CN') : '—';
+      let card = '<div style="background:#faf7f9;border-radius:14px;padding:14px;border:1px dashed #e7dde2">'
+        + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:20px">'+ (m.emoji||'🎯') +'</span><span style="font-weight:700;font-size:14px;color:#777">'+ escapeHtml(m.title) +'</span>'
+        + '<span style="cursor:pointer;font-size:11px;color:#bbb;margin-left:auto" onclick="unarchiveMilestone(\''+m.id+'\')">↩︎ 恢复</span></div>'
+        + '<div style="font-size:11px;color:#999;line-height:1.6">达成日：'+dateStr+'<br>任务 '+((m.tasks||[]).length)+' 项 · 进度 '+p+'%'
+        + (linkedAcc.length?'<br>关联科：'+linkedAcc.join('、'):'') +'</div>';
+      if(p>=100) card += '<div style="margin-top:6px;font-size:11px;color:#7FB069;font-weight:700">🏆 已达成</div>';
+      card += '</div>';
+      html += card;
+    });
+    html += '</div></div>';
+  }
+  // 成就墙
+  const trophy = (g.milestones||[]).filter(function(m){ return m.achievedAt || milestoneProgress(m)>=100; });
+  if(trophy.length){
+    html += '<div style="margin-top:22px"><div style="font-size:14px;font-weight:700;color:#e8a13a;margin-bottom:10px">🏆 成就墙</div><div style="display:flex;flex-wrap:wrap;gap:10px">';
+    trophy.forEach(function(m){
+      const d = m.achievedAt ? new Date(m.achievedAt).toLocaleDateString('zh-CN') : '';
+      html += '<div style="background:linear-gradient(135deg,#fff7ec,#fdeef4);border-radius:14px;padding:10px 14px;box-shadow:0 2px 8px rgba(232,160,190,.15)">'
+        + '<div style="font-size:22px">🏆</div>'
+        + '<div style="font-size:13px;font-weight:700;color:#b07a2e">'+escapeHtml(m.title)+'</div>'
+        + (d?'<div style="font-size:10px;color:#bbb">'+d+'</div>':'')
+        + '</div>';
+    });
+    html += '</div></div>';
   }
   html += '<div style="margin-top:16px;font-size:12px;color:#aaa;line-height:1.7;background:#fff;border-radius:12px;padding:12px">'
     + '🌿 把「'+escapeHtml(root.title||'目标')+'」拆成几个阶段里程碑，每个里程碑再列具体任务。打勾完成任务会带动阶段进度条，阶段进度汇总成顶部总进度。任务可关联科目，自动显示该科当前正确率（来自考点刷题数据）。'
