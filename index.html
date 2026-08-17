@@ -2087,6 +2087,7 @@ body.drawer-open .nav-cloud{display:none;}
         <div class="nav-item" data-page="stats"><span class="nav-icon">📈</span>时长统计</div>
         <div class="nav-item" data-page="report"><span class="nav-icon">📊</span>学习报告</div>
         <div class="nav-item" data-page="goals"><span class="nav-icon">🎯</span>目标拆解</div>
+        <div class="nav-item" data-page="courses"><span class="nav-icon">📚</span>我的课程</div>
       </div>
     </div>
 
@@ -2154,6 +2155,7 @@ body.drawer-open .nav-cloud{display:none;}
 <div class="page" id="page-report"></div>
 <div class="page" id="page-subjflower"></div>
 <div class="page" id="page-goals"></div>
+<div class="page" id="page-courses"></div>
 
 <!-- ===== 首页总览 ===== -->
 <div class="page active" id="page-home">
@@ -4392,22 +4394,30 @@ function goalDeadlineBadge(dateStr){
   return '<span style="font-size:11px;font-weight:700;color:#b56b8a;background:#f6eef0;padding:3px 9px;border-radius:999px">⏰ 已过期 '+Math.abs(d)+' 天</span>';
 }
 function milestoneProgress(ms){
-  if(!ms.tasks || !ms.tasks.length) return ms.done ? 100 : 0;
-  const done = ms.tasks.filter(function(t){ return t.done; }).length;
-  return Math.round(done / ms.tasks.length * 100);
+  const tasks = ms.tasks || [];
+  const courses = ms.courses || [];
+  const tDone = tasks.filter(function(t){ return t.done; }).length;
+  const tTot = tasks.length;
+  const lDone = courses.reduce(function(s,c){ return s + Math.min(c.done||0, c.total||0); }, 0);
+  const lTot = courses.reduce(function(s,c){ return s + (c.total||0); }, 0);
+  const done = tDone + lDone, total = tTot + lTot;
+  if(total === 0) return ms.done ? 100 : 0;
+  return Math.round(done / total * 100);
 }
 function overallGoalProgress(){
-  // 按任务量加权：空里程碑（无任务且未完成）不计入分子也不计入分母，不再拉低总分
+  // 任务 + 课程课时 合并加权：空里程碑（无任务且无课程且未完成）不计入分子分母
   const ms = store.goals.milestones || [];
   let done = 0, total = 0;
   ms.forEach(function(m){
     const tasks = m.tasks || [];
-    if(tasks.length){
-      done += tasks.filter(function(t){ return t.done; }).length;
-      total += tasks.length;
-    } else if(m.done){
-      done += 1; total += 1;   // 无任务但被手动标记达成，计 1/1
-    }
+    const courses = m.courses || [];
+    const tDone = tasks.filter(function(t){ return t.done; }).length;
+    const tTot = tasks.length;
+    const lDone = courses.reduce(function(s,c){ return s + Math.min(c.done||0, c.total||0); }, 0);
+    const lTot = courses.reduce(function(s,c){ return s + (c.total||0); }, 0);
+    done += tDone + lDone;
+    total += tTot + lTot;
+    if(tTot===0 && lTot===0 && m.done){ done += 1; total += 1; }
   });
   if(!total) return 0;
   return Math.round(done / total * 100);
@@ -4556,7 +4566,7 @@ function saveMilestone(id){
     if(m){ m.title=data.title; m.emoji=data.emoji; m.deadline=data.deadline; m.note=data.note; }
   } else {
     data.id = 'ms_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-    data.done = false; data.celebrated = false; data.tasks = [];
+    data.done = false; data.celebrated = false; data.tasks = []; data.courses = [];
     store.goals.milestones.push(data);
   }
   saveStore();
@@ -4700,6 +4710,119 @@ function unarchiveMilestone(id){
   m.archived = false;
   saveStore(); renderGoals();
 }
+function editGoalCourse(msId, cId){
+  ensureGoals();
+  const m = store.goals.milestones.find(function(x){ return x.id===msId; });
+  if(!m) return;
+  let c = null;
+  if(cId){ c = (m.courses||[]).find(function(x){ return x.id===cId; }); }
+  const cur = c || { name:'', platform:'', total:0, done:0, linked:null, deadline:'', lessonMin:30, note:'' };
+  let selOpts = '<option value="">不关联</option>';
+  for(const key in TOPICS){
+    selOpts += '<option value="'+key+'"'+(cur.linked===key?' selected':'')+'>'+TOPICS[key].name+'</option>';
+  }
+  const inner = '<div class="popup-sparkles"><span>📚</span><span>💜</span><span>🌸</span><span>💜</span><span>📚</span></div>'
+    + '<div class="popup-ico">📚</div>'
+    + '<div class="popup-title">'+(cId?'编辑课程':'添加课程')+'</div>'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:8px 0 4px">课程名称</div>'
+    + '<input id="gCourseName" value="'+ escapeHtml(cur.name||'') +'" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如：粉笔系统班·言语">'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">平台 / 机构</div>'
+    + '<input id="gCoursePlatform" value="'+ escapeHtml(cur.platform||'') +'" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如：粉笔 / 华图 / 腰果">'
+    + '<div style="display:flex;gap:8px;margin-top:10px">'
+    + '<div style="flex:1;text-align:left;font-size:13px;color:#666">总课时<input id="gCourseTotal" type="number" min="0" inputmode="numeric" value="'+((cur.total||0))+'" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 120"></div>'
+    + '<div style="flex:1;text-align:left;font-size:13px;color:#666">已学<input id="gCourseDone" type="number" min="0" inputmode="numeric" value="'+((cur.done||0))+'" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 0"></div>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;margin-top:10px">'
+    + '<div style="flex:1;text-align:left;font-size:13px;color:#666">每节时长(分)<input id="gCourseMin" type="number" min="0" inputmode="numeric" value="'+((cur.lessonMin||30))+'" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="30"></div>'
+    + '<div style="flex:1;text-align:left;font-size:13px;color:#666">截止日<input id="gCourseDeadline" type="date" value="'+escapeHtml(cur.deadline||'')+'" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none"></div>'
+    + '</div>'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">关联科目（可选，自动显示正确率）</div>'
+    + '<select id="gCourseLinked" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none;background:#fff">'+selOpts+'</select>'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">备注</div>'
+    + '<input id="gCourseNote" value="'+ escapeHtml(cur.note||'') +'" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="选课建议、上课节奏等">'
+    + '<div style="display:flex;gap:10px;margin-top:14px">'
+    + '<button class="btn popup-btn" style="background:#eee;color:#888;box-shadow:none" onclick="closeGoalsPopup()">取消</button>'
+    + '<button class="btn popup-btn" onclick="saveGoalCourse(\''+msId+'\',\''+(cId||'')+'\')">保存</button></div>';
+  openGoalsPopup(inner);
+}
+function saveGoalCourse(msId, cId){
+  ensureGoals();
+  const m = store.goals.milestones.find(function(x){ return x.id===msId; });
+  if(!m){ closeGoalsPopup(); return; }
+  if(!m.courses) m.courses = [];
+  const name = (document.getElementById('gCourseName').value||'').trim();
+  if(!name){ if(typeof toast==='function') toast('课程名称不能为空～'); return; }
+  const total = Math.max(0, parseInt(document.getElementById('gCourseTotal').value,10)||0);
+  let done = Math.max(0, parseInt(document.getElementById('gCourseDone').value,10)||0);
+  if(done>total) done = total;
+  const linked = document.getElementById('gCourseLinked').value || null;
+  const platform = (document.getElementById('gCoursePlatform').value||'').trim();
+  const lessonMin = Math.max(1, parseInt(document.getElementById('gCourseMin').value,10)||30);
+  const deadline = document.getElementById('gCourseDeadline').value || '';
+  const note = (document.getElementById('gCourseNote').value||'').trim();
+  if(cId){
+    const c = m.courses.find(function(x){ return x.id===cId; });
+    if(c){ c.name=name; c.platform=platform; c.total=total; c.done=done; c.linked=linked; c.lessonMin=lessonMin; c.deadline=deadline; c.note=note; }
+  } else {
+    m.courses.push({ id:'cs_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, platform:platform, total:total, done:done, linked:linked, lessonMin:lessonMin, deadline:deadline, note:note });
+  }
+  saveStore(); closeGoalsPopup(); renderGoals();
+}
+function deleteGoalCourse(msId, cId){
+  ensureGoals();
+  const m = store.goals.milestones.find(function(x){ return x.id===msId; });
+  if(!m) return;
+  if(typeof confirm==='function' && !confirm('删除这门课程？')) return;
+  m.courses = (m.courses||[]).filter(function(x){ return x.id!==cId; });
+  saveStore(); renderGoals();
+}
+function viewCourseLesson(msId, cId){
+  ensureGoals();
+  const m = store.goals.milestones.find(function(x){ return x.id===msId; });
+  if(!m) return;
+  const c = (m.courses||[]).find(function(x){ return x.id===cId; });
+  if(!c) return;
+  if((c.done||0) >= (c.total||0)){ if(typeof toast==='function') toast('《'+c.name+'》已学完啦 🎉'); return; }
+  c.done = (c.done||0) + 1;
+  const today = todayKey();
+  const mins = (c.lessonMin && c.lessonMin>0) ? c.lessonMin : 30;
+  if(!store.checkins) store.checkins = {};
+  store.checkins[today] = (store.checkins[today]||0) + mins/60;
+  if(!store.todos) store.todos = [];
+  const todoText = '看《'+c.name+'》网课';
+  if(!store.todos.some(function(td){ return td.date===today && td.text===todoText; })){
+    store.todos.unshift({ id:'td'+Date.now()+Math.floor(Math.random()*1000), mod:'综合/其他', text:todoText, done:false, created:today, finished:'', date:today, src:'course' });
+  }
+  if(!store.plans[today]) store.plans[today] = [];
+  if(!store.plans[today].some(function(p){ return p.text===todoText; })){
+    const p = { id:'p'+Date.now(), text:todoText, module:'综合/其他', count:0, done:false };
+    store.plans[today].push(p);
+    if(typeof ensurePlanTodo==='function') ensurePlanTodo(p, today);
+  }
+  if(milestoneProgress(m) >= 100 && !m.celebrated){
+    m.celebrated = true;
+    if(!m.achievedAt) m.achievedAt = Date.now();
+    if(typeof celebrateMilestone==='function') celebrateMilestone(m);
+  }
+  saveStore();
+  renderGoals();
+  if(typeof renderPlan==='function') renderPlan();
+  if(typeof renderTodoList==='function') renderTodoList();
+  if(typeof toast==='function') toast('已学 1 节《'+c.name+'》📚 已记打卡·待办·计划');
+}
+function startCourseFocus(msId, cId){
+  ensureGoals();
+  const m = store.goals.milestones.find(function(x){ return x.id===msId; });
+  if(!m) return;
+  const c = (m.courses||[]).find(function(x){ return x.id===cId; });
+  if(!c) return;
+  tomatoTask = '看《'+c.name+'》网课';
+  tomatoTodoId = '';
+  goPage('tomato');
+  const inp = document.getElementById('tomatoTaskInput');
+  if(inp){ inp.value = tomatoTask; if(typeof onTomatoTaskInput==='function') onTomatoTaskInput(); }
+  if(typeof toast==='function') toast('已定位到番茄钟，开始一节专注吧 🍅');
+}
 function renderGoals(){
   const el = document.getElementById('page-goals');
   if(!el) return;
@@ -4787,6 +4910,45 @@ function renderGoals(){
         card += '<div style="font-size:11px;color:#ccc;padding:4px 0">还没有任务，点下面添加～</div>';
       }
       card += '</div>';
+      // 📚 课程区
+      card += '<div style="margin-top:10px;border-top:1px dashed #f0e9ec;padding-top:8px">';
+      card += '<div style="font-size:11px;color:#bbb;margin-bottom:4px">📚 课程</div>';
+      const cs = m.courses || [];
+      if(cs.length){
+        cs.forEach(function(c){
+          const cDone = Math.min(c.done||0, c.total||0);
+          const cTot = c.total||0;
+          const cP = cTot>0 ? Math.round(cDone/cTot*100) : 0;
+          const cColor = cP>=100?'#7FB069':'#e8a13a';
+          const cAcc = c.linked ? moduleAccByKey(c.linked) : null;
+          const cShort = c.linked && TOPICS[c.linked] ? TOPICS[c.linked].name.slice(0,2) : '';
+          let cWarn = '';
+          if(c.deadline && cP<100){
+            const dl = goalDaysLeft(c.deadline);
+            if(dl<0) cWarn = '<span style="font-size:10px;color:#e8607d;background:#fdeaee;padding:1px 6px;border-radius:8px">⚠️ 已逾期</span>';
+            else if(dl<=7) cWarn = '<span style="font-size:10px;color:#e8a13a;background:#fdf3e6;padding:1px 6px;border-radius:8px">⏰ 剩'+dl+'天</span>';
+          }
+          card += '<div style="display:flex;align-items:center;gap:6px;padding:5px 0;flex-wrap:wrap">';
+          card += '<div style="flex:1;min-width:150px">';
+          card += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:13px;font-weight:600;color:#555">'+escapeHtml(c.name||'课程')+'</span>';
+          if(c.platform) card += '<span style="font-size:10px;color:#999">·'+escapeHtml(c.platform)+'</span>';
+          if(cAcc!==null) card += '<span style="font-size:10px;color:#4a9d6b;background:#eef7ee;padding:1px 6px;border-radius:8px">📊 '+cShort+' '+cAcc+'%</span>';
+          card += cWarn;
+          card += '</div>';
+          card += '<div style="display:flex;justify-content:space-between;font-size:10px;color:#999;margin:2px 0"><span>已学 '+cDone+'/'+cTot+' 节</span><span style="color:'+cColor+'">'+cP+'%</span></div>';
+          card += '<div style="height:6px;background:#f0ece8;border-radius:4px;overflow:hidden"><div style="height:100%;width:'+cP+'%;background:'+cColor+';border-radius:4px"></div></div>';
+          card += '</div>';
+          card += '<span style="cursor:pointer;font-size:14px" title="看一课 ➕1" onclick="viewCourseLesson(\''+m.id+'\',\''+c.id+'\')">➕</span>';
+          card += '<span style="cursor:pointer;font-size:12px" title="开始一节专注" onclick="startCourseFocus(\''+m.id+'\',\''+c.id+'\')">🍅</span>';
+          card += '<span style="cursor:pointer;font-size:11px;color:#ccc" onclick="editGoalCourse(\''+m.id+'\',\''+c.id+'\')">✏️</span>';
+          card += '<span style="cursor:pointer;font-size:11px;color:#ccc" onclick="deleteGoalCourse(\''+m.id+'\',\''+c.id+'\')">🗑️</span>';
+          card += '</div>';
+        });
+      } else {
+        card += '<div style="font-size:11px;color:#ccc;padding:2px 0">还没加课程～</div>';
+      }
+      card += '</div>';
+      card += '<button class="btn btn-outline" style="width:100%;padding:6px;font-size:13px;margin-top:4px" onclick="editGoalCourse(\''+m.id+'\')">＋ 添加课程</button>';
       card += '<button class="btn btn-outline" style="width:100%;padding:6px;font-size:13px;margin-top:4px" onclick="editGoalTask(\''+m.id+'\')">＋ 添加任务</button>';
       card += '</div>';
       html += card;
@@ -4805,7 +4967,7 @@ function renderGoals(){
       let card = '<div style="background:#faf7f9;border-radius:14px;padding:14px;border:1px dashed #e7dde2">'
         + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:20px">'+ (m.emoji||'🎯') +'</span><span style="font-weight:700;font-size:14px;color:#777">'+ escapeHtml(m.title) +'</span>'
         + '<span style="cursor:pointer;font-size:11px;color:#bbb;margin-left:auto" onclick="unarchiveMilestone(\''+m.id+'\')">↩︎ 恢复</span></div>'
-        + '<div style="font-size:11px;color:#999;line-height:1.6">达成日：'+dateStr+'<br>任务 '+((m.tasks||[]).length)+' 项 · 进度 '+p+'%'
+        + '<div style="font-size:11px;color:#999;line-height:1.6">达成日：'+dateStr+'<br>任务 '+((m.tasks||[]).length)+' 项 · 课程 '+((m.courses||[]).length)+' 门 · 进度 '+p+'%'
         + (linkedAcc.length?'<br>关联科：'+linkedAcc.join('、'):'') +'</div>';
       if(p>=100) card += '<div style="margin-top:6px;font-size:11px;color:#7FB069;font-weight:700">🏆 已达成</div>';
       card += '</div>';
@@ -4834,6 +4996,83 @@ function renderGoals(){
   el.innerHTML = html;
 }
 
+function renderCourses(){
+  const el = document.getElementById('page-courses');
+  if(!el) return;
+  ensureGoals();
+  const ms = store.goals.milestones || [];
+  const allCourses = [];
+  ms.forEach(function(m){ (m.courses||[]).forEach(function(c){ allCourses.push({ m:m, c:c }); }); });
+  let totalDone = 0, totalTot = 0, dueSoon = 0, overdue = 0;
+  allCourses.forEach(function(o){
+    const c = o.c;
+    const cd = Math.min(c.done||0, c.total||0);
+    const ct = c.total||0;
+    totalDone += cd; totalTot += ct;
+    if(c.deadline){
+      const dl = goalDaysLeft(c.deadline);
+      if(dl<0) overdue++;
+      else if(dl<=7 && cd<ct) dueSoon++;
+    }
+  });
+  let html = '<div style="padding:18px 18px 40px">';
+  html += '<div style="background:linear-gradient(135deg,#E58AA6,#D35F84);border-radius:18px;padding:18px;color:#fff;box-shadow:0 4px 14px rgba(211,95,132,.25)">';
+  html += '<div style="font-size:15px;font-weight:700;margin-bottom:10px">📚 我的网课</div>';
+  html += '<div style="display:flex;gap:14px;flex-wrap:wrap">';
+  html += '<div><div style="font-size:24px;font-weight:800">'+totalDone+'<span style="font-size:14px;opacity:.85">/'+totalTot+'</span></div><div style="font-size:11px;opacity:.9">已学课时</div></div>';
+  html += '<div><div style="font-size:24px;font-weight:800">'+(totalTot?Math.round(totalDone/totalTot*100):0)+'%</div><div style="font-size:11px;opacity:.9">总进度</div></div>';
+  html += '<div><div style="font-size:24px;font-weight:800;color:'+(overdue?'#ffd7df':'#fff')+'">'+overdue+'</div><div style="font-size:11px;opacity:.9">已逾期</div></div>';
+  html += '<div><div style="font-size:24px;font-weight:800;color:'+(dueSoon?'#fff3c4':'#fff')+'">'+dueSoon+'</div><div style="font-size:11px;opacity:.9">7天内到期</div></div>';
+  html += '</div></div>';
+  if(!allCourses.length){
+    html += '<div style="background:#fff;border-radius:14px;padding:24px;text-align:center;color:#bbb;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-top:16px">还没有课程，去「🎯 目标拆解」里给某个阶段添加课程吧 📚</div>';
+  } else {
+    ms.forEach(function(m){
+      const cs = m.courses || [];
+      if(!cs.length) return;
+      const idx = ms.indexOf(m) + 1;
+      html += '<div style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+        + '<span style="font-size:18px">'+(m.emoji||'🎯')+'</span>'
+        + '<span style="font-weight:700;font-size:14px;color:#555">'+escapeHtml(m.title)+'</span>'
+        + '<span style="font-size:11px;color:#bbb">· 第'+idx+'阶段</span></div>';
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">';
+      cs.forEach(function(c){
+        const cd = Math.min(c.done||0, c.total||0);
+        const ct = c.total||0;
+        const cp = ct>0?Math.round(cd/ct*100):0;
+        const cColor = cp>=100?'#7FB069':'#e8a13a';
+        const cAcc = c.linked?moduleAccByKey(c.linked):null;
+        const cShort = c.linked&&TOPICS[c.linked]?TOPICS[c.linked].name.slice(0,2):'';
+        let cWarn='';
+        if(c.deadline && cp<100){
+          const dl=goalDaysLeft(c.deadline);
+          if(dl<0) cWarn='<span style="font-size:10px;color:#e8607d;background:#fdeaee;padding:1px 6px;border-radius:8px">⚠️ 逾期</span>';
+          else if(dl<=7) cWarn='<span style="font-size:10px;color:#e8a13a;background:#fdf3e6;padding:1px 6px;border-radius:8px">⏰ 剩'+dl+'天</span>';
+        }
+        let card='<div style="background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:4px solid '+cColor+'">';
+        card+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-weight:700;font-size:14px;color:#444;flex:1">'+escapeHtml(c.name||'课程')+'</span>'
+          +'<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="editGoalCourse(\''+m.id+'\',\''+c.id+'\')">✏️</span>'
+          +'<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="deleteGoalCourse(\''+m.id+'\',\''+c.id+'\')">🗑️</span></div>';
+        if(c.platform) card+='<div style="font-size:11px;color:#999;margin:2px 0">'+escapeHtml(c.platform)+'</div>';
+        card+='<div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin:6px 0 2px"><span>已学 '+cd+'/'+ct+' 节</span><span style="color:'+cColor+';font-weight:700">'+cp+'%</span></div>';
+        card+='<div style="height:8px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:6px"><div style="height:100%;width:'+cp+'%;background:'+cColor+';border-radius:6px"></div></div>';
+        card+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
+        if(cAcc!==null) card+='<span style="font-size:10px;color:#4a9d6b;background:#eef7ee;padding:2px 6px;border-radius:8px">📊 '+cShort+' '+cAcc+'%</span>';
+        card+=goalDeadlineBadge(c.deadline);
+        card+=cWarn;
+        card+='</div>';
+        card+='<div style="display:flex;gap:8px;margin-top:10px">'
+          +'<button class="btn popup-btn" style="flex:1;font-size:13px" onclick="viewCourseLesson(\''+m.id+'\',\''+c.id+'\')">➕ 看一课</button>'
+          +'<button class="btn btn-outline" style="flex:1;font-size:13px;border-color:#e8607d;color:#e8607d" onclick="startCourseFocus(\''+m.id+'\',\''+c.id+'\')">🍅 专注</button></div>';
+        card+='</div>';
+        html+=card;
+      });
+      html+='</div></div>';
+    });
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
 function onPageShow(page){
   if(page==='home'){ renderHome(); updateEbBadge(); }
   if(page==='plan') renderPlan();
@@ -4854,6 +5093,7 @@ function onPageShow(page){
   if(page==='report') renderReport();
   if(page==='subjflower') renderSubjFlower();
   if(page==='goals') renderGoals();
+  if(page==='courses') renderCourses();
   if(page==='diary') renderDiary();
   if(page==='garden'){ renderGarden(); maybeShowMorning(); }
   if(page==='secret') renderSecretGarden();
