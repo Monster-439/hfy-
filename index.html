@@ -7823,7 +7823,7 @@ function awayCureProgress(){
     if(g.gardenEvent && g.gardenEvent.type==='away'){
       const p = awayCureProgress();
       if(p.clear){
-        g.gardenEvent = {};
+        clearGardenEvent();
         g._eventNotified = '';
         setTimeout(()=>toast(p.msg+' 💗'), 220);
       } else {
@@ -11634,6 +11634,7 @@ const BLOOM_TITLES = [
 ];
 const COIN_PER_CHECKIN = 7; // 每累计 7 个专注打卡日送 1 金币
 const AWAY_DAYS = 3;        // 我的小花：连续 N 天没来「打卡日历」打卡 → 相思病（成长变慢），去打卡即可治愈
+const EVENT_COOLDOWN_MS = 24*3600*1000; // 驱虫/化解后冷却期：期间两端都不重新长虫，且云端带虫会被强制清掉（解决跨端互相覆盖）
 
 // ===== 成就墙 + 抽卡养花 =====
 const ACHIEVEMENTS = [
@@ -11832,6 +11833,7 @@ function ensureGarden(){
   g.weatherCode = g.weatherCode||null;             // 真实天气码(WMO)
   g.weatherPending = g.weatherPending||false;      // 切换城市后是否正在获取
   g.gardenEvent = g.gardenEvent||{};               // {type, since} 当前进行中的事件
+  g.gardenEventClearedAt = g.gardenEventClearedAt||0; // 最近一次化解事件的时间戳（冷却期内两端都不重新长虫）
   g.lastCalCheckin = g.lastCalCheckin||'';         // 最近一次「日历打卡」日期（用于相思病判定，与浇水/专注区分）
   g.dryDays = g.dryDays||0;                        // 连续未浇水天数
   g.healthyStreak = g.healthyStreak||0;            // 连续健康天数
@@ -12005,7 +12007,7 @@ function renderGarden(){
       // 有城市：天气与三值影响交给 refreshWeather()→applyTodayWeather() 异步统一设置
     }
     // 雨天：自动缓解进行中的干旱事件（老天爷浇水）
-    if(g.weather==='rain' && g.gardenEvent && g.gardenEvent.type==='dry'){ g.gardenEvent = {}; }
+    if(g.weather==='rain' && g.gardenEvent && g.gardenEvent.type==='dry'){ clearGardenEvent(); }
     // 干旱判定：连续 2 天未浇水 → 触发干旱事件（成长减半）；但雨天不会干旱
     if(days>=2 && !g.gardenEvent.type && g.weather!=='rain'){ g.gardenEvent = {type:'dry', since:todayKey()}; }
     // 相思病：连续 N 天没来「打卡日历」打卡 → 小花想你生病（成长变慢）；与干旱(没浇水)区分，治愈=去打卡
@@ -12321,6 +12323,20 @@ function addSunlight(n, reason){
 }
 
 // 事件 → 对症药品 映射（用药必须对应事件才有效）
+// 清空进行中事件，并记录清空时间戳（开启冷却期，抑制两端重新长虫）
+function clearGardenEvent(){
+  const g = store.garden; if(!g) return;
+  clearGardenEvent();
+  g.gardenEventClearedAt = Date.now();
+}
+// 冷却期内：即便云端带虫被合并进来，也强制清掉（解决跨端互相覆盖）
+function applyGardenEventCooldownOverride(){
+  const g = store.garden; if(!g) return;
+  const ca = g.gardenEventClearedAt||0;
+  if(ca && g.gardenEvent && g.gardenEvent.type && (Date.now()-ca) < EVENT_COOLDOWN_MS){
+    clearGardenEvent();
+  }
+}
 const EVENT_INFO = {
   bug:  {t:'🐛 长虫了！',      cure:'med',  med:'bug'},   // 除虫药
   root: {t:'💧 浇水太多烂根！', cure:'med',  med:'root'},  // 控根剂
@@ -12357,7 +12373,7 @@ function useMed(medKey){
     return;
   }
   g.meds[medKey] -= 1;
-  g.gardenEvent = {};
+  clearGardenEvent();
   g.health = Math.min(100, (g.health||0)+5);
   saveStore();
   closeGardenEventPopup();
@@ -12481,7 +12497,7 @@ function useRevive(){
   g.lastCare = todayKey(); g.wateredDate = todayKey(); g.dryDays = 0;
   g.moisture = Math.max(g.moisture, 80);
   g.health = Math.min(100, Math.max(g.health, 80));
-  g.gardenEvent = {};
+  clearGardenEvent();
   saveStore();
   closeGardenModal();                // 收起背包，露出花台看复活动画
   playRevive();
@@ -12656,7 +12672,7 @@ function applyTodayWeather(wk, text, temp, code){
   saveStore();
   // 雨天：自动缓解进行中的干旱事件（老天爷浇水）
   if(wk==='rain' && g.gardenEvent && g.gardenEvent.type==='dry'){
-    g.gardenEvent = {}; setTimeout(()=>toast('🌧️ 下雨啦，干旱自动缓解～'), 380);
+    clearGardenEvent(); setTimeout(()=>toast('🌧️ 下雨啦，干旱自动缓解～'), 380);
   }
   if(BUFF_HINT[wk]){ setTimeout(()=>toast(BUFF_HINT[wk].tip), 350); }
 }
@@ -12900,7 +12916,7 @@ function waterFlower(tierIdx){
   g.moisture = Math.min(100, (g.moisture||0) + Math.round(t.growth*1.6));
   g.lastCare = tk; g.wateredDate = tk;
   g.dryDays = 0; // 浇了水，解除"连续未浇水"计数
-  if(g.gardenEvent.type==='dry'){ g.gardenEvent = {}; setTimeout(()=>toast('💧 浇了水，干旱缓解啦！'),380); }
+  if(g.gardenEvent.type==='dry'){ clearGardenEvent(); setTimeout(()=>toast('💧 浇了水，干旱缓解啦！'),380); }
   // ── 随机事件触发 ──
   // 烂根：单日浇水 >5 次
   if(g.todayWaterCount > 5 && !g.gardenEvent.type){
@@ -12908,8 +12924,8 @@ function waterFlower(tierIdx){
     setTimeout(()=>toast('💧 浇太多次啦，土壤积水烂根了！用「控根剂」化解～'), 400);
     saveStore(); renderGardenEvent();
   }
-  // 长虫：每次浇水 15% 随机
-  else if(Math.random()<0.15 && !g.gardenEvent.type){
+  // 长虫：每次浇水 15% 随机（冷却期内不重新长虫，避免驱虫后两端反复出现）
+  else if(Math.random()<0.15 && !g.gardenEvent.type && (Date.now()-(g.gardenEventClearedAt||0)) >= EVENT_COOLDOWN_MS){
     g.gardenEvent = {type:'bug', since:tk};
     setTimeout(()=>toast('🐛 哎呀长虫子了！用「除虫药」化解，不然暂停成长～'), 400);
     saveStore(); renderGardenEvent();
@@ -14366,8 +14382,9 @@ function ghPull(){
       GH.applying=true;
       store = ghMerge(store, payload.data);                  // 合并而非整文档覆盖：保留本机已设的考试目标等
       if(remoteGardenEvent && Object.keys(remoteGardenEvent).length===0 && store.garden){
-        store.garden.gardenEvent = {};
+        clearGardenEvent();                                  // 远端清空（驱虫/化解）→ 本端也清空并开启冷却期
       }
+      applyGardenEventCooldownOverride();                    // 冷却期内：即便云端带虫被合并进来也强制清掉（解决跨端互相覆盖）
       try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }catch(e){}
       GH.remoteSavedAt=remoteSavedAt; GH.v=payload.v||0; GH.lastSyncAt=Date.now(); ghSaveCfg();
       ghRefreshPage();
