@@ -12326,7 +12326,7 @@ function addSunlight(n, reason){
 // 清空进行中事件，并记录清空时间戳（开启冷却期，抑制两端重新长虫）
 function clearGardenEvent(){
   const g = store.garden; if(!g) return;
-  clearGardenEvent();
+  g.gardenEvent = {};
   g.gardenEventClearedAt = Date.now();
 }
 // 冷却期内：即便云端带虫被合并进来，也强制清掉（解决跨端互相覆盖）
@@ -14379,11 +14379,14 @@ function ghPull(){
       // 花园事件特例：任一侧显式清空（gardenEvent={}）必须跨端生效，
       // 否则 ghMerge 遇远端空对象会保留本机旧事件（驱虫/化解后另一端仍显示事件）
       var remoteGardenEvent = (payload.data && payload.data.garden && payload.data.garden.gardenEvent) ? payload.data.garden.gardenEvent : null;
+      var lc = (store.garden && store.garden.gardenEventClearedAt) || 0;   // 本端已有的冷却时间戳（合并前先存，避免被远端 undefined 覆盖）
+      var rc = (payload.data.garden && payload.data.garden.gardenEventClearedAt) || 0; // 云端带回的冷却时间戳
       GH.applying=true;
       store = ghMerge(store, payload.data);                  // 合并而非整文档覆盖：保留本机已设的考试目标等
       if(remoteGardenEvent && Object.keys(remoteGardenEvent).length===0 && store.garden){
         clearGardenEvent();                                  // 远端清空（驱虫/化解）→ 本端也清空并开启冷却期
       }
+      if(store.garden) store.garden.gardenEventClearedAt = Math.max(lc, rc, store.garden.gardenEventClearedAt||0); // 两端取最近一次冷却，确保意图跨端保留
       applyGardenEventCooldownOverride();                    // 冷却期内：即便云端带虫被合并进来也强制清掉（解决跨端互相覆盖）
       try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }catch(e){}
       GH.remoteSavedAt=remoteSavedAt; GH.v=payload.v||0; GH.lastSyncAt=Date.now(); ghSaveCfg();
