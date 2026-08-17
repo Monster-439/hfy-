@@ -2343,7 +2343,7 @@ body.drawer-open .nav-cloud{display:none;}
 
     <!-- bottom bar -->
     <div class="quiz-bottom" id="quizBottom" style="display:none">
-      <span class="quiz-progress-text" id="quizProgressText"></span>
+      <span class="quiz-progress-text" id="quizProgressTextWord"></span>
       <button class="quiz-next-btn" onclick="quizNext()">下一题 ›</button>
     </div>
 
@@ -14701,7 +14701,7 @@ function renderQuiz(){
 
     const done = quizAnswers.filter(a => a !== null).length;
     const correct = quizAnswers.filter(a => a && a.correct).length;
-    document.getElementById('quizProgressText').textContent =
+    document.getElementById('quizProgressTextWord').textContent =
       '已完成 '+done+'，剩余 '+(quizTotal-done)+' ｜ 正确 '+correct+' 题';
   }
 }
