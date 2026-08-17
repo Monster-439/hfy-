@@ -13656,13 +13656,22 @@ function endTomato(){
     return;
   }
   const focusedMin = focusedSec/60;
+  const t = todayKey();
+  const existing = store.checkins[t]||0; // 累加前的打卡小时数
   const mod = (document.getElementById('tomatoModule')) ? document.getElementById('tomatoModule').value : '综合/其他';
   addFocus(focusedMin, mod, {task: tomatoTask, mode: tomatoMode, todoId: tomatoTodoId});
   const wholeMin = Math.max(1, Math.round(focusedMin));
   resetTomato();
   if(document.getElementById('page-tomato').classList.contains('active')) renderTomato();
   if(document.getElementById('page-garden').classList.contains('active')) renderGarden();
-  toast('🍅 已结束专注，本次 '+wholeMin+' 分钟已结算，获得 '+Math.floor(focusedMin/5)+' 水滴');
+  // 当天第一次番茄钟结束（含手动「结束」按钮）弹打卡弹窗，与自动完成共用同 flag，避免当天重复弹
+  const flagKey = 'pomoCheckinPopup_'+t;
+  if(!localStorage.getItem(flagKey)){
+    localStorage.setItem(flagKey, '1');
+    showCheckinPopup(t, null, existing, focusedMin/60);
+  } else {
+    toast('🍅 已结束专注，本次 '+wholeMin+' 分钟已结算，获得 '+Math.floor(focusedMin/5)+' 水滴');
+  }
 }
 // 专注分钟绑定到「打卡日历 / 时长统计」并奖励水滴、累计打卡送金币；同时写入专注记录 focusLog
 function addFocus(minutes, modOverride, opts){
