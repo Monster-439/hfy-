@@ -428,12 +428,32 @@ input,textarea,select{font-family:inherit;outline:none;}
 .gen-weak-tag.good{background:#DCEFD8;color:#5A9A4E;}
 .gen-sec-title{font-size:13px;font-weight:700;color:var(--text-main);margin:6px 0 8px;}
 .gen-rows{display:flex;flex-direction:column;gap:8px;margin-bottom:8px;}
-.gen-row{display:flex;gap:6px;align-items:center;}
-.gen-row input[type=text]{flex:1;min-width:0;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;box-sizing:border-box;color:var(--text-main);background:#fff;}
-.gen-row select{flex:0 0 92px;padding:7px 6px;border:1px solid var(--border);border-radius:8px;font-size:13px;box-sizing:border-box;color:var(--text-main);background:#fff;}
+.gen-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid var(--border);border-radius:10px;padding:6px 8px;}
+.gen-row input[type=text]{flex:1 1 160px;min-width:0;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;box-sizing:border-box;color:var(--text-main);background:#fff;}
+.gen-row select{flex:0 0 96px;padding:7px 6px;border:1px solid var(--border);border-radius:8px;font-size:13px;box-sizing:border-box;color:var(--text-main);background:#fff;}
 .gen-row input[type=number]{flex:0 0 60px;padding:7px 6px;border:1px solid var(--border);border-radius:8px;font-size:13px;box-sizing:border-box;color:var(--text-main);background:#fff;}
+.gen-row input[type=time]{flex:0 0 96px;padding:6px 6px;border:1px solid var(--border);border-radius:8px;font-size:12px;box-sizing:border-box;color:var(--text-main);background:#fff;color-scheme:light;}
+.gen-tilde{color:#aaa;font-size:12px;flex:0 0 auto;}
 .gen-del{flex:0 0 30px;height:30px;border:none;background:#fbeaef;color:#D35F84;border-radius:8px;cursor:pointer;font-size:16px;line-height:1;}
 .gen-del:hover{background:#f8d2dc;}
+.gen-add-row,.gen-swap-row,.gen-del-row{flex:0 0 32px;height:30px;border:none;border-radius:8px;cursor:pointer;font-size:14px;line-height:1;}
+.gen-add-row{background:#e7f6e1;color:#5A9A4E;}
+.gen-add-row:hover{background:#d2ecc7;}
+.gen-swap-row{background:#FFF0D6;color:#B98A2E;}
+.gen-swap-row:hover{background:#ffe2a8;}
+.gen-del-row{background:#fbeaef;color:#D35F84;}
+.gen-del-row:hover{background:#f8d2dc;}
+.gen-month-rows{display:flex;flex-direction:column;gap:10px;margin-bottom:8px;}
+.gen-month-row{background:#FFF6F9;border:1px solid var(--border);border-radius:12px;padding:10px 12px;}
+.gen-month-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;}
+.gen-month-num{flex:0 0 auto;font-weight:700;color:#E05A8A;background:#fdeef2;padding:3px 10px;border-radius:8px;font-size:13px;}
+.gen-month-ms{flex:1 1 130px;min-width:0;padding:5px 8px;border:1px solid var(--border);border-radius:8px;font-size:12px;background:#fff;}
+.gen-month-swap{flex:0 0 auto;background:#FFF0D6;color:#B98A2E;border:none;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;}
+.gen-month-swap:hover{background:#ffe2a8;}
+.gen-month-grid{display:grid;grid-template-columns:48px 1fr;gap:5px 8px;align-items:center;}
+.gen-month-grid label{font-size:11px;color:#888;font-weight:600;text-align:right;}
+.gen-month-grid input{width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;box-sizing:border-box;color:var(--text-main);background:#fff;font-family:inherit;}
+.gen-plan-modal{max-width:680px;width:96vw;max-height:92vh;overflow-y:auto;}
 .gen-add{font-size:12px;color:#C76B8C;background:#FFF6F9;border:1px dashed var(--border);border-radius:10px;padding:7px;cursor:pointer;margin-bottom:6px;width:100%;}
 .gen-add:hover{background:#fdeaf1;}
 .gen-month{width:100%;min-height:150px;box-sizing:border-box;background:#fff;color:var(--text-main);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;line-height:1.7;resize:vertical;font-family:inherit;}
@@ -450,6 +470,7 @@ input,textarea,select{font-family:inherit;outline:none;}
 .plan-check.checked{background:linear-gradient(135deg,var(--pink-btn),#F4B8C2);border-color:var(--pink-btn);}
 .plan-check.checked::after{content:'✓';}
 .plan-text{flex:1;font-size:13px;}
+.plan-time{flex:0 0 auto;font-size:11px;color:#E05A8A;background:#fdeef2;padding:2px 8px;border-radius:8px;white-space:nowrap;font-weight:700;}
 .plan-meta{font-size:11px;color:var(--text-sub);background:#fff;padding:2px 8px;border-radius:8px;}
 .plan-del{color:#e88;cursor:pointer;font-size:16px;flex-shrink:0;}
 /* 按模块统计：可编辑 + 可删除 */
@@ -3252,18 +3273,18 @@ body.drawer-open .nav-cloud{display:none;}
 
 <!-- ========== 智能生成学习计划弹窗 ========== -->
 <div class="garden-overlay" id="genPlanModal" onclick="if(event.target===this)closeGenPlan()">
-  <div class="garden-modal">
+  <div class="garden-modal gen-plan-modal">
     <div class="garden-modal-title">✨ 智能生成学习计划 <span class="qh-close" onclick="closeGenPlan()">✕</span></div>
     <div class="gen-weak-box" id="genWeakBox"></div>
-    <div class="gen-sec-title">📌 每日学习计划（每行可手动修改 / 删除）</div>
+    <div class="gen-sec-title">📌 每日学习计划（点时间可改，点 🔁 可换，➕ 单条加入今日）</div>
     <div class="gen-rows" id="genDailyRows"></div>
-    <button class="gen-add" onclick="addGenRow('','','')">＋ 添加一行</button>
-    <div class="gen-sec-title">📅 月计划（可手动修改）</div>
-    <textarea id="genMonthArea" class="gen-month" placeholder="本月规划…"></textarea>
-    <p class="gen-tip">提示：以上均可在应用前自由编辑；点「生成并应用」会把每日计划加入今日计划表，月计划保存到下方卡片。</p>
+    <button class="gen-add" onclick="addGenRow({})">＋ 添加一行（自定义）</button>
+    <div class="gen-sec-title">📅 月计划（按周划分，每行可换一周 / 可编辑）</div>
+    <div id="genMonthContainer" class="gen-month-rows"></div>
+    <p class="gen-tip">提示：每行可点 🔁 换一条；点 ➕ 单条加入今日；最下「一键全部应用」会把每日与月计划一并保存。</p>
     <div class="garden-acts" style="justify-content:flex-end;gap:8px;margin-top:6px;">
       <button class="btn btn-outline" onclick="closeGenPlan()">取消</button>
-      <button class="btn" onclick="applyGenPlan()">生成并应用</button>
+      <button class="btn" onclick="applyGenPlan()">一键全部应用</button>
     </div>
   </div>
 </div>
@@ -5110,6 +5131,7 @@ function onPageShow(page){
   if(page==='secret') renderSecretGarden();
   if(page==='tomato'){ renderTomato(); ensureDailyTodos(); renderTodoList(); }
   if(page==='idea'){ renderIdeaTabs(); renderIdeaDaily(); renderIdeaCustom(); }
+  updateFloatingWidget();
 }
 
 // ====================================================
@@ -7642,6 +7664,218 @@ function computeWeakModules(){
   return arr;
 }
 
+// 从近 14 天的 focusLog 中学习高效时段：返回前 3 个最活跃的小时（[h1,h2,h3]）
+function computeEfficientHours(){
+  const log = store.focusLog||[];
+  if(!log.length) return [9,14,20];
+  const now = new Date(); now.setHours(0,0,0,0);
+  const buckets = new Array(24).fill(0);
+  log.forEach(function(x){
+    if(!x.ts || !x.min) return;
+    const dt = new Date(x.ts);
+    const dayDiff = Math.floor((now - new Date(dt.getFullYear(),dt.getMonth(),dt.getDate()))/(1000*60*60*24));
+    if(dayDiff<0 || dayDiff>=14) return;
+    const h = dt.getHours();
+    if(h<6 || h>22) return; // 排除深夜噪音
+    buckets[h] += x.min;
+  });
+  // 总分钟 > 0 的小时数
+  const total = buckets.reduce((s,v)=>s+v,0);
+  if(total < 30) return [9,14,20]; // 数据太少用默认
+  const arr = buckets.map((v,h)=>({h,v}))
+    .filter(o=>o.h>=6 && o.h<=22)
+    .sort((a,b)=>b.v-a.v);
+  return arr.slice(0,3).map(o=>o.h);
+}
+
+// 给定小时返回 [start,end] 字符串（半小时为最小颗粒度）
+function fmtHM(h,m){ return (h<10?'0':'')+h+':'+(m<10?'0':'')+m; }
+function addMinutes(h,m,dur){
+  let tot = h*60+m+dur;
+  if(tot>23*60+30) tot = 23*60+30;
+  const hh = Math.floor(tot/60), mm = tot%60;
+  return {h:hh, m:mm, label:fmtHM(hh,mm)};
+}
+
+// 生成每日计划：返回 [{text,module,count,start,end,intensity,type,slotIdx}]
+function buildDailyPlan(weak, anyData){
+  const eff = computeEfficientHours();
+  // 时段池：7:00 - 22:30，每 30 分钟一格
+  const slots = [];
+  for(let h=7;h<=22;h++){ slots.push({h,m:0}); slots.push({h,m:30}); }
+  const used = new Set();
+  function pickSlot(intensity, durMin){
+    const need = Math.ceil(durMin/30);
+    // 候选小时集合
+    let hSet;
+    if(intensity==='high'){ hSet = eff.concat([9,10,11,14,15,16,20,21]); }
+    else if(intensity==='low'){ hSet = [7,12,18,22]; }
+    else { hSet = [8,9,10,13,14,15,16,17,19,20]; }
+    // 优先按 hSet 顺序扫描
+    for(let attempt=0; attempt<2; attempt++){
+      const tryH = attempt===0 ? hSet : [7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22];
+      for(const h of tryH){
+        for(let i=0;i<slots.length;i++){
+          if(slots[i].h!==h) continue;
+          // 连续 need 格都空
+          let ok = true;
+          for(let k=0;k<need;k++){
+            if(i+k>=slots.length || used.has(i+k)){ ok=false; break; }
+          }
+          if(!ok) continue;
+          for(let k=0;k<need;k++) used.add(i+k);
+          return i;
+        }
+      }
+    }
+    return -1;
+  }
+  // 动作候选
+  const acts = [];
+  function P(name){ return MODULE_COURSE[name] || '补弱网课'; }
+  if(!anyData){
+    acts.push({intensity:'high', dur:60, type:'course', module:'言语理解', text:'🎬 看【言语理解】方法精讲（1.2x 倍速+做笔记）'});
+    acts.push({intensity:'med',  dur:60, type:'drill',  module:'判断推理', text:'📝 判断推理 专项刷题 40 题（严格计时）→ 复盘 15 分钟', count:40});
+    acts.push({intensity:'med',  dur:50, type:'drill',  module:'资料分析', text:'📝 资料分析 速算练习 25 题（计时）', count:25});
+    acts.push({intensity:'low',  dur:25, type:'review', module:'常识判断', text:'📖 常识/时政 晨读 15 分钟 → APP 刷常识 10 题', count:10});
+    acts.push({intensity:'med',  dur:90, type:'drill',  module:'试卷练习', text:'⏱ 限时做 1 套真题卷（严格按考试 120 分钟节奏）+ 对答案 30 分钟', count:1});
+  } else {
+    if(weak[0]){
+      const w=weak[0];
+      const why = (w.rate!==null && w.rate<75) ? ('正确率仅 '+w.rate+'%，优先补方法') : '巩固提升';
+      acts.push({intensity:'high', dur:60, type:'course', module:w.name, text:'🎬 看【'+w.name+'】'+P(w.name)+'（'+why+'，1.2x+笔记）'});
+      acts.push({intensity:'med',  dur:60, type:'drill',  module:w.name, text:'📝 '+w.name+' 专项刷题 30 题（严格计时，错题即时复盘）', count:30});
+    }
+    if(weak[1]){
+      const w=weak[1];
+      acts.push({intensity:'med', dur:50, type:'drill', module:w.name, text:'📝 '+w.name+' 专项刷题 40 题（严格计时）→ 复盘 15 分钟', count:40});
+    }
+    if(weak[2]){
+      const w=weak[2];
+      acts.push({intensity:'high', dur:50, type:'course', module:w.name, text:'🎬 看【'+w.name+'】'+P(w.name)+' 30 分钟（1.2x+笔记）'});
+      acts.push({intensity:'med',  dur:50, type:'drill',  module:w.name, text:'📝 '+w.name+' 配套练习 25 题（计时）', count:25});
+    }
+    const errTop = weak.filter(w=>w.err>0).sort((a,b)=>b.err-a.err)[0];
+    if(errTop){
+      const cnt = errTop.err>30?30:errTop.err;
+      acts.push({intensity:'low', dur:50, type:'review', module:errTop.name, text:'🔁 重做【'+errTop.name+'】错题 '+cnt+' 道 + 整理易错点笔记 20 分钟', count:cnt});
+    }
+    if(acts.length<4){
+      acts.push({intensity:'med', dur:90, type:'drill', module:'试卷练习', text:'⏱ 限时做 1 套真题卷（严格按考试 120 分钟节奏）', count:1});
+    }
+  }
+  // 必含：晨读 + 睡前复盘
+  acts.push({intensity:'low', dur:25, type:'review', module:'常识判断', text:'📖 常识/时政 晨读 15 分钟 → APP 刷常识 10 题', count:10});
+  acts.push({intensity:'low', dur:25, type:'review', module:'错题复盘', text:'🌙 睡前复盘当日错题 15 分钟（错题本 + 速记）'});
+  // 分配时间
+  acts.forEach(function(a){
+    const idx = pickSlot(a.intensity, a.dur);
+    if(idx<0){ a.start=''; a.end=''; return; }
+    const s = slots[idx];
+    const e = addMinutes(s.h, s.m, a.dur);
+    a.start = fmtHM(s.h,s.m);
+    a.end = e.label;
+    a.slotIdx = idx;
+  });
+  // 按时间排序
+  acts.sort((a,b)=>(a.start||'99:99').localeCompare(b.start||'99:99'));
+  return acts;
+}
+
+// 同强度+同模块的动作池（用于「换一行」）
+const SWAP_POOL = {
+  high_course: {
+    '言语理解':[
+      '🎬 看【言语理解】片段阅读方法精讲（1.2x+笔记）',
+      '🎬 看【言语理解】逻辑填空高频成语课（整理成语表）',
+      '🎬 看【言语理解】主旨题秒杀技巧（配套练习 15 题）',
+      '🎬 看【言语理解】语句排序+病句辨析精讲',
+    ],
+    '判断推理':[
+      '🎬 看【判断推理】图形推理规律精讲（整理规律表）',
+      '🎬 看【判断推理】定义判断高分技巧（配套练习 20 题）',
+      '🎬 看【判断推理】类比推理高频考点精讲',
+      '🎬 看【判断推理】逻辑判断题型精讲（1.2x+笔记）',
+    ],
+    '资料分析':[
+      '🎬 看【资料分析】速算技巧课（截位直除/分数比较）',
+      '🎬 看【资料分析】增长率/比重高频考点精讲',
+      '🎬 看【资料分析】综合判断题 3 步秒杀法',
+    ],
+    '数量关系':[
+      '🎬 看【数量关系】高频考点速解课（行程/工程/利润）',
+      '🎬 看【数量关系】数字推理特征识别课',
+    ],
+  },
+  med_drill: {
+    '言语理解':[
+      '📝 言语理解 专项刷题 30 题（严格计时）→ 错题即时复盘',
+      '📝 言语理解 片段阅读 25 题（计时，目标 45 分钟）',
+      '📝 言语理解 高频成语专题 20 题（计时 + 整理高频词）',
+      '📝 言语理解 篇章阅读 4 篇（计时，模拟考场）',
+    ],
+    '判断推理':[
+      '📝 判断推理 专项刷题 40 题（严格计时）→ 复盘 15 分钟',
+      '📝 判断推理 图推 30 题（每题限时 50 秒）',
+      '📝 判断推理 定义判断 25 题（计时，目标 8 分钟）',
+      '📝 判断推理 类比推理 25 题（计时）',
+    ],
+    '资料分析':[
+      '📝 资料分析 速算练习 25 题（计时）',
+      '📝 资料分析 4 篇资料套题（计时，目标 30 分钟）',
+      '📝 资料分析 增长率/比重专项 20 题（计时）',
+    ],
+    '数量关系':[
+      '📝 数量关系 高频题型 20 题（计时，目标 20 分钟）',
+      '📝 数量关系 数字推理 15 题（计时）',
+    ],
+    '常识判断':[
+      '📝 常识判断 法律专项 20 题（计时）',
+      '📝 常识判断 文史科技 25 题（计时）',
+    ],
+  },
+  low_review: {
+    '常识判断':[
+      '📖 常识/时政 晨读 15 分钟 → APP 刷常识 10 题',
+      '📖 常识 时政周报阅读 20 分钟（重点看政府工作报告要点）',
+    ],
+    '错题复盘':[
+      '🌙 睡前复盘当日错题 15 分钟（错题本 + 速记）',
+      '🔁 重做昨日错题 20 道 + 整理易错点笔记 15 分钟',
+    ],
+    'default':[
+      '🔁 重做昨日错题 20 道 + 整理易错点笔记 15 分钟',
+      '📖 复盘本周高频错题 30 分钟（错题本分类整理）',
+    ],
+  }
+};
+function getSwapTexts(intensity, type, mod){
+  const key = intensity==='high' ? 'high_course' : (intensity==='med' ? 'med_drill' : 'low_review');
+  const bucket = SWAP_POOL[key] || {};
+  if(mod && bucket[mod] && bucket[mod].length) return bucket[mod];
+  return bucket['default'] || ['📝 自由安排 30 分钟（根据当日状态调整）'];
+}
+// 按 DOM 行按钮 找 row 然后换这一行
+function swapGenRow(btnEl){
+  const row = btnEl.closest('.gen-row');
+  if(!row) return;
+  const intensity = row.dataset.intensity || 'med';
+  const type = row.dataset.type || 'drill';
+  const mod = row.dataset.mod || '';
+  const start = row.dataset.start || '20:00';
+  // 从同强度/科目池中随机选一条（避免选到当前文本）
+  const cur = row.querySelector('.gen-text').value.trim();
+  const pool = getSwapTexts(intensity, type, mod);
+  const candidates = pool.filter(t => t !== cur);
+  const picked = candidates.length ? candidates[Math.floor(Math.random()*candidates.length)] : pool[0];
+  row.querySelector('.gen-text').value = picked;
+  // 重新解析题量
+  const m = picked.match(/(\d+)\s*题/);
+  const cntInput = row.querySelector('.gen-count');
+  if(cntInput) cntInput.value = m ? m[1] : 0;
+  if(typeof toast==='function') toast('🔁 已换一个安排');
+}
+
 function generatePlan(){
   const weak = computeWeakModules();
   const anyData = weak.some(function(w){return w.totalDone>0;});
@@ -7671,130 +7905,102 @@ function generatePlan(){
   document.getElementById('genPlanModal').classList.add('show');
 }
 
-function addGenRow(text, module, count){
+// addGenRow 升级版：每行带开始/结束时间 + 换一行 + 加到今日 + 删除
+// 入参 rowObj = {text, module, count, start, end, intensity, type}
+function addGenRow(rowObj){
   const box = document.getElementById('genDailyRows');
   const row = document.createElement('div');
   row.className = 'gen-row';
+  row.dataset.intensity = rowObj.intensity || 'med';
+  row.dataset.type = rowObj.type || 'drill';
+  row.dataset.mod = rowObj.module || '';
+  row.dataset.start = rowObj.start || '';
+  row.dataset.end = rowObj.end || '';
   const opts = PLAN_MODULE_OPTS.map(function(o){
-    return '<option value="'+o+'"'+(o===module?' selected':'')+'>'+o+'</option>';
+    return '<option value="'+o+'"'+(o===rowObj.module?' selected':'')+'>'+o+'</option>';
   }).join('');
   row.innerHTML =
-    '<input type="text" class="gen-text" placeholder="计划内容" value="'+String(text||'').replace(/"/g,'&quot;')+'">'
+    '<input type="time" class="gen-start" value="'+ (rowObj.start||'') +'" title="开始时间">'
+    + '<span class="gen-tilde">–</span>'
+    + '<input type="time" class="gen-end" value="'+ (rowObj.end||'') +'" title="结束时间">'
     + '<select class="gen-mod">'+opts+'</select>'
-    + '<button type="button" class="gen-del" onclick="this.parentNode.remove()">✕</button>';
+    + '<input type="text" class="gen-text" placeholder="计划内容（具体做什么）" value="'+String(rowObj.text||'').replace(/"/g,'&quot;')+'">'
+    + '<input type="number" class="gen-count" min="0" placeholder="题量" value="'+ (rowObj.count||0) +'" title="题量（可选）">'
+    + '<button type="button" class="gen-add-row" title="加入今日计划" onclick="addThisGenRow(this)">➕</button>'
+    + '<button type="button" class="gen-swap-row" title="换一个同强度安排" onclick="swapGenRow(this)">🔁</button>'
+    + '<button type="button" class="gen-del-row" title="删除该行" onclick="this.parentNode.remove()">🗑</button>';
   box.appendChild(row);
 }
 
-function buildDailyPlan(weak, anyData){
-  const rows = [];
-  if(!anyData){
-    // 均衡打底：每个模块都给「看网课 + 计时刷题 + 晨读」的具体动作与时长
-    rows.push({text:'🎬 看【言语理解】方法精讲网课 40 分钟（1.2x 倍速+做笔记）→ 配套专项刷题 30 题（计时）', module:'言语理解', count:30});
-    rows.push({text:'📝 判断推理 专项刷题 40 题（严格计时）→ 复盘当日错题 15 分钟', module:'判断推理', count:40});
-    rows.push({text:'🎬 看【资料分析】速算技巧网课 30 分钟 → 速算练习 25 题（计时）', module:'资料分析', count:25});
-    rows.push({text:'📖 常识/时政 晨读积累 15 分钟 → APP 刷常识题 10 题', module:'常识判断', count:10});
-    return rows;
+// 把单行加入今日计划表（store.plans[today]） + 同步到今日待办
+function addThisGenRow(btnEl){
+  const row = btnEl.closest('.gen-row');
+  if(!row) return;
+  const today = todayKey();
+  if(!store.plans[today]) store.plans[today] = [];
+  const text = row.querySelector('.gen-text').value.trim();
+  if(!text){ if(typeof toast==='function') toast('请输入计划内容'); return; }
+  const start = row.querySelector('.gen-start').value || '';
+  const end = row.querySelector('.gen-end').value || '';
+  const mod = row.querySelector('.gen-mod').value;
+  const count = parseInt(row.querySelector('.gen-count').value,10) || 0;
+  // 去重（同 text+start 不重复）
+  if(store.plans[today].some(function(p){return p.text===text && (p.start||'')===start;})) {
+    if(typeof toast==='function') toast('已加入过类似计划（未重复添加）');
+    return;
   }
-  const course = function(n){ return MODULE_COURSE[n]||'补弱网课'; };
-  // 最弱板块：网课精学（学方法）+ 配套刷题（练手感）
-  if(weak[0]){
-    const w = weak[0];
-    const why = (w.rate!==null && w.rate<75) ? ('正确率仅 '+w.rate+'%，优先补方法') : '巩固提升';
-    rows.push({text:'🎬 看【'+w.name+'】'+course(w.name)+' 40 分钟（1.2x 倍速+做笔记，'+why+'）→ 配套专项刷题 30 题（计时）', module:w.name, count:30});
-  }
-  // 第二弱：以计时刷题为主 + 当日复盘
-  if(weak[1]){
-    const w = weak[1];
-    rows.push({text:'📝 '+w.name+' 专项刷题 40 题（严格计时）→ 复盘当日错题 15 分钟', module:w.name, count:40});
-  }
-  // 第三弱：网课 + 配套练习（方法微调）
-  if(weak[2]){
-    const w = weak[2];
-    rows.push({text:'🎬 看【'+w.name+'】'+course(w.name)+' 30 分钟 → 配套练习 25 题（计时）', module:w.name, count:25});
-  }
-  // 错题复盘（取错题最多的模块）
-  const errTop = weak.filter(function(w){return w.err>0;}).sort(function(a,b){return b.err-a.err;})[0];
-  if(errTop){
-    const cnt = errTop.err>30?30:errTop.err;
-    rows.push({text:'🔁 重做【'+errTop.name+'】错题 '+cnt+' 道 + 整理易错点笔记 20 分钟', module:errTop.name, count:cnt});
-  }
-  // 保证每天有套卷节奏
-  if(rows.length<4){
-    rows.push({text:'⏱ 限时做 1 套真题卷（严格按考试 120 分钟节奏）+ 对答案复盘 30 分钟', module:'试卷练习', count:1});
-  }
-  return rows;
+  const p = {id:'p'+Date.now()+Math.floor(Math.random()*1000), text:text, module:mod, count:count, start:start, end:end, done:false};
+  store.plans[today].push(p);
+  ensurePlanTodo(p, today);
+  saveStore();
+  // 视觉反馈
+  row.style.transition='opacity .2s'; row.style.opacity='.4';
+  setTimeout(function(){ row.style.opacity='1'; }, 250);
+  if(typeof toast==='function') toast('✅ 已加入今日计划'+(start?' ('+start+'–'+end+')':''));
 }
 
-function buildMonthPlan(weak, anyData){
-  if(!anyData){
-    return '🎯 本月目标：六大模块均衡推进，先打牢基础（网课学方法），再提速（刷题固手感）。\n\n'
-      + '📅 第1周（打基础·网课先行）：\n'
-      + '· 网课：言语/判断/资料 各看 1 节方法精讲（共约 3 小时，1.2x 倍速+笔记）\n'
-      + '· 刷题：言语/判断/资料 每日各 30 题（计时）· 常识时政每日 15 分钟晨读\n'
-      + '· 周末：做 1 套真题卷限时模拟（120 分钟）\n\n'
-      + '📅 第2周（补短板）：\n'
-      + '· 刷题：针对薄弱题型加量，每日 +20 题\n'
-      + '· 网课：每周看 2 节对应补弱网课（各约 1.5 小时）\n'
-      + '· 套卷：2 套（按考试节奏）· 整理错题本易错点\n\n'
-      + '📅 第3周（提速）：\n'
-      + '· 网课：每日看 1 节速算/技巧网课（约 30 分钟）\n'
-      + '· 刷题：资料+数量 提速训练，每日各 25 题（追求正确率+速度）\n'
-      + '· 套卷：2 套 + 错题二刷\n\n'
-      + '📅 第4周（全真模拟）：\n'
-      + '· 每周 3 套全真模拟（严格计时 120 分钟）+ 当天对答案复盘\n'
-      + '· 查漏补缺错题本，回看重点网课题段\n'
-      + '· 调整作息，准备应考\n\n'
-      + '💡 每日固定：常识/时政积累 15 分钟 · 晨读 30 分钟 · 睡前复盘当日错题。\n'
-      + '（此为均衡模板，请根据你的实际薄弱项手动调整～）';
-  }
-  const w1=weak[0], w2=weak[1]||weak[0], w3=weak[2]||weak[1]||weak[0];
-  const r = function(x){ return x.rate===null?'—':x.rate+'%'; };
-  const c1 = MODULE_COURSE[w1.name]||'补弱网课';
-  const c2 = MODULE_COURSE[w2.name]||'补弱网课';
-  const c3 = MODULE_COURSE[w3.name]||'补弱网课';
-  return '🎯 本月主攻薄弱项：'+w1.name+'、'+w2.name+'、'+w3.name
-    + '（当前正确率分别 '+r(w1)+'、'+r(w2)+'、'+r(w3)+'%）；策略：网课补方法 + 刷题固手感 + 复盘错题。\n\n'
-    + '📅 第1周（夯实基础·看网课）：\n'
-    + '· 网课：看【'+w1.name+'】'+c1+'（约 2.5 小时，1.2x 倍速做笔记）\n'
-    + '· 刷题：'+w1.name+' 每日 45 题 + '+w2.name+' 每日 35 题（计时）\n'
-    + '· 周末：做 1 套真题卷，限时模拟（120 分钟）\n\n'
-    + '📅 第2周（强化突破）：\n'
-    + '· 网课：看【'+w2.name+'】'+c2+' + 【'+w3.name+'】'+c3+'（各约 1.5 小时）\n'
-    + '· 刷题：'+w2.name+' 每日 40 题 + '+w3.name+' 每日 40 题\n'
-    + '· 整理【'+w1.name+'】易错点笔记，错题重做一遍\n\n'
-    + '📅 第3周（提速冲刺）：\n'
-    + '· 网课：回看【'+w1.name+'】方法课重点段（约 1 小时）+ 资料速算技巧复盘\n'
-    + '· 刷题：'+w1.name+' 每日 50 题 + '+w3.name+' 每日 30 题\n'
-    + '· 套卷：2 套 + 错题二刷\n\n'
-    + '📅 第4周（全真模拟）：\n'
-    + '· 每周 3 套卷（严格计时 120 分钟）+ 当天对答案复盘\n'
-    + '· 查漏补缺：重点回看错题本 & 【'+w1.name+'/'+w2.name+'/'+w3.name+'】高频陷阱网课题段\n'
-    + '· 调整作息，准备应考\n\n'
-    + '💡 每日固定：常识/时政积累 15 分钟 · 晨读 30 分钟 · 睡前复盘当日错题。';
-}
-
+// 一键加入全部 + 月计划 → 替代原 applyGenPlan
 function applyGenPlan(){
   const today = todayKey();
   if(!store.plans[today]) store.plans[today] = [];
-  const existing = store.plans[today].map(function(p){return p.text;});
   let added = 0;
   document.querySelectorAll('#genDailyRows .gen-row').forEach(function(row){
     const text = row.querySelector('.gen-text').value.trim();
     if(!text) return;
-    if(existing.indexOf(text)>=0) return; // 避免重复添加
-    const module = row.querySelector('.gen-mod').value;
-    const p = {id:'p'+Date.now()+''+added, text:text, module:module, count:0, done:false};
+    const start = row.querySelector('.gen-start').value || '';
+    const end = row.querySelector('.gen-end').value || '';
+    const mod = row.querySelector('.gen-mod').value;
+    const count = parseInt(row.querySelector('.gen-count').value,10) || 0;
+    if(store.plans[today].some(function(p){return p.text===text && (p.start||'')===start;})) return;
+    const p = {id:'p'+Date.now()+Math.floor(Math.random()*1000)+''+added, text:text, module:mod, count:count, start:start, end:end, done:false};
     store.plans[today].push(p);
-    ensurePlanTodo(p, today); // 同步到番茄钟今日待办
+    ensurePlanTodo(p, today);
     added++;
   });
-  // 月计划保存到卡片
-  store.monthPlan = document.getElementById('genMonthArea').value;
+  // 月计划保存：拼成纯文本（保持与旧 store.monthPlan 兼容）+ 结构化快照
+  let monthTxt = '🎯 本月主攻计划：\n\n';
+  store.monthWeeks = [];
+  document.querySelectorAll('#genMonthContainer .gen-month-row').forEach(function(row){
+    const w = parseInt(row.dataset.week,10);
+    const theme = row.querySelector('.gen-month-theme').value.trim();
+    const course = row.querySelector('.gen-month-course').value.trim();
+    const drill = row.querySelector('.gen-month-drill').value.trim();
+    const mock = row.querySelector('.gen-month-mock').value.trim();
+    const ms = row.querySelector('.gen-month-ms').value || '';
+    store.monthWeeks.push({weekNum:w, theme:theme, course:course, drill:drill, mock:mock, milestone:ms});
+    monthTxt += '📅 第 '+w+' 周（'+(theme||'未命名')+'）\n'
+      + '· 关联里程碑：'+(ms||'—')+'\n'
+      + '· 网课：'+course+'\n'
+      + '· 刷题：'+drill+'\n'
+      + '· 套卷：'+mock+'\n\n';
+  });
+  store.monthPlan = monthTxt;
   saveStore();
   closeGenPlan();
   renderPlan();
-  toast(added>0 ? ('已生成 '+added+' 条每日计划，并可编辑月计划～') : '今日计划已包含这些内容（未重复添加）');
+  if(typeof toast==='function') toast(added>0 ? ('已加入 '+added+' 条到今日计划 + 月计划已保存') : '今日计划已包含这些内容（未重复添加）');
 }
+
 
 function closeGenPlan(){
   document.getElementById('genPlanModal').classList.remove('show');
@@ -7803,6 +8009,84 @@ function closeGenPlan(){
 function saveMonthPlan(){
   store.monthPlan = document.getElementById('monthPlanArea').value;
   saveStore();
+}
+
+// 月计划：返回结构化 weeks[]（4 周）
+// [{weekNum, theme, course, drill, mock, milestone}]
+function buildMonthPlan(weak, anyData){
+  const ms = (store.goals&&store.goals.milestones)||[];
+  // 优先取里程碑标题（去 emoji）
+  const msTitle = function(m){ return (m.title||'').replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u,'').trim() || '阶段'; };
+  const w1=weak[0], w2=weak[1]||weak[0], w3=weak[2]||weak[1]||weak[0];
+  const r = function(x){ return x.rate===null?'—':x.rate+'%'; };
+  const c1 = MODULE_COURSE[w1.name]||'补弱网课';
+  const c2 = MODULE_COURSE[w2.name]||'补弱网课';
+  const c3 = MODULE_COURSE[w3.name]||'补弱网课';
+  if(!anyData){
+    return [
+      {weekNum:1, theme:'打基础·网课先行', course:'言语/判断/资料 各 1 节方法精讲（共约 3 小时，1.2x 倍速+笔记）', drill:'言语/判断/资料 每日各 30 题（计时）· 常识时政每日 15 分钟晨读', mock:'周末 1 套真题卷（120 分钟）', milestone: ms[0]?msTitle(ms[0]):'基础阶段'},
+      {weekNum:2, theme:'补短板', course:'每周 2 节补弱网课（各约 1.5 小时）', drill:'针对薄弱题型 +20 题/日', mock:'2 套真题 + 错题二刷', milestone: ms[1]?msTitle(ms[1]):'强化阶段'},
+      {weekNum:3, theme:'提速', course:'每日 1 节速算/技巧网课（约 30 分钟）', drill:'资料+数量 每日各 25 题（追求速度）', mock:'2 套真题 + 错题本整理', milestone: ms[1]?msTitle(ms[1]):'强化阶段'},
+      {weekNum:4, theme:'全真模拟', course:'回看薄弱模块重点网课题段', drill:'查漏补缺 + 错题本', mock:'3 套全真模拟（严格 120 分钟）', milestone: ms[2]?msTitle(ms[2]):'冲刺阶段'},
+    ];
+  }
+  return [
+    {weekNum:1, theme:'夯实基础·看网课（'+w1.name+'）', course:'看【'+w1.name+'】'+c1+'（约 2.5 小时，1.2x 倍速+笔记）', drill:w1.name+' 每日 45 题 + '+w2.name+' 每日 35 题（计时）', mock:'周末 1 套真题（120 分钟）', milestone: ms[0]?msTitle(ms[0]):'基础阶段'},
+    {weekNum:2, theme:'强化突破（'+w2.name+' / '+w3.name+'）', course:'看【'+w2.name+'】'+c2+' + 【'+w3.name+'】'+c3+'（各约 1.5 小时）', drill:w2.name+' 每日 40 题 + '+w3.name+' 每日 40 题', mock:'整理【'+w1.name+'】错题本 + 重做 1 套', milestone: ms[1]?msTitle(ms[1]):'强化阶段'},
+    {weekNum:3, theme:'提速冲刺（'+w1.name+'）', course:'回看【'+w1.name+'】方法课重点段（约 1 小时）+ 资料速算技巧复盘', drill:w1.name+' 每日 50 题 + '+w3.name+' 每日 30 题', mock:'2 套真题 + 错题二刷', milestone: ms[1]?msTitle(ms[1]):'强化阶段'},
+    {weekNum:4, theme:'全真模拟（'+w1.name+' / '+w2.name+' / '+w3.name+'）', course:'回看高频陷阱网课题段', drill:'错题本 + 重点模块最后冲刺', mock:'3 套全真模拟（严格 120 分钟）+ 当天对答案', milestone: ms[2]?msTitle(ms[2]):'冲刺阶段'},
+  ];
+}
+
+// 月计划同周数下"换一周"动作池（保留结构，只换 theme/course/drill/mock）
+const MONTH_WEEK_SWAP = {
+  1:{themes:['夯实基础·看网课','打地基·方法精讲','起步阶段·网课先行','零基础起步周'], courseMods:['（约 2.5 小时，1.2x 倍速+笔记）','（每天 1 节，看完记笔记）','（先通读，再整理思维导图）'], drillMods:['每日 45 题 + 35 题（计时）','每日 30 题（计时，限时 30 分钟）','每天 1 套模块练习 + 错题即时复盘'], mockMods:['周末 1 套真题（120 分钟）','周末 1 套真题 + 详细复盘','周末模考 + 错题本整理']},
+  2:{themes:['强化突破','专项突破·补短板','二阶段强化','薄弱题型专攻周'], courseMods:['（各约 1.5 小时，重点看薄弱题型）','（穿插案例题，配套 20 题）','（看完做配套习题 30 道）'], drillMods:['每日 40 题（计时）','每日 +20 题（针对薄弱题型）','每日专项 30 题 + 错题二刷'], mockMods:['整理错题本 + 重做 1 套','2 套真题 + 错题二刷','错题本分类 + 1 套真题']},
+  3:{themes:['提速冲刺','速度训练·技巧升级','提速突破周','答题速度提升周'], courseMods:['回看方法课重点段（约 1 小时）','速算/技巧专项 30 分钟','答题策略精讲（蒙猜法/排除法）'], drillMods:['每日 50 题（目标提速 20%）','每日 30 题（严格限时）','每日 1 套模块限时'], mockMods:['2 套真题 + 错题二刷','3 套真题（每套对答案 30 分钟）','2 套真题 + 错题本归类']},
+  4:{themes:['全真模拟','考前冲刺·全真模考','终极模拟周','考前最后冲刺'], courseMods:['回看高频陷阱网课题段','薄弱模块快速过一遍','考前一周停止新内容，回看错题本'], drillMods:['错题本 + 重点模块最后冲刺','每日 1 小时错题重做','调整作息，保持手感'], mockMods:['3 套全真模拟（严格 120 分钟）','2 套全真模拟 + 1 套模块练习','3 套全真模拟 + 详细复盘']},
+};
+function swapMonthWeek(btnEl){
+  const row = btnEl.closest('.gen-month-row');
+  if(!row) return;
+  const weekNum = parseInt(row.dataset.week,10);
+  const pool = MONTH_WEEK_SWAP[weekNum] || MONTH_WEEK_SWAP[1];
+  function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+  // 主题变了
+  const newTheme = pool.themes.filter(function(t){ return t !== row.querySelector('.gen-month-theme').value; })[0] || pool.themes[0];
+  row.querySelector('.gen-month-theme').value = newTheme;
+  // 课程/刷题/套卷从池子里随机换
+  row.querySelector('.gen-month-course').value = '看' + row.querySelector('.gen-month-course').value.split('看')[1].split('】')[0] + '】' + pick(pool.courseMods);
+  row.querySelector('.gen-month-drill').value = pick(pool.drillMods);
+  row.querySelector('.gen-month-mock').value = pick(pool.mockMods);
+  if(typeof toast==='function') toast('🔁 第 '+weekNum+' 周已换一个安排');
+}
+
+// 把月计划渲染为表格
+function buildMonthPlanUI(weak, anyData){
+  const box = document.getElementById('genMonthContainer');
+  if(!box) return;
+  const weeks = buildMonthPlan(weak, anyData);
+  // 关联里程碑
+  const ms = (store.goals&&store.goals.milestones)||[];
+  const msOpts = ['<option value="">— 不关联 —</option>'].concat(
+    ms.map(function(m){ return '<option value="'+ (m.title||'').replace(/"/g,'&quot;') +'">'+ (m.emoji||'🎯') +' '+ escapeHtml(m.title||'') +'</option>'; }).join('')
+  ).join('');
+  box.innerHTML = weeks.map(function(w){
+    return '<div class="gen-month-row" data-week="'+w.weekNum+'">'
+      + '<div class="gen-month-head">'
+      +   '<span class="gen-month-num">第 '+w.weekNum+' 周</span>'
+      +   '<select class="gen-month-ms">'+msOpts.replace('selected','').replace('value=""','value="" selected')+'</select>'
+      +   '<button type="button" class="gen-month-swap" title="换一个安排" onclick="swapMonthWeek(this)">🔁 换一周</button>'
+      + '</div>'
+      + '<div class="gen-month-grid">'
+      +   '<label>主题</label><input type="text" class="gen-month-theme" value="'+ escapeHtml(w.theme) +'">'
+      +   '<label>网课</label><input type="text" class="gen-month-course" value="'+ escapeHtml(w.course) +'">'
+      +   '<label>刷题</label><input type="text" class="gen-month-drill" value="'+ escapeHtml(w.drill) +'">'
+      +   '<label>套卷</label><input type="text" class="gen-month-mock" value="'+ escapeHtml(w.mock) +'">'
+      + '</div>'
+      + '<input type="hidden" class="gen-month-milestone" value="'+ escapeHtml(w.milestone||'') +'">'
+    + '</div>';
+  }).join('');
 }
 
 function initMonthPlan(){
@@ -7834,14 +8118,18 @@ function renderPlan(){
   if(plans.length===0){
     list.innerHTML = '<div class="empty-state"><span class="emoji">📋</span>今日还没有计划，快去添加吧~</div>';
   } else {
-    list.innerHTML = plans.map(p=>`
+    list.innerHTML = plans.map(p=>{
+      const t = (p.start||p.end) ? '<span class="plan-time">⏰ '+escapeHtml((p.start||'--'))+'–'+escapeHtml((p.end||'--'))+'</span>' : '';
+      return `
       <div class="plan-item ${p.done?'done':''}">
         <div class="plan-check ${p.done?'checked':''}" onclick="togglePlan('${p.id}')"></div>
+        ${t}
         <span class="plan-text">${p.text}</span>
         <span class="plan-meta">${p.module}${p.count?' · '+p.count+'题':''}</span>
         <span class="plan-del" onclick="deletePlan('${p.id}')">✕</span>
       </div>
-    `).join('');
+      `;
+    }).join('');
   }
 
   // 今日做题统计
@@ -7903,6 +8191,7 @@ function renderPlan(){
     ]},
     options:{responsive:true,plugins:{legend:{position:'bottom',labels:{font:{size:11}}}},scales:{y:{beginAtZero:true,grid:{color:'#f5f5f5'}}}}
   });
+  updateFloatingWidget();
 }
 
 function quickRecord(){
@@ -13967,6 +14256,7 @@ function recomputeTomato(){
 function syncTomatoFromClock(){
   if(!tomatoRunning) return;
   recomputeTomato();
+  updateFloatingWidget();
   if(tomatoMode==='down'){
     updateTomatoDisplay();
     if(tomatoRemaining<=0){ completeTomato(); }
@@ -14092,6 +14382,7 @@ function startTomato(){
   focusSessionActive = true;
   enterFocusMode();
   tomatoTimerId = setInterval(syncTomatoFromClock, 1000);
+  updateFloatingWidget();
 }
 function pauseTomato(){
   if(!tomatoRunning) return;
@@ -14103,6 +14394,7 @@ function pauseTomato(){
   document.getElementById('tomatoPause').disabled = true;
   document.getElementById('tomatoEnd').disabled = false;
   syncFocusBtns();
+  updateFloatingWidget();
 }
 function resetTomato(){
   clearInterval(tomatoTimerId); tomatoRunning=false;
@@ -14110,6 +14402,7 @@ function resetTomato(){
   if(tomatoMode==='up'){ tomatoElapsed = 0; } else { tomatoRemaining = tomatoMin*60; }
   tomatoBaseVal = (tomatoMode==='up') ? tomatoElapsed : tomatoRemaining;
   updateTomatoDisplay(); resetTomatoBtns(); syncFocusBtns();
+  updateFloatingWidget();
 }
 function completeTomato(){
   exitFocusMode();
@@ -14221,6 +14514,7 @@ function endTomato(){
   addFocus(focusedMin, mod, {task: tomatoTask, mode: tomatoMode, todoId: tomatoTodoId});
   const wholeMin = Math.max(1, Math.round(focusedMin));
   resetTomato();
+  updateFloatingWidget();
   if(document.getElementById('page-tomato').classList.contains('active')) renderTomato();
   if(document.getElementById('page-garden').classList.contains('active')) renderGarden();
   // 当天第一次番茄钟结束（含手动「结束」按钮）弹打卡弹窗，与自动完成共用同 flag，避免当天重复弹
@@ -14360,6 +14654,7 @@ function renderTodoList(){
       + '</details></li>';
   }
   wrap.innerHTML = html;
+  updateFloatingWidget();
 }
 function toggleTodo(id){
   const td = (store.todos||[]).find(x=>x.id===id);
@@ -14433,6 +14728,94 @@ function onTomatoTaskInput(){
   tomatoTodoId = ''; // 自定义输入即视为不复用某条待办
   const pick = document.getElementById('tomatoTodoPick');
   if(pick && inp.value.trim()!=='') pick.value = '';
+}
+
+// ---- 右下角浮窗 ----
+let floatCollapsed = false;
+function fwHidden(){ return store.floatHiddenDate === todayKey(); }
+function fwSetHidden(h){
+  if(h){ store.floatHiddenDate = todayKey(); } else { delete store.floatHiddenDate; }
+  saveStore(); updateFloatingWidget();
+}
+function fwJump(){
+  goPage('tomato');
+}
+function fwPause(){
+  if(tomatoRunning){ pauseTomato(); } else { startTomato(); }
+  if(typeof syncFocusBtns==='function') syncFocusBtns();
+}
+function fwEnd(){
+  if(tomatoRunning || focusSessionActive){ endTomato(); }
+}
+function fwCollapse(){ floatCollapsed = true; updateFloatingWidget(); }
+function fwExpand(){ floatCollapsed = false; updateFloatingWidget(); }
+function fwClose(){ fwSetHidden(true); }
+
+// 取「下一件」：优先今日计划中未完成且最早开始时间的，其次今日待办
+function fwNextText(){
+  const today = todayKey();
+  const plans = (store.plans && store.plans[today]) || [];
+  const undonePlans = plans.filter(function(p){ return !p.done; })
+    .sort(function(a,b){ return (a.start||'99:99').localeCompare(b.start||'99:99'); });
+  if(undonePlans.length){
+    const p = undonePlans[0];
+    return (p.start ? p.start+' ' : '') + p.text;
+  }
+  const todos = (store.todos||[]).filter(function(td){ return td.date===today && !td.done; });
+  if(todos.length) return todos[0].text;
+  return '';
+}
+
+function updateFloatingWidget(){
+  const el = document.getElementById('floatWidget');
+  if(!el) return;
+  if(fwHidden()){ el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  const inTomato = tomatoRunning || focusSessionActive;
+  // 收起态：小圆点
+  if(floatCollapsed){
+    el.innerHTML = '<div class="fw-dot" onclick="fwExpand()">'+(inTomato?'🍅':'📋')+'</div>';
+    return;
+  }
+  // 番茄钟态：时间 + 专注事项
+  if(inTomato){
+    const total = tomatoMode==='up' ? tomatoElapsed : tomatoRemaining;
+    const m = Math.floor(total/60), s = total%60;
+    const time = String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+    const task = (tomatoTask||'').trim() || '（未填具体事项）';
+    const pauseBtn = tomatoRunning ? '⏸' : '▶';
+    el.innerHTML =
+      '<div class="fw-card fw-tomato">'
+      + '<div class="fw-main" onclick="fwJump()">'
+      + '<div class="fw-line"><span class="fw-time">'+time+'</span><span class="fw-tag">'+(tomatoRunning?'专注中':'已暂停')+'</span></div>'
+      + '<div class="fw-task">🎯 '+escapeHtml(task)+'</div>'
+      + '</div>'
+      + '<div class="fw-acts">'
+      + '<button class="fw-btn" onclick="fwPause()">'+pauseBtn+'</button>'
+      + '<button class="fw-btn" onclick="fwEnd()">⏹</button>'
+      + '<button class="fw-btn" onclick="fwCollapse()">—</button>'
+      + '<button class="fw-btn" onclick="fwClose()">✕</button>'
+      + '</div></div>';
+    return;
+  }
+  // 待办态：今日进度 + 下一件
+  const today = todayKey();
+  const plans = (store.plans && store.plans[today]) || [];
+  const todos = (store.todos||[]).filter(function(td){ return td.date===today; });
+  const done = todos.filter(function(td){ return td.done; }).length;
+  const totalN = todos.length;
+  const countTxt = totalN ? (done+'/'+totalN) : (plans.length ? ('0/'+plans.length) : '0/0');
+  const next = fwNextText();
+  el.innerHTML =
+    '<div class="fw-card fw-todo">'
+    + '<div class="fw-main" onclick="fwJump()">'
+    + '<div class="fw-line"><span class="fw-tag">📋 今日 '+countTxt+'</span></div>'
+    + '<div class="fw-task">'+(next ? escapeHtml(next) : '<span style="color:#bbb">今日计划已完成 🎉</span>')+'</div>'
+    + '</div>'
+    + '<div class="fw-acts">'
+    + '<button class="fw-btn" onclick="fwCollapse()">—</button>'
+    + '<button class="fw-btn" onclick="fwClose()">✕</button>'
+    + '</div></div>';
 }
 
 // ---- 灵感库 ----
@@ -15534,10 +15917,35 @@ function renderQuizComplete(){
 :root[data-theme="dark"] .dm-memo{background:rgba(255,220,120,.12);color:#e8cf86}
 :root[data-theme="dark"] .pd-tags span{background:rgba(120,220,160,.18);color:#8fe0b0}
 
+/* ========== 右下角浮窗 ========== */
+#floatWidget{position:fixed;right:14px;bottom:88px;z-index:1300;max-width:78vw;}
+.fw-card{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.97);border:2px solid #F3D7DE;border-radius:16px;padding:8px 8px 8px 14px;box-shadow:0 6px 18px rgba(197,90,110,.20);backdrop-filter:blur(6px);}
+.fw-tomato{border-color:#B9A4E0;background:rgba(48,38,66,.94);box-shadow:0 6px 20px rgba(90,60,140,.35);}
+.fw-main{flex:1;min-width:0;cursor:pointer;}
+.fw-line{display:flex;align-items:center;gap:8px;font-size:12px;}
+.fw-time{font-size:19px;font-weight:800;font-family:'Courier New',monospace;color:#fff;letter-spacing:1px;}
+.fw-tag{background:#FBE4EC;color:#D35F84;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap;}
+.fw-todo .fw-time{color:#4A3B40;}
+.fw-task{font-size:13px;color:#555;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:50vw;}
+.fw-tomato .fw-task{color:#E8DDF6;}
+.fw-acts{display:flex;gap:5px;flex-shrink:0;}
+.fw-btn{width:30px;height:30px;border:none;border-radius:10px;background:#F6E3EA;color:#B46A7E;font-size:14px;cursor:pointer;line-height:1;padding:0;}
+.fw-tomato .fw-btn{background:rgba(255,255,255,.16);color:#fff;}
+.fw-btn:active{transform:scale(.9);}
+.fw-dot{width:52px;height:52px;border-radius:50%;background:#fff;border:2px solid #F3D7DE;box-shadow:0 6px 18px rgba(197,90,110,.22);display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;}
+.fw-dot:active{transform:scale(.92);}
+:root[data-theme="dark"] .fw-card:not(.fw-tomato){background:rgba(48,42,56,.96);border-color:#5a4a66;}
+:root[data-theme="dark"] .fw-todo .fw-time{color:#F3E9F6;}
+:root[data-theme="dark"] .fw-todo .fw-task{color:#CBBCCF;}
+:root[data-theme="dark"] .fw-btn:not(.fw-tomato .fw-btn){background:#3d3244;color:#e0c9da;}
+
 </style>
 
 
 
+
+<!-- 右下角浮窗 -->
+<div id="floatWidget"></div>
 
 </body>
 </html>
