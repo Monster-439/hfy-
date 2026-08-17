@@ -1261,6 +1261,13 @@ input,textarea,select{font-family:inherit;outline:none;}
 .dist-tabs{display:flex;gap:6px;margin-bottom:14px;}
 .dist-tab{padding:5px 16px;border-radius:16px;font-size:12px;background:#f5f5f5;color:var(--text-sub);cursor:pointer;border:none;}
 .dist-tab.active{background:#EFAAC3;color:#fff;font-weight:700;text-shadow:0 1px 2px rgba(150,90,110,0.3);}
+.dist-tabs-sub{margin-top:-8px;margin-bottom:14px;}
+.dist-tabs-sub .dist-tab{padding:4px 12px;font-size:11.5px;}
+.plg-group{margin-bottom:10px;}
+.plg-group-head{display:flex;align-items:center;gap:6px;padding:6px 0 4px;font-size:13px;border-bottom:1px dashed #f0e9ec;margin-bottom:4px;}
+.plg-group-head b{color:#444;flex:1}
+.plg-subitem{display:flex;align-items:center;gap:6px;padding:3px 0 3px 14px;font-size:12px;}
+.plg-subitem .plg-dot{width:9px;height:9px;border-radius:50%;}
 .pie-section{text-align:center;padding:4px 0 12px;}
 .pie-canvas-wrap{position:relative;max-width:260px;margin:0 auto;}
 .pie-summary{margin-top:12px;font-size:14px;color:var(--text-main);}
@@ -2667,6 +2674,10 @@ body.drawer-open .nav-cloud{display:none;}
       <div class="dist-tab active" data-range="day" onclick="switchDistRange('day')">日</div>
       <div class="dist-tab" data-range="week" onclick="switchDistRange('week')">周</div>
       <div class="dist-tab" data-range="month" onclick="switchDistRange('month')">月</div>
+    </div>
+    <div class="dist-tabs dist-tabs-sub">
+      <div class="dist-tab active" data-group="mod" onclick="switchDistGrouping('mod')">📚 按科目</div>
+      <div class="dist-tab" data-group="mod+task" onclick="switchDistGrouping('mod+task')">🎯 科目+具体事项</div>
     </div>
     <div class="pie-section">
       <div class="pie-canvas-wrap"><canvas id="modulePie"></canvas></div>
@@ -8397,14 +8408,22 @@ function calcTotalDays(){
 let modulePieChart = null;
 let distDateOffset = 0; // 日期偏移（用于 < > 导航）
 let distRange = 'day';
+let distGrouping = 'mod'; // 'mod' 按科目 / 'mod+task' 按科目+具体事项
 const PIE_COLORS = ['#EFAAC3','#C2A3E0','#9B77C7','#F8C8D0','#B8D8C2','#F6C99B','#A3C4E0','#E0A3A3'];
 
 function switchDistRange(range){
   distRange = range;
-  document.querySelectorAll('#page-stats .chart-tab').forEach(t=>{
+  document.querySelectorAll('#page-stats .dist-tab[data-range]').forEach(t=>{
     t.classList.toggle('active', t.dataset.range===range);
   });
-  renderDist();
+  renderStats();
+}
+function switchDistGrouping(g){
+  distGrouping = g;
+  document.querySelectorAll('#page-stats .dist-tab[data-group]').forEach(t=>{
+    t.classList.toggle('active', t.dataset.group===g);
+  });
+  renderDistPie();
 }
 
 function renderStats(){
@@ -8508,7 +8527,7 @@ function getDistDateLabel(){
 function switchDistRange(range){
   distRange = range;
   distDateOffset = 0;
-  document.querySelectorAll('#page-stats .dist-tab').forEach(t=>{
+  document.querySelectorAll('#page-stats .dist-tab[data-range]').forEach(t=>{
     t.classList.toggle('active', t.dataset.range===range);
   });
   renderStats();
@@ -8521,7 +8540,8 @@ function shiftDistDate(dir){
   renderStats();
 }
 
-// 按当前范围+偏移，聚合 focusLog 得到各模块分钟数
+// 按当前范围+偏移，聚合 focusLog 得到分布数据
+// 返回 [{name, mod, task, min}]；name 为图例/饼图标签
 function getDistModuleData(){
   const log = store.focusLog||[];
   let filtered = log;
@@ -8543,12 +8563,48 @@ function getDistModuleData(){
     const prefix = y+'-'+String(m+1).padStart(2,'0');
     filtered = log.filter(x=>x.date && x.date.startsWith(prefix));
   }
-  const modMap = {};
-  filtered.forEach(x=>{ modMap[x.mod] = (modMap[x.mod]||0) + x.min; });
-  return Object.keys(modMap).map(k=>({name:k, min:modMap[k]})).filter(e=>e.min>0).sort((a,b)=>b.min-a.min);
+  if(distGrouping==='mod'){
+    const modMap = {};
+    filtered.forEach(x=>{ modMap[x.mod||'未分类'] = (modMap[x.mod||'未分类']||0) + (x.min||0); });
+    return Object.keys(modMap).map(k=>({name:k, mod:k, task:'', min:modMap[k]}))
+      .filter(e=>e.min>0).sort((a,b)=>b.min-a.min);
+  }
+  // mod+task 模式：按 (mod, task) 聚合；同 mod 排在一起，组内按 min 倒序
+  const tmp = {}; // key "mod\u0001task" -> min
+  filtered.forEach(x=>{
+    const m = x.mod || '未分类';
+    const t = (x.task && String(x.task).trim()) ? String(x.task).trim() : '（未填具体事项）';
+    const key = m+'\u0001'+t;
+    tmp[key] = (tmp[key]||0) + (x.min||0);
+  });
+  const modSum = {};
+  Object.keys(tmp).forEach(k=>{ modSum[k.split('\u0001')[0]] = (modSum[k.split('\u0001')[0]]||0) + tmp[k]; });
+  const modOrder = Object.keys(modSum).sort((a,b)=>modSum[b]-modSum[a]);
+  const out = [];
+  modOrder.forEach(m=>{
+    const subKeys = Object.keys(tmp).filter(k=>k.indexOf(m+'\u0001')===0)
+      .sort((a,b)=>tmp[b]-tmp[a]);
+    subKeys.forEach(k=>{
+      const t = k.split('\u0001').slice(1).join('\u0001');
+      out.push({name: m+'·'+t, mod:m, task:t, min:tmp[k]});
+    });
+  });
+  return out;
 }
 
-// 渲染饼图 + 总计/日均 + 双列图例
+// 给定一个十六进制色 + 比例 (0=原色,>0 调亮向白,<0 调暗向黑) 调明暗
+function shadeHex(hex, ratio){
+  const c = hex.replace('#','');
+  const r = parseInt(c.substring(0,2),16), g = parseInt(c.substring(2,4),16), b = parseInt(c.substring(4,6),16);
+  const a = Math.max(-1, Math.min(1, ratio));
+  const abs = Math.abs(a);
+  let rr,gg,bb;
+  if(a>=0){ rr = Math.round(r + (255-r)*abs); gg = Math.round(g + (255-g)*abs); bb = Math.round(b + (255-b)*abs); }
+  else    { rr = Math.round(r*(1-abs)); gg = Math.round(g*(1-abs)); bb = Math.round(b*(1-abs)); }
+  return '#'+[rr,gg,bb].map(v=>v.toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+
+// 渲染饼图 + 总计/日均 + 分组图例
 function renderDistPie(){
   const entries = getDistModuleData();
   const total = entries.reduce((s,e)=>s+e.min,0);
@@ -8562,16 +8618,77 @@ function renderDistPie(){
     if(cv){ try{const ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);}catch(e){} }
     return;
   }
-  if(legendEl) legendEl.innerHTML = entries.map((e,i)=>{
-    const color = PIE_COLORS[i%PIE_COLORS.length];
-    const share = total? Math.round(e.min/total*100):0;
-    return '<div class="plg-item"><div class="plg-dot" style="background:'+color+'"></div><div class="plg-name">'+e.name+'</div><div class="plg-pct">'+share+'%</div><div class="plg-dur">'+fmtMin(e.min)+'</div></div>';
-  }).join('');
+  // 给每个 mod 分配主色，按 entries 中首次出现顺序
+  const modColor = {};
+  let mi = 0;
+  entries.forEach(e=>{ if(!(e.mod in modColor)){ modColor[e.mod] = PIE_COLORS[mi % PIE_COLORS.length]; mi++; } });
+  // 同 mod 下的子项按出现顺序生成同色系明暗
+  const modSibIdx = {};
+  entries.forEach(e=>{
+    modSibIdx[e.mod] = modSibIdx[e.mod] || 0;
+    e.colorIdx = modSibIdx[e.mod]++;
+  });
+  // 同 mod 下的子项数
+  const modCount = {};
+  entries.forEach(e=>{ modCount[e.mod] = (modCount[e.mod]||0) + 1; });
+  function colorFor(e){
+    if(distGrouping==='mod') return modColor[e.mod];
+    const n = modCount[e.mod];
+    if(n===1) return modColor[e.mod];
+    // 用同色系按 k/(n-1) 在 -0.18(暗) ~ +0.30(亮) 之间分布
+    const k = e.colorIdx;
+    const t = n===1 ? 0 : (k/(n-1))*0.48 - 0.18; // [-0.18, +0.30]
+    return shadeHex(modColor[e.mod], t);
+  }
+  // ---- 图例 ----
+  if(legendEl){
+    if(distGrouping==='mod'){
+      legendEl.innerHTML = entries.map(e=>{
+        const c = colorFor(e);
+        const share = total? Math.round(e.min/total*100):0;
+        return '<div class="plg-item"><div class="plg-dot" style="background:'+c+'"></div><div class="plg-name">'+e.name+'</div><div class="plg-pct">'+share+'%</div><div class="plg-dur">'+fmtMin(e.min)+'</div></div>';
+      }).join('');
+    } else {
+      // 按 mod 分组，组头展示科目总占比，子项展示具体事项
+      const groups = {};
+      entries.forEach(e=>{ (groups[e.mod]=groups[e.mod]||[]).push(e); });
+      let html = '';
+      Object.keys(groups).forEach(mod=>{
+        const list = groups[mod];
+        const sum = list.reduce((s,e)=>s+e.min,0);
+        const share = total? Math.round(sum/total*100):0;
+        html += '<div class="plg-group">'
+          + '<div class="plg-group-head"><span class="plg-dot" style="background:'+modColor[mod]+'"></span>'
+          + '<b>'+mod+'</b>'
+          + '<span style="color:#888;font-weight:600">'+share+'% · '+fmtMin(sum)+'</span></div>';
+        list.forEach(e=>{
+          const c = colorFor(e);
+          const sh = total? Math.round(e.min/total*100):0;
+          html += '<div class="plg-subitem"><span class="plg-dot" style="background:'+c+'"></span>'
+            + '<span class="plg-name" style="flex:1;color:#555">· '+e.task+'</span>'
+            + '<span class="plg-pct" style="color:#888">'+sh+'%</span>'
+            + '<span class="plg-dur" style="color:#aaa">'+fmtMin(e.min)+'</span></div>';
+        });
+        html += '</div>';
+      });
+      legendEl.innerHTML = html;
+    }
+  }
+  // ---- 饼图 ----
   if(modulePieChart) modulePieChart.destroy();
+  const bgColors = entries.map(colorFor);
   modulePieChart = makeChart('modulePie',{
     type:'doughnut',
-    data:{labels:entries.map(e=>e.name), datasets:[{data:entries.map(e=>e.min), backgroundColor:entries.map((e,i)=>PIE_COLORS[i%PIE_COLORS.length]), borderWidth:2, borderColor:'#fff'}]},
-    options:{responsive:true, cutout:'58%', plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>c.label+': '+fmtMin(c.parsed)}}}}
+    data:{labels:entries.map(e=>e.name), datasets:[{data:entries.map(e=>e.min), backgroundColor:bgColors, borderWidth:2, borderColor:'#fff'}]},
+    options:{responsive:true, cutout:'58%', plugins:{legend:{display:false},
+      tooltip:{callbacks:{
+        label: function(c){
+          const e = entries[c.dataIndex];
+          const share = total? Math.round(c.parsed/total*100):0;
+          if(distGrouping==='mod') return e.name+': '+fmtMin(c.parsed)+' ('+share+'%)';
+          return e.mod+'·'+e.task+': '+fmtMin(c.parsed)+' ('+share+'%)';
+        }
+      }}}}
   });
 }
 
