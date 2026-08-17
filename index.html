@@ -2086,6 +2086,7 @@ body.drawer-open .nav-cloud{display:none;}
         <div class="nav-item" data-page="checkin"><span class="nav-icon">📅</span>打卡日历</div>
         <div class="nav-item" data-page="stats"><span class="nav-icon">📈</span>时长统计</div>
         <div class="nav-item" data-page="report"><span class="nav-icon">📊</span>学习报告</div>
+        <div class="nav-item" data-page="goals"><span class="nav-icon">🎯</span>目标拆解</div>
       </div>
     </div>
 
@@ -2152,6 +2153,7 @@ body.drawer-open .nav-cloud{display:none;}
 <div class="page" id="page-flashcard"></div>
 <div class="page" id="page-report"></div>
 <div class="page" id="page-subjflower"></div>
+<div class="page" id="page-goals"></div>
 
 <!-- ===== 首页总览 ===== -->
 <div class="page active" id="page-home">
@@ -2580,6 +2582,11 @@ body.drawer-open .nav-cloud{display:none;}
 </div>
 
 <!-- 补卡理由弹窗 -->
+<!-- 目标拆解编辑弹窗 -->
+<div class="popup-overlay" id="goalsPopup" onclick="if(event.target===this)closeGoalsPopup()">
+  <div class="popup-card" id="goalsPopupCard"></div>
+</div>
+
 <div class="popup-overlay" id="reasonPopup" onclick="if(event.target===this)closeReasonPopup()">
   <div class="popup-card">
     <div class="popup-sparkles"><span>📝</span><span>💜</span><span>🌸</span><span>💜</span><span>📝</span></div>
@@ -3423,6 +3430,14 @@ function defaultStore(){
     review: {          // 内容复盘（自动从专注数据生成 + 今日建议）
       autoReports: {}, // {date: {date, score, summary:{...}, focusMin, planDone}}
       todayAdvice: {}  // {date: {date, generatedFrom, todos:[{tag,text}], statusTips}}
+    },
+    goals: {
+      root: { title:'上岸', emoji:'🎯', deadline:'2026-11-29', note:'国考 + 江西省联考，一次上岸！' },
+      milestones: [
+        { id:'ms_basic', title:'基础阶段', emoji:'🌱', deadline:'', note:'系统过一遍所有科目知识点', done:false, celebrated:false, tasks:[] },
+        { id:'ms_strong', title:'强化阶段', emoji:'🔥', deadline:'', note:'专项刷题，把正确率拉上去', done:false, celebrated:false, tasks:[] },
+        { id:'ms_sprint', title:'冲刺阶段', emoji:'🚀', deadline:'', note:'密集模考 + 错题复盘', done:false, celebrated:false, tasks:[] }
+      ]
     },
   };
 }
@@ -4354,6 +4369,285 @@ function waterSubjFlower(key){
   renderSubjFlower();
 }
 
+// ============ 目标拆解 ============
+function ensureGoals(){
+  if(!store.goals) store.goals = defaultStore().goals;
+  if(!store.goals.root) store.goals.root = { title:'上岸', emoji:'🎯', deadline:'2026-11-29', note:'' };
+  if(!store.goals.milestones) store.goals.milestones = [];
+}
+function goalDaysLeft(dateStr){
+  if(!dateStr) return null;
+  return daysBetween(todayKey(), dateStr);
+}
+function goalDeadlineBadge(dateStr){
+  const d = goalDaysLeft(dateStr);
+  if(d === null) return '<span style="font-size:11px;color:#bbb">未设截止日</span>';
+  if(d > 0){
+    const color = d<=14 ? '#e8607d' : (d<=30 ? '#e8a13a' : '#7FB069');
+    const bg = d<=14 ? '#fdeef2' : (d<=30 ? '#fdf3e6' : '#eef7ee');
+    return '<span style="font-size:11px;font-weight:700;color:'+color+';background:'+bg+';padding:3px 9px;border-radius:999px">⏳ 还有 '+d+' 天</span>';
+  } else if(d === 0){
+    return '<span style="font-size:11px;font-weight:700;color:#e8607d;background:#fdeef2;padding:3px 9px;border-radius:999px">⏰ 就是今天！</span>';
+  }
+  return '<span style="font-size:11px;font-weight:700;color:#b56b8a;background:#f6eef0;padding:3px 9px;border-radius:999px">⏰ 已过期 '+Math.abs(d)+' 天</span>';
+}
+function milestoneProgress(ms){
+  if(!ms.tasks || !ms.tasks.length) return ms.done ? 100 : 0;
+  const done = ms.tasks.filter(function(t){ return t.done; }).length;
+  return Math.round(done / ms.tasks.length * 100);
+}
+function overallGoalProgress(){
+  const ms = store.goals.milestones || [];
+  if(!ms.length) return 0;
+  let sum = 0;
+  ms.forEach(function(m){ sum += milestoneProgress(m); });
+  return Math.round(sum / ms.length);
+}
+function moduleAccByKey(key){
+  if(!key || !TOPICS[key]) return null;
+  const name = TOPICS[key].name;
+  const done = moduleCumuDone(name), wrong = moduleCumuWrong(name);
+  return done>0 ? Math.round((done-wrong)/done*100) : null;
+}
+function openGoalsPopup(inner){
+  const card = document.getElementById('goalsPopupCard');
+  if(card) card.innerHTML = inner;
+  const ov = document.getElementById('goalsPopup');
+  if(ov) ov.classList.add('show');
+}
+function closeGoalsPopup(){
+  const ov = document.getElementById('goalsPopup');
+  if(ov) ov.classList.remove('show');
+}
+function editRootGoal(){
+  ensureGoals();
+  const r = store.goals.root;
+  const inner = '<div class="popup-sparkles"><span>🎯</span><span>💜</span><span>🌸</span><span>💜</span><span>🎯</span></div>'
+    + '<div class="popup-ico">'+ (r.emoji||'🎯') +'</div>'
+    + '<div class="popup-title">编辑终极目标</div>'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">目标名称</div>'
+    + '<input id="gRootTitle" value="'+ escapeHtml(r.title||'') +'" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如：上岸">'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">图标（emoji）</div>'
+    + '<input id="gRootEmoji" value="'+ escapeHtml(r.emoji||'🎯') +'" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none">'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">截止日期</div>'
+    + '<input id="gRootDeadline" type="date" value="'+ escapeHtml(r.deadline||'') +'" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none">'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">一句话寄语</div>'
+    + '<textarea id="gRootNote" style="width:100%;min-height:54px;resize:none;border:2px solid #F3D7DE;border-radius:12px;padding:9px 11px;font-size:14px;box-sizing:border-box;outline:none">'+ escapeHtml(r.note||'') +'</textarea>'
+    + '<div style="display:flex;gap:10px;margin-top:14px">'
+    + '<button class="btn popup-btn" style="background:#eee;color:#888;box-shadow:none" onclick="closeGoalsPopup()">取消</button>'
+    + '<button class="btn popup-btn" onclick="saveRootGoal()">保存</button></div>';
+  openGoalsPopup(inner);
+}
+function saveRootGoal(){
+  ensureGoals();
+  store.goals.root = {
+    title: (document.getElementById('gRootTitle').value||'').trim() || '我的目标',
+    emoji: (document.getElementById('gRootEmoji').value||'').trim() || '🎯',
+    deadline: document.getElementById('gRootDeadline').value || '',
+    note: (document.getElementById('gRootNote').value||'').trim()
+  };
+  saveStore();
+  closeGoalsPopup();
+  renderGoals();
+}
+function editMilestone(id){
+  ensureGoals();
+  let m = null;
+  if(id){ m = store.goals.milestones.find(function(x){ return x.id===id; }); }
+  const cur = m || { title:'', emoji:'🌱', deadline:'', note:'', tasks:[] };
+  const choices = ['🌱','🔥','🚀','🌟','💡','📚','🧩','🏆','🌈','⭐','🍀','🌸'];
+  let emojiRow = '';
+  choices.forEach(function(e){
+    const sel = (cur.emoji===e);
+    emojiRow += '<span onclick="document.getElementById(\'gMsEmoji\').value=\''+e+'\';document.getElementById(\'gMsEmojiPrev\').textContent=\''+e+'\'" style="cursor:pointer;font-size:22px;padding:4px;border-radius:8px;background:'+(sel?'#fdeef4':'transparent')+';border:1px solid '+(sel?'#e8a6b4':'transparent')+'">'+e+'</span>';
+  });
+  const inner = '<div class="popup-sparkles"><span>🪴</span><span>💜</span><span>🌸</span><span>💜</span><span>🪴</span></div>'
+    + '<div class="popup-ico" id="gMsEmojiPrev">'+ (cur.emoji||'🌱') +'</div>'
+    + '<div class="popup-title">'+(id?'编辑里程碑':'添加里程碑')+'</div>'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:8px 0 4px">阶段名称</div>'
+    + '<input id="gMsTitle" value="'+ escapeHtml(cur.title) +'" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如：基础阶段">'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">图标</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px">'+emojiRow+'</div>'
+    + '<input id="gMsEmoji" value="'+ escapeHtml(cur.emoji||'🌱') +'" style="width:100%;padding:6px 10px;border:2px solid #F3D7DE;border-radius:10px;font-size:14px;box-sizing:border-box;outline:none;margin-bottom:6px">'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:8px 0 4px">截止日期</div>'
+    + '<input id="gMsDeadline" type="date" value="'+ escapeHtml(cur.deadline||'') +'" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none">'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">说明（可选）</div>'
+    + '<textarea id="gMsNote" style="width:100%;min-height:48px;resize:none;border:2px solid #F3D7DE;border-radius:12px;padding:9px 11px;font-size:14px;box-sizing:border-box;outline:none">'+ escapeHtml(cur.note||'') +'</textarea>'
+    + '<div style="display:flex;gap:10px;margin-top:14px">'
+    + '<button class="btn popup-btn" style="background:#eee;color:#888;box-shadow:none" onclick="closeGoalsPopup()">取消</button>'
+    + '<button class="btn popup-btn" onclick="saveMilestone(\''+(id||'')+'\')">保存</button></div>';
+  openGoalsPopup(inner);
+}
+function saveMilestone(id){
+  ensureGoals();
+  const title = (document.getElementById('gMsTitle').value||'').trim();
+  if(!title){ if(typeof toast==='function') toast('给里程碑起个名字吧～'); return; }
+  const data = {
+    title: title,
+    emoji: (document.getElementById('gMsEmoji').value||'').trim() || '🌱',
+    deadline: document.getElementById('gMsDeadline').value || '',
+    note: (document.getElementById('gMsNote').value||'').trim()
+  };
+  if(id){
+    const m = store.goals.milestones.find(function(x){ return x.id===id; });
+    if(m){ m.title=data.title; m.emoji=data.emoji; m.deadline=data.deadline; m.note=data.note; }
+  } else {
+    data.id = 'ms_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+    data.done = false; data.celebrated = false; data.tasks = [];
+    store.goals.milestones.push(data);
+  }
+  saveStore();
+  closeGoalsPopup();
+  renderGoals();
+}
+function deleteMilestone(id){
+  ensureGoals();
+  if(typeof confirm==='function' && !confirm('删除这个里程碑及其任务？')) return;
+  store.goals.milestones = store.goals.milestones.filter(function(x){ return x.id!==id; });
+  saveStore();
+  renderGoals();
+}
+function editGoalTask(msId, tId){
+  ensureGoals();
+  const m = store.goals.milestones.find(function(x){ return x.id===msId; });
+  if(!m) return;
+  let t = null;
+  if(tId){ t = m.tasks.find(function(x){ return x.id===tId; }); }
+  const cur = t || { text:'', linked:null };
+  let selOpts = '<option value="">不关联</option>';
+  for(const key in TOPICS){
+    selOpts += '<option value="'+key+'"'+(cur.linked===key?' selected':'')+'>'+TOPICS[key].name+'</option>';
+  }
+  const inner = '<div class="popup-sparkles"><span>✅</span><span>💜</span><span>🌸</span><span>💜</span><span>✅</span></div>'
+    + '<div class="popup-ico">📝</div>'
+    + '<div class="popup-title">'+(tId?'编辑任务':'添加任务')+'</div>'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:8px 0 4px">任务内容</div>'
+    + '<input id="gTaskText" value="'+ escapeHtml(cur.text) +'" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如：看完言语理解前3章">'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">关联科目（可选，自动显示正确率）</div>'
+    + '<select id="gTaskLinked" style="width:100%;padding:9px 11px;border:2px solid #F3D7DE;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none;background:#fff">'+selOpts+'</select>'
+    + '<div style="display:flex;gap:10px;margin-top:14px">'
+    + '<button class="btn popup-btn" style="background:#eee;color:#888;box-shadow:none" onclick="closeGoalsPopup()">取消</button>'
+    + '<button class="btn popup-btn" onclick="saveGoalTask(\''+msId+'\',\''+(tId||'')+'\')">保存</button></div>';
+  openGoalsPopup(inner);
+}
+function saveGoalTask(msId, tId){
+  ensureGoals();
+  const m = store.goals.milestones.find(function(x){ return x.id===msId; });
+  if(!m){ closeGoalsPopup(); return; }
+  const text = (document.getElementById('gTaskText').value||'').trim();
+  if(!text){ if(typeof toast==='function') toast('任务内容不能为空～'); return; }
+  const linked = document.getElementById('gTaskLinked').value || null;
+  if(tId){
+    const t = m.tasks.find(function(x){ return x.id===tId; });
+    if(t){ t.text = text; t.linked = linked; }
+  } else {
+    m.tasks.push({ id:'tk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), text:text, done:false, linked:linked });
+  }
+  saveStore();
+  closeGoalsPopup();
+  renderGoals();
+}
+function toggleGoalTask(msId, tId){
+  ensureGoals();
+  const m = store.goals.milestones.find(function(x){ return x.id===msId; });
+  if(!m) return;
+  const t = m.tasks.find(function(x){ return x.id===tId; });
+  if(!t) return;
+  t.done = !t.done;
+  if(m.tasks.length && m.tasks.every(function(x){ return x.done; })) m.done = true;
+  if(milestoneProgress(m) >= 100 && !m.celebrated){
+    m.celebrated = true;
+    if(typeof toast==='function') toast('🎉「'+m.title+'」全部任务完成，阶段达成！');
+  }
+  saveStore();
+  renderGoals();
+}
+function deleteGoalTask(msId, tId){
+  ensureGoals();
+  const m = store.goals.milestones.find(function(x){ return x.id===msId; });
+  if(!m) return;
+  if(typeof confirm==='function' && !confirm('删除这个任务？')) return;
+  m.tasks = m.tasks.filter(function(x){ return x.id!==tId; });
+  saveStore();
+  renderGoals();
+}
+function renderGoals(){
+  const el = document.getElementById('page-goals');
+  if(!el) return;
+  ensureGoals();
+  const g = store.goals;
+  const root = g.root;
+  const rootDays = goalDaysLeft(root.deadline);
+  const overall = overallGoalProgress();
+  let html = '<div style="padding:18px 18px 40px">';
+  html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><h2 style="margin:0;font-size:20px">🎯 目标拆解</h2>'
+    + '<button class="btn btn-outline" style="margin-left:auto;padding:5px 12px;font-size:13px" onclick="editRootGoal()">✏️ 编辑目标</button></div>';
+  html += '<div style="background:linear-gradient(135deg,#fff6f0,#fdeef4);border-radius:18px;padding:18px;margin-bottom:16px;box-shadow:0 3px 12px rgba(232,160,190,.18)">';
+  html += '<div style="display:flex;align-items:center;gap:12px">'
+    + '<div style="font-size:46px;line-height:1">'+ (root.emoji||'🎯') +'</div>'
+    + '<div style="flex:1"><div style="font-size:18px;font-weight:800;color:#444">'+ escapeHtml(root.title||'我的目标') +'</div>'
+    + '<div style="font-size:12px;color:#999;margin-top:2px">'+ (root.note?escapeHtml(root.note):'点击右上角编辑，写下你的终极目标') +'</div></div></div>';
+  if(rootDays !== null){
+    const cdColor = rootDays>0 ? (rootDays<=14?'#e8607d':'#e8a13a') : '#b56b8a';
+    const cdNum = rootDays>0 ? rootDays : (rootDays===0 ? '今天' : Math.abs(rootDays));
+    const cdSub = rootDays>0 ? ('天 · 截止 '+root.deadline) : (rootDays===0 ? ('· 截止 '+root.deadline) : ('天 · 截止日 '+root.deadline+' 已过'));
+    html += '<div style="margin-top:14px;text-align:center"><div style="font-size:13px;color:#888">距离「'+escapeHtml(root.title||'目标')+'」还有</div>'
+      + '<div style="font-size:40px;font-weight:800;color:'+cdColor+';line-height:1.1;margin:2px 0">'+cdNum+'</div>'
+      + '<div style="font-size:12px;color:#aaa">'+cdSub+'</div></div>';
+  }
+  html += '<div style="margin-top:14px"><div style="display:flex;justify-content:space-between;font-size:12px;color:#888;margin-bottom:4px"><span>总进度</span><span style="font-weight:700;color:#e8607d">'+overall+'%</span></div>'
+    + '<div style="height:10px;background:#f0ece8;border-radius:6px;overflow:hidden"><div style="height:100%;width:'+overall+'%;background:linear-gradient(90deg,#f6b4c4,#e8607d);border-radius:6px"></div></div></div>';
+  html += '</div>';
+  html += '<div style="display:flex;align-items:center;gap:10px;margin:6px 0 14px"><h3 style="margin:0;font-size:16px;color:#555">🪴 阶段里程碑</h3>'
+    + '<button class="btn btn-outline" style="margin-left:auto;padding:6px 14px;font-size:13px;border-color:#e8607d;color:#e8607d" onclick="editMilestone()">＋ 添加里程碑</button></div>';
+  const ms = g.milestones;
+  if(!ms.length){
+    html += '<div style="background:#fff;border-radius:14px;padding:24px;text-align:center;color:#bbb;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.04)">还没有里程碑，点「＋ 添加里程碑」把大目标拆成一步步小阶段吧 🌱</div>';
+  } else {
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">';
+    ms.forEach(function(m){
+      const p = milestoneProgress(m);
+      const pColor = p>=100?'#7FB069':(p>=50?'#e8a13a':'#e8607d');
+      let card = '<div style="background:#fff;border-radius:16px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:4px solid '+pColor+'">';
+      card += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+        + '<span style="font-size:26px">'+ (m.emoji||'🎯') +'</span>'
+        + '<span style="font-weight:700;font-size:15px;color:#444;flex:1">'+ escapeHtml(m.title) +'</span>'
+        + '<span style="cursor:pointer;font-size:13px;color:#bbb" onclick="editMilestone(\''+m.id+'\')">✏️</span>'
+        + '<span style="cursor:pointer;font-size:13px;color:#bbb" onclick="deleteMilestone(\''+m.id+'\')">🗑️</span></div>';
+      card += '<div style="margin-bottom:8px">'+ goalDeadlineBadge(m.deadline) +'</div>';
+      if(m.note) card += '<div style="font-size:12px;color:#999;margin-bottom:8px;line-height:1.5">'+ escapeHtml(m.note) +'</div>';
+      card += '<div style="display:flex;justify-content:space-between;font-size:12px;color:#888;margin-bottom:4px"><span>进度</span><span style="font-weight:700;color:'+pColor+'">'+p+'%</span></div>'
+        + '<div style="height:8px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:'+p+'%;background:'+pColor+';border-radius:6px"></div></div>';
+      card += '<div style="margin-bottom:8px">';
+      if(m.tasks && m.tasks.length){
+        m.tasks.forEach(function(t){
+          const acc = t.linked ? moduleAccByKey(t.linked) : null;
+          const shortName = t.linked && TOPICS[t.linked] ? TOPICS[t.linked].name.slice(0,2) : '';
+          card += '<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-top:1px dashed #f0e9ec">'
+            + '<span style="cursor:pointer;font-size:16px;line-height:1.3;'+(t.done?'':'color:#ccc')+'" onclick="toggleGoalTask(\''+m.id+'\',\''+t.id+'\')">'+(t.done?'✅':'⬜️')+'</span>'
+            + '<span style="flex:1;font-size:13px;color:'+(t.done?'#aaa':'#555')+';text-decoration:'+(t.done?'line-through':'none')+';line-height:1.4">'+ escapeHtml(t.text) +'</span>';
+          if(acc!==null) card += '<span style="font-size:10px;color:#4a9d6b;background:#eef7ee;padding:2px 6px;border-radius:8px;white-space:nowrap">📊 '+shortName+' '+acc+'%</span>';
+          card += '<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="editGoalTask(\''+m.id+'\',\''+t.id+'\')">✏️</span>'
+            + '<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="deleteGoalTask(\''+m.id+'\',\''+t.id+'\')">🗑️</span>';
+          card += '</div>';
+        });
+      } else {
+        card += '<div style="font-size:11px;color:#ccc;padding:4px 0">还没有任务，点下面添加～</div>';
+      }
+      card += '</div>';
+      card += '<button class="btn btn-outline" style="width:100%;padding:6px;font-size:13px;margin-top:4px" onclick="editGoalTask(\''+m.id+'\')">＋ 添加任务</button>';
+      card += '</div>';
+      html += card;
+    });
+    html += '</div>';
+  }
+  html += '<div style="margin-top:16px;font-size:12px;color:#aaa;line-height:1.7;background:#fff;border-radius:12px;padding:12px">'
+    + '🌿 把「'+escapeHtml(root.title||'目标')+'」拆成几个阶段里程碑，每个里程碑再列具体任务。打勾完成任务会带动阶段进度条，阶段进度汇总成顶部总进度。任务可关联科目，自动显示该科当前正确率（来自考点刷题数据）。'
+    + '</div>';
+  html += '</div>';
+  el.innerHTML = html;
+}
+
 function onPageShow(page){
   if(page==='home'){ renderHome(); updateEbBadge(); }
   if(page==='plan') renderPlan();
@@ -4373,6 +4667,7 @@ function onPageShow(page){
   if(page==='flashcard') renderFlashcards();
   if(page==='report') renderReport();
   if(page==='subjflower') renderSubjFlower();
+  if(page==='goals') renderGoals();
   if(page==='diary') renderDiary();
   if(page==='garden'){ renderGarden(); maybeShowMorning(); }
   if(page==='secret') renderSecretGarden();
