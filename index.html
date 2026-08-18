@@ -5028,16 +5028,31 @@ function renderGoals(){
   el.innerHTML = html;
 }
 
-// 课程总览页：按阶段分组折叠状态（milestone id -> 是否折叠）
+// 课程总览页：按阶段分组折叠状态（milestone id -> 是否折叠），持久化到 localStorage
 var courseGroupCollapsed = {};
+(function initCourseCollapsed(){
+  try{ const raw = localStorage.getItem('courseCollapsedState'); if(raw) courseGroupCollapsed = JSON.parse(raw) || {}; }catch(e){}
+})();
+function saveCourseCollapsed(){
+  try{ localStorage.setItem('courseCollapsedState', JSON.stringify(courseGroupCollapsed)); }catch(e){}
+}
+// 默认折叠：首次进入时所有有课程的阶段都收起，避免页面过长；用户手动展开后会被记住
+function isCourseGrpCollapsed(m){
+  if(m.id in courseGroupCollapsed) return !!courseGroupCollapsed[m.id];
+  return true;
+}
 function toggleCourseGroup(msId){
-  courseGroupCollapsed[msId] = !courseGroupCollapsed[msId];
+  const m = (store.goals.milestones||[]).find(function(x){ return x.id===msId; });
+  const cur = m ? isCourseGrpCollapsed(m) : false;
+  courseGroupCollapsed[msId] = !cur;
+  saveCourseCollapsed();
   renderCourses();
 }
 function collapseAllCourseGroups(collapse){
   (store.goals.milestones||[]).forEach(function(m){
     if((m.courses||[]).length) courseGroupCollapsed[m.id] = !!collapse;
   });
+  saveCourseCollapsed();
   renderCourses();
 }
 function renderCourses(){
@@ -5072,14 +5087,14 @@ function renderCourses(){
     html += '<div style="background:#fff;border-radius:14px;padding:24px;text-align:center;color:#bbb;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-top:16px">还没有课程，去「🎯 目标拆解」里给某个阶段添加课程吧 📚</div>';
   } else {
     // 全部折叠 / 展开 快捷按钮
-    const anyOpen = ms.some(function(m){ return (m.courses||[]).length && !courseGroupCollapsed[m.id]; });
+    const anyOpen = ms.some(function(m){ return (m.courses||[]).length && !isCourseGrpCollapsed(m); });
     html += '<div style="display:flex;gap:8px;margin-top:16px">'
       + '<button class="btn btn-outline" style="flex:1;font-size:13px;padding:7px" onclick="collapseAllCourseGroups('+!anyOpen+')">'+(anyOpen?'⊟ 全部折叠':'⊞ 全部展开')+'</button></div>';
     ms.forEach(function(m){
       const cs = m.courses || [];
       if(!cs.length) return;
       const idx = ms.indexOf(m) + 1;
-      const collapsed = !!courseGroupCollapsed[m.id];
+      const collapsed = isCourseGrpCollapsed(m);
       // 该阶段课程汇总：门数 + 平均进度
       let grpDone=0, grpTot=0;
       cs.forEach(function(c){ grpDone+=Math.min(c.done||0,c.total||0); grpTot+= (c.total||0); });
