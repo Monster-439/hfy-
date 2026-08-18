@@ -2116,6 +2116,7 @@ body.drawer-open .nav-cloud{display:none;}
         <div class="nav-item" data-page="report"><span class="nav-icon">📊</span>学习报告</div>
         <div class="nav-item" data-page="goals"><span class="nav-icon">🎯</span>目标拆解</div>
         <div class="nav-item" data-page="courses"><span class="nav-icon">📚</span>我的课程</div>
+        <div class="nav-item" data-page="qbook"><span class="nav-icon">📖</span>题本进度</div>
       </div>
     </div>
 
@@ -2184,6 +2185,7 @@ body.drawer-open .nav-cloud{display:none;}
 <div class="page" id="page-subjflower"></div>
 <div class="page" id="page-goals"></div>
 <div class="page" id="page-courses"></div>
+<div class="page" id="page-qbook"></div>
 
 <!-- ===== 首页总览 ===== -->
 <div class="page active" id="page-home">
@@ -2615,6 +2617,11 @@ body.drawer-open .nav-cloud{display:none;}
 <!-- 目标拆解编辑弹窗 -->
 <div class="popup-overlay" id="goalsPopup" onclick="if(event.target===this)closeGoalsPopup()">
   <div class="popup-card" id="goalsPopupCard"></div>
+</div>
+
+<!-- 题本进度编辑弹窗 -->
+<div class="popup-overlay" id="qbookPopup" onclick="if(event.target===this)closeQbookPopup()">
+  <div class="popup-card" id="qbookPopupCard"></div>
 </div>
 
 <div class="popup-overlay" id="reasonPopup" onclick="if(event.target===this)closeReasonPopup()">
@@ -3473,6 +3480,7 @@ function defaultStore(){
         { id:'ms_sprint', title:'冲刺阶段', emoji:'🚀', deadline:'', note:'密集模考 + 错题复盘', done:false, celebrated:false, tasks:[] }
       ]
     },
+    questionBooks: [], // [{id,name,subject,total,done,correct,deadline,notes,todayPlan,createdAt,updatedAt}]
   };
 }
 function loadStore(){
@@ -5143,6 +5151,211 @@ function renderCourses(){
   html += '</div>';
   el.innerHTML = html;
 }
+
+// ====================================================
+//  题本进度（Question Books）
+// ====================================================
+function ensureQuestionBooks(){
+  if(!Array.isArray(store.questionBooks)) store.questionBooks = [];
+}
+function qbookById(id){ return (store.questionBooks||[]).find(function(x){ return x.id===id; }); }
+function qbookSubjectLabel(subj){
+  if(!subj) return '';
+  if(TOPICS[subj]) return TOPICS[subj].name;
+  return subj;
+}
+function openQbookPopup(inner){
+  const card = document.getElementById('qbookPopupCard');
+  if(card) card.innerHTML = inner;
+  const ov = document.getElementById('qbookPopup');
+  if(ov) ov.classList.add('show');
+}
+function closeQbookPopup(){
+  const ov = document.getElementById('qbookPopup');
+  if(ov) ov.classList.remove('show');
+}
+function addQuestionBook(){ editQuestionBook(null); }
+function editQuestionBook(id){
+  ensureQuestionBooks();
+  const b = id ? qbookById(id) : { name:'', subject:'', total:0, done:0, correct:0, deadline:'', notes:'' };
+  if(!b) return;
+  let selOpts = '<option value="">不关联</option>';
+  for(const key in TOPICS){
+    selOpts += '<option value="'+key+'"'+(b.subject===key?' selected':'')+'>'+TOPICS[key].name+'</option>';
+  }
+  const inner = '<div class="popup-sparkles"><span>📖</span><span>💜</span><span>🌸</span><span>💜</span><span>📖</span></div>'
+    + '<div class="popup-ico">📖</div>'
+    + '<div class="popup-title">'+(id?'编辑题本':'添加题本')+'</div>'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:8px 0 4px">题本名称</div>'
+    + '<input id="qbName" value="'+escapeHtml(b.name||'')+'" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如：逻辑600 / 龙门图推500">'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">关联科目（可选，自动带出模考正确率）</div>'
+    + '<select id="qbSubject" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none;background:#fff">'+selOpts+'</select>'
+    + '<div style="display:flex;gap:8px;margin-top:10px">'
+    + '<div style="flex:1;text-align:left;font-size:13px;color:#666">总题数<input id="qbTotal" type="number" min="0" inputmode="numeric" value="'+(b.total||0)+'" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 600"></div>'
+    + '<div style="flex:1;text-align:left;font-size:13px;color:#666">已做<input id="qbDone" type="number" min="0" inputmode="numeric" value="'+(b.done||0)+'" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 0"></div>'
+    + '<div style="flex:1;text-align:left;font-size:13px;color:#666">正确<input id="qbCorrect" type="number" min="0" inputmode="numeric" value="'+(b.correct||0)+'" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 0"></div>'
+    + '</div>'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">截止日（可选）</div>'
+    + '<input id="qbDeadline" type="date" value="'+escapeHtml(b.deadline||'')+'" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none">'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">备注（可选）</div>'
+    + '<input id="qbNotes" value="'+escapeHtml(b.notes||'')+'" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如：每天50题，配套视频">'
+    + '<div style="display:flex;gap:10px;margin-top:14px">'
+    + '<button class="btn popup-btn" style="background:#eee;color:#888;box-shadow:none" onclick="closeQbookPopup()">取消</button>'
+    + '<button class="btn popup-btn" onclick="saveQuestionBook(\''+(id||'')+'\')">保存</button></div>';
+  openQbookPopup(inner);
+}
+function saveQuestionBook(id){
+  ensureQuestionBooks();
+  const name = (document.getElementById('qbName').value||'').trim();
+  if(!name){ if(typeof toast==='function') toast('题本名称不能为空～'); return; }
+  const subject = document.getElementById('qbSubject').value || '';
+  const total = Math.max(0, parseInt(document.getElementById('qbTotal').value,10)||0);
+  let done = Math.max(0, parseInt(document.getElementById('qbDone').value,10)||0);
+  if(done>total) done = total;
+  let correct = Math.max(0, parseInt(document.getElementById('qbCorrect').value,10)||0);
+  if(correct>done) correct = done;
+  const deadline = document.getElementById('qbDeadline').value || '';
+  const notes = (document.getElementById('qbNotes').value||'').trim();
+  if(id){
+    const b = qbookById(id);
+    if(b){ b.name=name; b.subject=subject; b.total=total; b.done=done; b.correct=correct; b.deadline=deadline; b.notes=notes; b.updatedAt=Date.now(); }
+  } else {
+    store.questionBooks.push({ id:'qb_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, subject:subject, total:total, done:done, correct:correct, deadline:deadline, notes:notes, todayPlan:false, createdAt:Date.now(), updatedAt:Date.now() });
+  }
+  saveStore(); closeQbookPopup(); renderQuestionBooks();
+}
+function deleteQuestionBook(id){
+  ensureQuestionBooks();
+  if(typeof confirm==='function' && !confirm('删除该题本？已记录的进度会一起删除。')) return;
+  store.questionBooks = store.questionBooks.filter(function(x){ return x.id!==id; });
+  saveStore(); renderQuestionBooks();
+}
+function toggleQuestionBookToday(id){
+  ensureQuestionBooks();
+  const b = qbookById(id); if(!b) return;
+  b.todayPlan = !b.todayPlan; b.updatedAt = Date.now();
+  saveStore(); renderQuestionBooks();
+}
+function recordQuestionBookProgress(id){
+  ensureQuestionBooks();
+  const b = qbookById(id); if(!b) return;
+  const inner = '<div class="popup-sparkles"><span>📝</span><span>💜</span><span>🌸</span><span>💜</span><span>📝</span></div>'
+    + '<div class="popup-ico">📝</div>'
+    + '<div class="popup-title">记录进度 · '+escapeHtml(b.name)+'</div>'
+    + '<div style="font-size:12px;color:#999;margin-bottom:10px">当前：已做 '+(b.done||0)+'/'+(b.total||0)+'，正确 '+(b.correct||0)+'</div>'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:6px 0 4px">本次新增做了多少题</div>'
+    + '<input id="qbAddDone" type="number" min="0" inputmode="numeric" value="0" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 20">'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">其中正确多少题</div>'
+    + '<input id="qbAddCorrect" type="number" min="0" inputmode="numeric" value="0" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 16">'
+    + '<div style="display:flex;gap:10px;margin-top:14px">'
+    + '<button class="btn popup-btn" style="background:#eee;color:#888;box-shadow:none" onclick="closeQbookPopup()">取消</button>'
+    + '<button class="btn popup-btn" onclick="commitQuestionBookProgress(\''+id+'\')">保存</button></div>';
+  openQbookPopup(inner);
+}
+function commitQuestionBookProgress(id){
+  const b = qbookById(id); if(!b){ closeQbookPopup(); return; }
+  const addDone = Math.max(0, parseInt(document.getElementById('qbAddDone').value,10)||0);
+  const addCorrect = Math.max(0, parseInt(document.getElementById('qbAddCorrect').value,10)||0);
+  if(addDone===0 && addCorrect===0){ closeQbookPopup(); return; }
+  let nd = (b.done||0) + addDone;
+  if(nd > (b.total||0)) nd = b.total||0;
+  let nc = (b.correct||0) + Math.min(addCorrect, addDone);
+  if(nc > nd) nc = nd;
+  b.done = nd; b.correct = nc; b.updatedAt = Date.now();
+  saveStore(); closeQbookPopup(); renderQuestionBooks();
+}
+function renderQuestionBooks(){
+  const el = document.getElementById('page-qbook');
+  if(!el) return;
+  ensureQuestionBooks();
+  const list = store.questionBooks;
+  // 汇总
+  let total=0, done=0, correct=0;
+  list.forEach(function(b){
+    total += Math.max(0, b.total||0);
+    done  += Math.min(Math.max(0, b.done||0), b.total||0);
+    correct += Math.min(Math.max(0, b.correct||0), b.done||0);
+  });
+  const err = Math.max(0, done - correct);
+  const donePct = total ? Math.round(done/total*100) : 0;
+  const accPct  = done ? Math.round(correct/done*100) : 0;
+  let html = '<div style="padding:18px 18px 40px">';
+  // header summary card
+  html += '<div style="background:linear-gradient(135deg,#7C9CC9,#5A7BAE);border-radius:18px;padding:18px;color:#fff;box-shadow:0 4px 14px rgba(90,123,174,.25)">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  html += '<div><div style="font-size:15px;font-weight:700">📖 题本进度总览</div>';
+  html += '<div style="font-size:11px;opacity:.85;margin-top:2px">已学题本 实时同步 · 关联到科目模考</div></div>';
+  html += '<button class="btn popup-btn" style="background:rgba(255,255,255,.25);color:#fff;font-size:13px;padding:7px 14px" onclick="addQuestionBook()">+ 添加题本</button>';
+  html += '</div>';
+  html += '<div style="display:flex;gap:14px;flex-wrap:wrap">';
+  html += '<div><div style="font-size:24px;font-weight:800">'+list.length+'</div><div style="font-size:11px;opacity:.9">题本总数</div></div>';
+  html += '<div><div style="font-size:24px;font-weight:800">'+done+'<span style="font-size:14px;opacity:.85">/'+total+'</span></div><div style="font-size:11px;opacity:.9">已完成/总题数</div></div>';
+  html += '<div><div style="font-size:24px;font-weight:800">'+(total?donePct:0)+'%</div><div style="font-size:11px;opacity:.9">总完成率</div></div>';
+  html += '<div><div style="font-size:24px;font-weight:800">'+(done?accPct:0)+'%</div><div style="font-size:11px;opacity:.9">总正确率</div></div>';
+  html += '<div><div style="font-size:24px;font-weight:800">'+err+'</div><div style="font-size:11px;opacity:.9">总错题数</div></div>';
+  html += '</div></div>';
+  if(!list.length){
+    html += '<div style="background:#fff;border-radius:14px;padding:24px;text-align:center;color:#bbb;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-top:16px">还没有题本，点右上角「+ 添加题本」开始记录 📖</div>';
+  } else {
+    // 今日题本计划
+    const todays = list.filter(function(b){ return b.todayPlan; });
+    if(todays.length){
+      html += '<div style="margin-top:18px"><div style="font-size:13px;font-weight:700;color:#5A7BAE;margin-bottom:8px">📅 今日题本计划</div>';
+      html += '<div style="display:flex;flex-wrap:wrap;gap:8px">';
+      todays.forEach(function(b){
+        const pct = b.total?Math.round(Math.min(b.done||0,b.total||0)/b.total*100):0;
+        html += '<div style="background:#fff;border:1.5px solid #7C9CC9;border-radius:18px;padding:6px 12px;font-size:12px;color:#5A7BAE;display:flex;align-items:center;gap:6px;box-shadow:0 1px 4px rgba(0,0,0,.04)">'
+          +'<span style="font-weight:700">'+escapeHtml(b.name||'题本')+'</span>'
+          +'<span style="color:#bbb">'+pct+'%</span></div>';
+      });
+      html += '</div></div>';
+    }
+    // 题本卡片
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:18px">';
+    list.forEach(function(b){
+      const bDone = Math.min(Math.max(0, b.done||0), b.total||0);
+      const bTot = b.total||0;
+      const bCorr = Math.min(Math.max(0, b.correct||0), bDone);
+      const bErr = bDone - bCorr;
+      const bPct = bTot?Math.round(bDone/bTot*100):0;
+      const bAcc = bDone?Math.round(bCorr/bDone*100):0;
+      const bColor = bPct>=100?'#7FB069':(bPct>=60?'#7C9CC9':'#e8a13a');
+      const bSubj = qbookSubjectLabel(b.subject);
+      const linkedAcc = b.subject && TOPICS[b.subject] ? moduleAccByKey(b.subject) : null;
+      const isToday = !!b.todayPlan;
+      const overdue = b.deadline && bPct<100 && goalDaysLeft(b.deadline)<0;
+      let card = '<div style="background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:4px solid '+bColor+(overdue?';box-shadow:0 0 0 2px #e8607d':'')+'">';
+      card += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">';
+      card += '<span style="font-weight:700;font-size:14px;color:#444;flex:1">'+escapeHtml(b.name||'题本')+'</span>';
+      if(isToday) card += '<span style="font-size:11px;color:#5A7BAE;background:#E5EDF8;padding:1px 6px;border-radius:8px">📅 今日</span>';
+      card += '<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="editQuestionBook(\''+b.id+'\')">✏️</span>';
+      card += '<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="deleteQuestionBook(\''+b.id+'\')">🗑️</span>';
+      card += '</div>';
+      if(bSubj) card += '<div style="font-size:11px;color:#999;margin-bottom:4px">'+escapeHtml(bSubj)+(linkedAcc!==null?' · 模考正确率 '+linkedAcc+'%':'')+'</div>';
+      card += '<div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin:6px 0 2px"><span>进度 '+bDone+'/'+bTot+'</span><span style="color:'+bColor+';font-weight:700">'+bPct+'%</span></div>';
+      card += '<div style="height:8px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:8px"><div style="height:100%;width:'+bPct+'%;background:'+bColor+';border-radius:6px"></div></div>';
+      card += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">';
+      card += '<div style="flex:1;background:#f7f5f3;border-radius:10px;padding:6px 8px;text-align:center"><div style="font-size:16px;font-weight:800;color:'+bColor+'">'+bPct+'%</div><div style="font-size:10px;color:#999">完成率</div></div>';
+      card += '<div style="flex:1;background:#f7f5f3;border-radius:10px;padding:6px 8px;text-align:center"><div style="font-size:16px;font-weight:800;color:'+(bAcc>=70?'#7FB069':'#e8a13a')+'">'+(bDone?bAcc:0)+'%</div><div style="font-size:10px;color:#999">正确率</div></div>';
+      card += '<div style="flex:1;background:#f7f5f3;border-radius:10px;padding:6px 8px;text-align:center"><div style="font-size:16px;font-weight:800;color:'+(bErr>0?'#e8607d':'#999')+'">'+bErr+'</div><div style="font-size:10px;color:#999">关联错题</div></div>';
+      card += '</div>';
+      card += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">';
+      card += goalDeadlineBadge(b.deadline);
+      if(overdue) card += '<span style="font-size:10px;color:#e8607d;background:#fdeaee;padding:1px 6px;border-radius:8px">⚠️ 逾期</span>';
+      else if(b.deadline && bPct<100){ const dl=goalDaysLeft(b.deadline); if(dl>=0 && dl<=7) card += '<span style="font-size:10px;color:#e8a13a;background:#fdf3e6;padding:1px 6px;border-radius:8px">⏰ 剩'+dl+'天</span>'; }
+      card += '</div>';
+      card += '<div style="display:flex;gap:6px">';
+      card += '<button class="btn popup-btn" style="flex:1;font-size:12px;padding:6px" onclick="recordQuestionBookProgress(\''+b.id+'\')">📝 记录进度</button>';
+      card += '<button class="btn btn-outline" style="flex:1;font-size:12px;padding:6px;border-color:'+(isToday?'#e8607d':'#7C9CC9')+';color:'+(isToday?'#e8607d':'#7C9CC9')+'" onclick="toggleQuestionBookToday(\''+b.id+'\')">'+(isToday?'✓ 已在今日':'📅 今日')+'</button>';
+      card += '</div>';
+      card += '</div>';
+      html += card;
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
 function onPageShow(page){
   if(page==='home'){ renderHome(); updateEbBadge(); }
   if(page==='plan') renderPlan();
@@ -5164,6 +5377,7 @@ function onPageShow(page){
   if(page==='subjflower') renderSubjFlower();
   if(page==='goals') renderGoals();
   if(page==='courses') renderCourses();
+  if(page==='qbook') renderQuestionBooks();
   if(page==='diary') renderDiary();
   if(page==='garden'){ renderGarden(); maybeShowMorning(); }
   if(page==='secret') renderSecretGarden();
