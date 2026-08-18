@@ -1091,7 +1091,7 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .garden-badges{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:14px;}
 .g-badge{flex:0 1 calc(33.333% - 7px);min-width:0;text-align:center;background:var(--pink-softer);border-radius:14px;padding:10px 6px;font-size:13px;color:var(--text-sub);}
 .g-badge b{display:block;font-size:20px;color:var(--text-main);margin-top:2px;}
-.g-badge.bottom-row{flex:0 1 calc(50% - 5px);}
+.g-badge.bottom-row{flex:0 1 calc(33.333% - 7px);}
 .garden-acts{display:flex;gap:10px;flex-wrap:wrap;}
 .garden-acts .btn{flex:1;}
 /* 三状态条已移入 flower-scene，保留旧选择器防报错 */
@@ -1277,7 +1277,7 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 @keyframes wiltshake{0%,100%{transform:translateY(0);}50%{transform:translateY(2px);}}
 .g-badge.bloom{background:#f3f0fb;}
 .g-badge.bloom b{color:#9B77C7;}
-.g-badge.avail{background:#fdeaf1;}
+.g-badge.avail{background:var(--pink-soft);}
 .g-badge.avail b{color:var(--pink-btn);}
 /* 浇水动画：下落的水滴 + 花朵轻晃 */
 .water-drop{position:absolute;top:4px;font-size:22px;line-height:1;pointer-events:none;animation:waterFall .9s ease-in forwards;will-change:transform,opacity;}
@@ -1567,7 +1567,7 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
   width:56px;height:44px;border:none;background:transparent;padding:0;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
   opacity:.26;
-  filter:drop-shadow(0 3px 7px rgba(216,168,186,.32));
+  filter:drop-shadow(0 3px 7px var(--pink-overlay-2));
   transition:opacity .28s ease,transform .2s ease;
 }
 .nav-cloud:hover,.nav-cloud:focus{opacity:1;transform:scale(1.06);}
@@ -1576,8 +1576,8 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 body.drawer-open .nav-cloud{display:none;}
 .nav-cloud .cloud{
   position:relative;width:54px;height:30px;border-radius:30px;
-  background:linear-gradient(135deg,#FBD6E6 0%,#FBC9DE 100%);
-  box-shadow:inset 0 -3px 6px rgba(216,168,186,.18);
+  background:linear-gradient(135deg,var(--pink-soft) 0%,var(--pink-btn) 100%);
+  box-shadow:inset 0 -3px 6px var(--pink-overlay);
 }
 .nav-cloud .cloud::before,.nav-cloud .cloud::after{content:'';position:absolute;background:inherit;border-radius:50%;}
 .nav-cloud .cloud::before{width:24px;height:24px;top:-9px;left:9px;}
@@ -1649,7 +1649,7 @@ body.drawer-open .nav-cloud{display:none;}
 [data-theme="dark"] .sidebar{background:linear-gradient(180deg,#2a1f28 0%,#34262f 100%);border-color:#4a3540;}
 [data-theme="dark"] .card{background:var(--card-bg);border-color:var(--border);}
 [data-theme="dark"] .overview-hero{background:linear-gradient(135deg,var(--bg-page),var(--bg-page-mid));}
-[data-theme="dark"] .nav-cloud .cloud{background:linear-gradient(135deg,#6a5560,#d9a6c0);}
+[data-theme="dark"] .nav-cloud .cloud{background:linear-gradient(135deg,var(--pink-soft),var(--pink-btn));}
 [data-theme="dark"] input,[data-theme="dark"] textarea,[data-theme="dark"] select,[data-theme="dark"] .manual-opt-in{background:#34262f;color:var(--text-main);border:1px solid var(--border);}
 [data-theme="dark"] .mb-bar{background:#34262f;}
 [data-theme="dark"] .mb-fill{background:linear-gradient(135deg,#D9A0BC,#C98AA8);}
@@ -3133,7 +3133,7 @@ body.drawer-open .nav-cloud{display:none;}
     <div class="card-title"><span class="dot"></span>🎨 主题配色</div>
     <p class="import-empty" style="text-align:left;margin-bottom:12px;">整站色调一键切换 · 全站导航、按钮、卡片、进度条都会跟着变（你喜欢的 "海洋蓝" 已收录）。</p>
     <div onclick="openThemePicker()" style="display:flex;align-items:center;gap:14px;background:#F7F8FA;border-radius:14px;padding:14px 16px;cursor:pointer">
-      <div id="curThemeDot" style="width:46px;height:46px;border-radius:14px;flex-shrink:0;background:linear-gradient(135deg,var(--pink-btn),var(--pink-deep));box-shadow:0 4px 12px rgba(229,138,166,.32);transition:all .25s"></div>
+      <div id="curThemeDot" style="width:46px;height:46px;border-radius:14px;flex-shrink:0;background:linear-gradient(135deg,var(--pink-btn),var(--pink-deep));box-shadow:0 4px 12px var(--pink-shadow-soft);transition:all .25s"></div>
       <div style="flex:1;min-width:0">
         <div id="curThemeName" style="font-size:16px;font-weight:700;color:#333">樱花粉</div>
         <div style="font-size:11px;color:#aaa;margin-top:2px">点击查看全部 6 套主题</div>
