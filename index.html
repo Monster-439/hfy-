@@ -5281,7 +5281,7 @@ function renderQuestionBooks(){
   const accPct  = done ? Math.round(correct/done*100) : 0;
   let html = '<div style="padding:18px 18px 40px">';
   // header summary card
-  html += '<div style="background:linear-gradient(135deg,#7C9CC9,#5A7BAE);border-radius:18px;padding:18px;color:#fff;box-shadow:0 4px 14px rgba(90,123,174,.25)">';
+  html += '<div style="background:linear-gradient(135deg,#E58AA6 0%,#D35F84 100%);border-radius:18px;padding:18px;color:#fff;box-shadow:0 4px 14px rgba(211,95,132,.28)">';
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
   html += '<div><div style="font-size:15px;font-weight:700">📖 题本进度总览</div>';
   html += '<div style="font-size:11px;opacity:.85;margin-top:2px">已学题本 实时同步 · 关联到科目模考</div></div>';
@@ -5300,11 +5300,11 @@ function renderQuestionBooks(){
     // 今日题本计划
     const todays = list.filter(function(b){ return b.todayPlan; });
     if(todays.length){
-      html += '<div style="margin-top:18px"><div style="font-size:13px;font-weight:700;color:#5A7BAE;margin-bottom:8px">📅 今日题本计划</div>';
+      html += '<div style="margin-top:18px"><div style="font-size:13px;font-weight:700;color:#A86BC4;margin-bottom:8px">📅 今日题本计划</div>';
       html += '<div style="display:flex;flex-wrap:wrap;gap:8px">';
       todays.forEach(function(b){
         const pct = b.total?Math.round(Math.min(b.done||0,b.total||0)/b.total*100):0;
-        html += '<div style="background:#fff;border:1.5px solid #7C9CC9;border-radius:18px;padding:6px 12px;font-size:12px;color:#5A7BAE;display:flex;align-items:center;gap:6px;box-shadow:0 1px 4px rgba(0,0,0,.04)">'
+        html += '<div style="background:#fff;border:1.5px solid #C9A9E0;border-radius:18px;padding:6px 12px;font-size:12px;color:#A86BC4;display:flex;align-items:center;gap:6px;box-shadow:0 1px 4px rgba(0,0,0,.04)">'
           +'<span style="font-weight:700">'+escapeHtml(b.name||'题本')+'</span>'
           +'<span style="color:#bbb">'+pct+'%</span></div>';
       });
@@ -5319,7 +5319,7 @@ function renderQuestionBooks(){
       const bErr = bDone - bCorr;
       const bPct = bTot?Math.round(bDone/bTot*100):0;
       const bAcc = bDone?Math.round(bCorr/bDone*100):0;
-      const bColor = bPct>=100?'#7FB069':(bPct>=60?'#7C9CC9':'#e8a13a');
+      const bColor = bPct>=100?'#7FB069':(bPct>=60?'#A86BC4':'#e8a13a');
       const bSubj = qbookSubjectLabel(b.subject);
       const linkedAcc = b.subject && TOPICS[b.subject] ? moduleAccByKey(b.subject) : null;
       const isToday = !!b.todayPlan;
@@ -5327,7 +5327,7 @@ function renderQuestionBooks(){
       let card = '<div style="background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:4px solid '+bColor+(overdue?';box-shadow:0 0 0 2px #e8607d':'')+'">';
       card += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">';
       card += '<span style="font-weight:700;font-size:14px;color:#444;flex:1">'+escapeHtml(b.name||'题本')+'</span>';
-      if(isToday) card += '<span style="font-size:11px;color:#5A7BAE;background:#E5EDF8;padding:1px 6px;border-radius:8px">📅 今日</span>';
+      if(isToday) card += '<span style="font-size:11px;color:#A86BC4;background:#F3ECFB;padding:1px 6px;border-radius:8px">📅 今日</span>';
       card += '<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="editQuestionBook(\''+b.id+'\')">✏️</span>';
       card += '<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="deleteQuestionBook(\''+b.id+'\')">🗑️</span>';
       card += '</div>';
@@ -5346,7 +5346,7 @@ function renderQuestionBooks(){
       card += '</div>';
       card += '<div style="display:flex;gap:6px">';
       card += '<button class="btn popup-btn" style="flex:1;font-size:12px;padding:6px" onclick="recordQuestionBookProgress(\''+b.id+'\')">📝 记录进度</button>';
-      card += '<button class="btn btn-outline" style="flex:1;font-size:12px;padding:6px;border-color:'+(isToday?'#e8607d':'#7C9CC9')+';color:'+(isToday?'#e8607d':'#7C9CC9')+'" onclick="toggleQuestionBookToday(\''+b.id+'\')">'+(isToday?'✓ 已在今日':'📅 今日')+'</button>';
+      card += '<button class="btn btn-outline" style="flex:1;font-size:12px;padding:6px;border-color:'+(isToday?'#e8607d':'#C9A9E0')+';color:'+(isToday?'#e8607d':'#A86BC4')+'" onclick="toggleQuestionBookToday(\''+b.id+'\')">'+(isToday?'✓ 已在今日':'📅 今日')+'</button>';
       card += '</div>';
       card += '</div>';
       html += card;
