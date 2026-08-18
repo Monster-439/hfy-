@@ -5789,13 +5789,90 @@ function renderMindmap(){
   const sub = getActiveMindmapSubject();
   const data = MINDMAP_DATA[sub] || MINDMAP_DATA.verbal;
   const root = getMindmapData();
-  // 笔记
+  const layout = layoutRadialMindmap(root);
   const notes = (store.mindmapNotes && store.mindmapNotes[sub]) || '';
+  const openMap = (store && store.mindmapOpen) ? store.mindmapOpen : (store.mindmapOpen = {});
+  const isOpen = function(path){ return !(path in openMap) || !!openMap[path]; };
+  // ----- 配色 -----
+  const COL_ROOT_FILL = '#DCEED6', COL_ROOT_STROKE = '#4F9F73', COL_ROOT_TEXT = '#2D7A4F';
+  const COL_L1_FILL = '#fff',     COL_L1_STROKE   = '#5A7BAE', COL_L1_TEXT   = '#3F5F8F';
+  const COL_L2_FILL = '#fff',     COL_L2_STROKE   = '#E58AA6', COL_L2_TEXT   = '#C95B7E';
+  const COL_CURVE   = '#D8B8C2';
+  // ----- 节点尺寸 -----
+  const W_ROOT = 140, H_ROOT = 44;
+  const W_L1   = 110, H_L1   = 36;
+  const W_L2   = 90,  H_L2   = 30;
+  const RX = 8;
+  const svgW = layout.width, svgH = layout.height;
+  // ----- SVG 元素拼接 -----
+  let svg = '';
+  // 路径连线
+  layout.l1Nodes.forEach(function(l1){
+    const x1 = layout.rootNode.x + W_ROOT/2;
+    const y1 = layout.rootNode.y;
+    const x2 = l1.x - W_L1/2;
+    const y2 = l1.y;
+    svg += '<path d="'+svgCurve(x1,y1,x2,y2)+'" stroke="'+COL_CURVE+'" stroke-width="1.5" fill="none" opacity="0.7"/>';
+  });
+  // 一级 → 二级连线（仅当该一级分支是展开的）
+  layout.leaves.forEach(function(leaf){
+    const l1 = layout.l1Nodes[leaf.l1Idx];
+    if(!isOpen(l1.path)) return;
+    const x1 = l1.x + W_L1/2;
+    const y1 = l1.y;
+    const x2 = leaf.x - W_L2/2;
+    const y2 = leaf.y;
+    svg += '<path d="'+svgCurve(x1,y1,x2,y2)+'" stroke="'+COL_CURVE+'" stroke-width="1.5" fill="none" opacity="0.7"/>';
+  });
+  // 节点（g 容器 + rect + text + badge）
+  function svgRect(x, y, w, h, fill, stroke){
+    return '<rect x="'+(x-w/2)+'" y="'+(y-h/2)+'" width="'+w+'" height="'+h+'" rx="'+RX+'" ry="'+RX+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="1.5"/>';
+  }
+  function svgText(x, y, str, fill, size, weight){
+    return '<text x="'+x+'" y="'+(y+size*0.36)+'" text-anchor="middle" font-size="'+size+'" font-weight="'+(weight||700)+'" fill="'+fill+'" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif">'+escapeHtml(str||'')+'</text>';
+  }
+  function svgErrBadge(x, y, n, w){
+    if(!n) return '';
+    const cx = x + w/2 - 2, cy = y - 14;
+    return '<circle cx="'+cx+'" cy="'+cy+'" r="9" fill="#e8a13a" stroke="#fff" stroke-width="1.5"/>'
+      + '<text x="'+cx+'" y="'+(cy+3)+'" text-anchor="middle" font-size="10" font-weight="800" fill="#fff" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif">'+n+'</text>';
+  }
+  // 根节点
+  const r = layout.rootNode;
+  svg += '<g data-mm-path="'+escapeAttr(r.path)+'" style="cursor:pointer" onclick="onMindmapNodeClick(\'\',0)">'
+    + svgRect(r.x, r.y, W_ROOT, H_ROOT, COL_ROOT_FILL, COL_ROOT_STROKE)
+    + svgText(r.x, r.y, root.name || data.name, COL_ROOT_TEXT, 14, 800)
+    + svgErrBadge(r.x, r.y, mmGetErr(sub, r.path), W_ROOT)
+    + '</g>';
+  // 一级节点
+  layout.l1Nodes.forEach(function(l1){
+    const l1Open = isOpen(l1.path);
+    const n = l1.node;
+    svg += '<g data-mm-path="'+escapeAttr(l1.path)+'" style="cursor:pointer" onclick="onMindmapNodeClick(\''+escapeAttr(l1.path)+'\',1)">'
+      + svgRect(l1.x, l1.y, W_L1, H_L1, COL_L1_FILL, COL_L1_STROKE)
+      // 折叠箭头（在节点文字前）
+      + '<text x="'+(l1.x - W_L1/2 + 10)+'" y="'+(l1.y+4)+'" text-anchor="middle" font-size="13" font-weight="800" fill="'+COL_L1_TEXT+'" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif" style="cursor:pointer" onclick="event.stopPropagation();toggleMindmapNode(\''+escapeAttr(l1.path)+'\')">'+(l1Open?'▾':'▸')+'</text>'
+      + svgText(l1.x + 6, l1.y, n.name||'(未命名)', COL_L1_TEXT, 13, 700)
+      + svgErrBadge(l1.x, l1.y, mmGetErr(sub, l1.path), W_L1)
+      + '</g>';
+  });
+  // 二级叶子（仅一级展开时画）
+  layout.leaves.forEach(function(leaf){
+    const l1 = layout.l1Nodes[leaf.l1Idx];
+    if(!isOpen(l1.path)) return;
+    const n = leaf.node;
+    svg += '<g data-mm-path="'+escapeAttr(leaf.path)+'" style="cursor:pointer" onclick="onMindmapNodeClick(\''+escapeAttr(leaf.path)+'\',2)">'
+      + svgRect(leaf.x, leaf.y, W_L2, H_L2, COL_L2_FILL, COL_L2_STROKE)
+      + svgText(leaf.x, leaf.y, n.name||'(未命名)', COL_L2_TEXT, 12, 600)
+      + svgErrBadge(leaf.x, leaf.y, mmGetErr(sub, leaf.path), W_L2)
+      + '</g>';
+  });
+  // ----- 外壳 HTML -----
   let html = '<div style="padding:14px 14px 40px;background:#F7F7F8;min-height:100vh">';
-  // 顶部标题（素白）
+  // 顶部标题
   html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);display:flex;align-items:center;justify-content:space-between;gap:10px">';
   html +=   '<div style="display:flex;align-items:center;gap:10px">'
-    +'<span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#E58AA6,#D35F84);color:#fff;font-size:18px">🧠</span>'
+    +'<span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#4F9F73,#2D7A4F);color:#fff;font-size:18px">🧠</span>'
     +'<div><div style="font-size:15px;font-weight:700;color:#333">知识体系思维导图</div>'
     +'<div style="font-size:11px;color:#aaa;margin-top:1px">放射状结构 · 一步步搭建自己的知识网</div></div>'
     +'</div>';
@@ -5812,115 +5889,115 @@ function renderMindmap(){
   html += '</div>';
   // 操作小提示
   html += '<div style="margin-top:10px;font-size:11px;color:#bbb;display:flex;gap:12px;flex-wrap:wrap;align-items:center">'
-    +'<span>▾ 折叠/展开子节点</span>'
+    +'<span>▾ 折叠一级分支</span>'
     +'<span>＋ 添加子节点</span>'
     +'<span>✏️ 重命名</span>'
     +'<span>🗑 删除</span>'
+    +'<span>点节点设置错题数</span>'
     +'</div>';
-
-  // 思维导图本体：放射状（横向滚动，整体居中）
-  html += '<div style="margin-top:12px;background:#fff;border-radius:18px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.04);overflow-x:auto;background-image:radial-gradient(circle at 1px 1px,rgba(216,168,186,.18) 1px,transparent 0);background-size:18px 18px">';
-  // 容器：横向 flex（root + 主横线 + branches column）
-  html += '<div style="display:flex;align-items:center;gap:0;min-width:max-content;padding:10px">';
-  // L0 root
-  html += '<div data-mm-name="'+escapeAttr(root.path||sub)+'" style="background:linear-gradient(135deg,#E58AA6,#D35F84);color:#fff;padding:18px 22px;border-radius:18px;font-weight:800;font-size:16px;box-shadow:0 8px 24px rgba(211,95,132,.3);white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:8px">'
-    +'<span>📚</span><span>'+escapeHtml(root.name||data.name)+'</span>'
-    +'<span onclick="event.stopPropagation();editMindmapNode(\''+escapeAttr(root.path||sub)+'\')" title="重命名根节点" style="cursor:pointer;font-size:12px;opacity:.9">✏️</span>'
-    +'</div>';
-  // 主横线
-  html += '<div style="width:60px;height:4px;background:#E58AA6;flex-shrink:0;margin:0 -1px"></div>';
-  // L1 branches column
-  html += '<div style="display:flex;flex-direction:column;gap:22px;flex:1">';
-  const branches = Array.isArray(root.children) ? root.children : [];
-  branches.forEach(function(branch){
-    html += renderMindmapBranchRow(branch);
-  });
-  if(!branches.length){
-    html += '<div style="color:#bbb;font-size:12px;padding:8px 14px">还没有分支，点根节点的 ＋ 添加第一个分支</div>';
-    // 即使没有 branches，仍提供 + 按钮让用户加
-    html += '<div><button onclick="addMindmapChild(\''+escapeAttr(root.path||sub)+'\')" style="background:#FCEFF2;color:#D35F84;border:1.5px dashed #E58AA6;border-radius:14px;padding:8px 14px;font-size:12px;cursor:pointer">＋ 添加第一个分支</button></div>';
-  }
-  html += '</div>'; // branches column end
-  html += '</div>'; // 横向 flex end
-  html += '</div>'; // 卡片 end
-
+  // 思维导图本体（SVG，手机左右滑动）
+  html += '<div style="margin-top:12px;background:#fff;border-radius:18px;padding:14px 18px;box-shadow:0 2px 8px rgba(0,0,0,.04);overflow-x:auto">';
+  html += '<svg width="'+svgW+'" height="'+svgH+'" viewBox="0 0 '+svgW+' '+svgH+'" style="display:block;min-width:'+svgW+'px">'+svg+'</svg>';
+  html += '</div>';
+  html += '<div style="margin-top:10px;font-size:11px;color:#bbb;text-align:center">💡 手指左右滑动查看完整导图 · 节点右上角数字为该分支关联的错题数</div>';
   // 笔记区
-  html += '<div style="background:#fff;border-radius:14px;padding:14px;margin-top:12px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
+  html += '<div style="background:#fff;border-radius:14px;padding:14px;margin-top:14px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:13px;font-weight:700;color:#A86BC4">📝 知识体系搭建笔记</div><span style="font-size:11px;color:#bbb">自动保存</span></div>';
   html += '<textarea id="mmNote" oninput="saveMindmapNote(\''+sub+'\',this.value)" placeholder="记录这科的搭建思路、心得、薄弱点……" style="width:100%;min-height:90px;padding:10px 12px;border:1.5px solid #F3ECFB;border-radius:10px;font-size:13px;line-height:1.6;outline:none;resize:vertical;box-sizing:border-box;color:#444;font-family:inherit;background:#FBF8FC">'+escapeHtml(notes)+'</textarea>';
   html += '</div>';
   html += '</div>';
   el.innerHTML = html;
 }
-// 渲染一个分支行：根节点出来的主线 → 短进入线 → 分支名 → 短出线条 → 子节点堆
-function renderMindmapBranchRow(branch){
-  if(!branch) return '';
-  const children = Array.isArray(branch.children) ? branch.children : [];
-  const pathKey = branch.path;
+// ----- SVG 布局辅助：三次贝塞尔曲线 -----
+function svgCurve(x1,y1,x2,y2){
+  const R = Math.min(80, Math.max(40, Math.abs(x2-x1)/2));
+  return 'M '+x1+' '+y1+' C '+(x1+R)+' '+y1+' '+(x2-R)+' '+y2+' '+x2+' '+y2;
+}
+// ----- SVG 布局算法：自底向上算叶子位置 → 一级节点 y → 根节点 y -----
+function layoutRadialMindmap(root){
+  const L1_X = 280, L2_X = 530;
+  const L2_H = 32, L2_GAP = 14, L1_GAP = 26, TOP_PAD = 20, BOT_PAD = 20;
+  const leaves = []; let cursor = TOP_PAD;
   const openMap = (store && store.mindmapOpen) ? store.mindmapOpen : (store.mindmapOpen = {});
-  const isOpen = openMap[pathKey] !== false;
-  // 分支级颜色（一律粉为主，便于视觉一致）
-  const branchColor = '#E58AA6';
-  const branchBg    = '#FCEFF2';
-  // 叶子颜色（白底粉边）
-  const leafColor = '#D35F84';
-  let html = '<div style="display:flex;align-items:center;gap:14px;flex-wrap:nowrap">';
-  // 接到主横线的短线
-  html += '<div style="width:14px;height:3px;background:'+branchColor+';flex-shrink:0;border-radius:2px"></div>';
-  // 分支名胶囊
-  html += '<div style="display:inline-flex;align-items:center;gap:6px;background:'+branchBg+';border:2px solid '+branchColor+';border-radius:14px;padding:8px 14px;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.04);max-width:240px">';
-  // 折叠按钮（仅当有子节点）
-  if(children.length){
-    html += '<span onclick="toggleMindmapNode(\''+escapeAttr(pathKey)+'\')" title="'+(isOpen?'折叠':'展开')+'" style="cursor:pointer;color:'+branchColor+';font-weight:800;font-size:13px;width:14px;text-align:center;line-height:1">'+(isOpen?'▾':'▸')+'</span>';
-  } else {
-    html += '<span style="color:#ddd;width:14px;text-align:center;font-size:13px;line-height:1">·</span>';
-  }
-  html += '<span data-mm-name="'+escapeAttr(pathKey)+'" style="color:'+branchColor+';font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(branch.name||'(未命名)')+'</span>';
-  // 节点操作按钮（行内）
-  html += '<span onclick="event.stopPropagation();addMindmapChild(\''+escapeAttr(pathKey)+'\')" title="添加子节点" style="cursor:pointer;color:#fff;background:'+branchColor+';border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;line-height:1;flex-shrink:0">+</span>';
-  html += '<span onclick="event.stopPropagation();editMindmapNode(\''+escapeAttr(pathKey)+'\')" title="重命名" style="cursor:pointer;font-size:12px;color:'+branchColor+';flex-shrink:0">✏️</span>';
-  html += '<span onclick="event.stopPropagation();deleteMindmapNode(\''+escapeAttr(pathKey)+'\')" title="删除" style="cursor:pointer;color:#e8607d;font-size:12px;flex-shrink:0">🗑</span>';
-  html += '</div>';
-  // 接到叶子的短线
-  if(children.length){
-    html += '<div style="width:18px;height:3px;background:'+branchColor+';flex-shrink:0;border-radius:2px"></div>';
-    // 叶子节点堆（横向多列 wrap）
-    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;flex:1;min-width:0">';
-    if(isOpen){
-      children.forEach(function(leaf){
-        html += renderMindmapLeaf(leaf, leafColor);
-      });
-    } else {
-      html += '<span style="font-size:11px;color:#bbb;padding:4px 6px">（已折叠，共 '+children.length+' 个子节点）</span>';
-    }
-    html += '</div>';
-  }
-  html += '</div>';
-  return html;
-}
-function renderMindmapLeaf(leaf, color){
-  if(!leaf) return '';
-  const subs = Array.isArray(leaf.children) ? leaf.children : [];
-  let html = '<span style="background:#fff;border:1.5px solid '+color+';color:'+color+';padding:6px 12px;border-radius:10px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px;box-shadow:0 1px 4px rgba(0,0,0,.04)">'
-    + '<span data-mm-name="'+escapeAttr(leaf.path)+'">'+escapeHtml(leaf.name||'(未命名)')+'</span>'
-    + '<span onclick="event.stopPropagation();addMindmapChild(\''+escapeAttr(leaf.path)+'\')" title="添加子节点" style="cursor:pointer;color:#fff;background:'+color+';border-radius:50%;width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;line-height:1">+</span>'
-    + '<span onclick="event.stopPropagation();editMindmapNode(\''+escapeAttr(leaf.path)+'\')" title="重命名" style="cursor:pointer;font-size:10px;color:'+color+'">✏️</span>'
-    + '<span onclick="event.stopPropagation();deleteMindmapNode(\''+escapeAttr(leaf.path)+'\')" title="删除" style="cursor:pointer;color:#e8607d;font-size:10px">🗑</span>'
-    + '</span>';
-  // 如果叶子下面还有孙节点（用户后添加的），把它们竖排到下方
-  if(subs.length){
-    html += '<div style="display:flex;flex-direction:column;gap:6px;flex-basis:100%;margin-top:6px;padding-left:16px;border-left:2px dashed '+color+'">';
-    subs.forEach(function(gc){
-      html += '<div style="display:inline-flex;align-items:center;gap:6px;background:#FBF8FC;border:1px solid #EFE5DF;color:'+color+';padding:5px 10px;border-radius:8px;font-size:11px;font-weight:600">'
-        + '<span data-mm-name="'+escapeAttr(gc.path)+'">└ '+escapeHtml(gc.name||'(未命名)')+'</span>'
-        + '<span onclick="event.stopPropagation();editMindmapNode(\''+escapeAttr(gc.path)+'\')" title="重命名" style="cursor:pointer;color:'+color+';font-size:10px">✏️</span>'
-        + '<span onclick="event.stopPropagation();deleteMindmapNode(\''+escapeAttr(gc.path)+'\')" title="删除" style="cursor:pointer;color:#e8607d;font-size:10px">🗑</span>'
-        + '</div>';
+  const isOpen = function(path){ return !(path in openMap) || !!openMap[path]; };
+  (root.children||[]).forEach(function(l1, i1){
+    if(!isOpen(''+i1)) return;
+    (l1.children||[]).forEach(function(l2, i2){
+      leaves.push({ type:'leaf', node:l2, l1Idx:i1, l2Idx:i2, path:i1+'.'+i2, y: cursor + L2_H/2 });
+      cursor += L2_H + L2_GAP;
     });
-    html += '</div>';
+    cursor += L1_GAP;
+  });
+  // 一级节点 y = 其二级叶子 y 的中点（如果该分支被折叠，y 落在当前 cursor）
+  const l1Nodes = (root.children||[]).map(function(l1, i1){
+    const path = ''+i1;
+    const myLeaves = leaves.filter(function(n){ return n.l1Idx===i1; });
+    let y;
+    if(myLeaves.length){
+      const ys = myLeaves.map(function(l){ return l.y; });
+      y = (Math.min.apply(null,ys) + Math.max.apply(null,ys))/2;
+    } else {
+      // 折叠态或无叶子：放到 cursor 位置
+      y = cursor;
+      cursor += L2_H + L2_GAP;
+    }
+    return { type:'l1', node:l1, idx:i1, path:path, x:L1_X, y:y };
+  });
+  // 根节点 y = 一级节点 y 的中点
+  let rootY;
+  if(l1Nodes.length){
+    const ys = l1Nodes.map(function(n){ return n.y; });
+    rootY = (Math.min.apply(null,ys) + Math.max.apply(null,ys))/2;
+  } else {
+    rootY = (TOP_PAD + cursor)/2;
   }
-  return html;
+  return {
+    rootNode: { node:root, path:'', x:90, y:rootY },
+    l1Nodes: l1Nodes,
+    leaves: leaves,
+    height: Math.max(cursor + BOT_PAD, 200),
+    width: 660
+  };
 }
+// ----- 错题数 -----
+function mmGetErr(sub, path){
+  if(!store.mindmapErr) store.mindmapErr = {};
+  if(!store.mindmapErr[sub]) store.mindmapErr[sub] = {};
+  return store.mindmapErr[sub][path] || 0;
+}
+function mmSetErr(sub, path, n){
+  if(!store.mindmapErr) store.mindmapErr = {};
+  if(!store.mindmapErr[sub]) store.mindmapErr[sub] = {};
+  store.mindmapErr[sub][path] = Math.max(0, parseInt(n,10)||0);
+  saveStore();
+  renderMindmap();
+}
+// ----- 节点点击：弹出操作菜单（添加子节点 / 重命名 / 删除 / 设置错题数） -----
+function onMindmapNodeClick(path, level){
+  const sub = getActiveMindmapSubject();
+  const opts = [];
+  if(level < 2) opts.push({ label:'＋ 添加子节点', fn:function(){ addMindmapChild(path||sub); } });
+  opts.push({ label:'✏️ 重命名', fn:function(){ editMindmapNode(path||sub); } });
+  opts.push({ label:'📊 设置错题数', fn:function(){
+    const cur = mmGetErr(sub, path);
+    const v = (typeof prompt==='function') ? prompt('设置该节点关联的错题数（0 = 不显示徽章）', cur) : '0';
+    if(v===null) return;
+    mmSetErr(sub, path, v);
+  }});
+  if(level > 0) opts.push({ label:'🗑 删除', fn:function(){ deleteMindmapNode(path); } });
+  opts.push({ label:'取消', fn:function(){} });
+  // 用 confirm 一连串询问（最简单，不需要新弹窗样式）
+  opts.forEach(function(o,i){
+    if(typeof o.fn !== 'function') return;
+    if(i === opts.length-1) return; // 跳过取消
+    if(typeof confirm === 'function'){
+      // 第一个选项自动执行，其余询问是否继续
+      if(i === 0){ o.fn(); return; }
+      if(confirm('继续：'+o.label+'？')) o.fn();
+    }
+  });
+}
+// 错题数（直接读写 store.mindmapErr[sub][path]，由 mmGetErr / mmSetErr 包装）
 function saveMindmapNote(sub, val){
   if(!store.mindmapNotes) store.mindmapNotes = {};
   store.mindmapNotes[sub] = val;
