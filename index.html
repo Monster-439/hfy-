@@ -15756,6 +15756,10 @@ function addFocus(minutes, modOverride, opts){
   saveStore();
   if(document.getElementById('page-checkin').classList.contains('active')) renderCheckin();
   if(document.getElementById('page-stats').classList.contains('active')) renderStats();
+  // 番茄完成时若当前停留在「今日待办」/「首页」/「每日计划」页，同步刷新它们的视觉（store 已改，不重渲页面看起来不同步）
+  if(document.getElementById('page-tomato').classList.contains('active')) renderTodoList();
+  if(document.getElementById('page-home').classList.contains('active')) renderHome();
+  if(document.getElementById('page-plan').classList.contains('active')) renderPlan();
   // 番茄钟完成掉落扭蛋币 + 检查成就解锁
   store.gacha.tickets = (store.gacha.tickets||0) + 1;
   checkAchievements();
