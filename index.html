@@ -5028,6 +5028,18 @@ function renderGoals(){
   el.innerHTML = html;
 }
 
+// 课程总览页：按阶段分组折叠状态（milestone id -> 是否折叠）
+var courseGroupCollapsed = {};
+function toggleCourseGroup(msId){
+  courseGroupCollapsed[msId] = !courseGroupCollapsed[msId];
+  renderCourses();
+}
+function collapseAllCourseGroups(collapse){
+  (store.goals.milestones||[]).forEach(function(m){
+    if((m.courses||[]).length) courseGroupCollapsed[m.id] = !!collapse;
+  });
+  renderCourses();
+}
 function renderCourses(){
   const el = document.getElementById('page-courses');
   if(!el) return;
@@ -5059,15 +5071,26 @@ function renderCourses(){
   if(!allCourses.length){
     html += '<div style="background:#fff;border-radius:14px;padding:24px;text-align:center;color:#bbb;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-top:16px">还没有课程，去「🎯 目标拆解」里给某个阶段添加课程吧 📚</div>';
   } else {
+    // 全部折叠 / 展开 快捷按钮
+    const anyOpen = ms.some(function(m){ return (m.courses||[]).length && !courseGroupCollapsed[m.id]; });
+    html += '<div style="display:flex;gap:8px;margin-top:16px">'
+      + '<button class="btn btn-outline" style="flex:1;font-size:13px;padding:7px" onclick="collapseAllCourseGroups('+!anyOpen+')">'+(anyOpen?'⊟ 全部折叠':'⊞ 全部展开')+'</button></div>';
     ms.forEach(function(m){
       const cs = m.courses || [];
       if(!cs.length) return;
       const idx = ms.indexOf(m) + 1;
-      html += '<div style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+      const collapsed = !!courseGroupCollapsed[m.id];
+      // 该阶段课程汇总：门数 + 平均进度
+      let grpDone=0, grpTot=0;
+      cs.forEach(function(c){ grpDone+=Math.min(c.done||0,c.total||0); grpTot+= (c.total||0); });
+      const grpPct = grpTot?Math.round(grpDone/grpTot*100):0;
+      html += '<div style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;user-select:none" onclick="toggleCourseGroup(\''+m.id+'\')">'
         + '<span style="font-size:18px">'+(m.emoji||'🎯')+'</span>'
         + '<span style="font-weight:700;font-size:14px;color:#555">'+escapeHtml(m.title)+'</span>'
-        + '<span style="font-size:11px;color:#bbb">· 第'+idx+'阶段</span></div>';
-      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">';
+        + '<span style="font-size:11px;color:#bbb">· 第'+idx+'阶段</span>'
+        + '<span style="margin-left:auto;font-size:11px;color:#bbb">'+cs.length+'门 · '+grpPct+'%</span>'
+        + '<span style="font-size:12px;color:#c9c2c6;transition:transform .2s;'+(collapsed?'transform:rotate(-90deg)':'')+'">▾</span></div>';
+      html += '<div id="courseGrp_'+m.id+'" style="'+(collapsed?'display:none':'display:grid;')+'grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">';
       cs.forEach(function(c){
         const cd = Math.min(c.done||0, c.total||0);
         const ct = c.total||0;
@@ -15172,15 +15195,41 @@ function ghDecodeUnicode(b64){
   try{ var bin=atob(b64.replace(/\s/g,'')), b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return new TextDecoder().decode(b); }
   catch(e){ return decodeURIComponent(escape(atob(b64.replace(/\s/g,'')))); }
 }
-function ghApi(method, path, body){
+function ghApi(method, path, body, retryLeft){
+  retryLeft = (retryLeft===undefined) ? 1 : retryLeft;
   var headers={ 'Accept':'application/vnd.github+json', 'Authorization':'Bearer '+GH.token, 'X-GitHub-Api-Version':'2022-11-28', 'Content-Type':'application/json' };
-  return fetch('https://api.github.com'+path, { method:method, headers:headers, body: body?JSON.stringify(body):undefined }).then(function(r){
-    return r.text().then(function(txt){
-      var data=null; try{ data = txt?JSON.parse(txt):null; }catch(e){}
-      if(!r.ok){ var msg=(data&&data.message)?data.message:('HTTP '+r.status); var err=new Error(msg); err.status=r.status; throw err; }
-      return data;
+  return fetch('https://api.github.com'+path, { method:method, headers:headers, body: body?JSON.stringify(body):undefined })
+    .then(function(r){
+      return r.text().then(function(txt){
+        var data=null; try{ data = txt?JSON.parse(txt):null; }catch(e){}
+        if(!r.ok){ var msg=(data&&data.message)?data.message:('HTTP '+r.status); var err=new Error(msg); err.status=r.status; err.isApi=true; throw err; }
+        return data;
+      });
+    })
+    .catch(function(err){
+      // 已经是 API 业务错误（HTTP 401/403/404 等），不重试，直接抛
+      if(err && err.isApi) throw err;
+      // fetch 网络层失败（DNS / 网络中断 / CORS）—— 自动重试一次
+      if(retryLeft>0){
+        var delay = 1200;
+        ghStatus && ghStatus('网络异常，正在重试…', 'off');
+        return new Promise(function(res){ setTimeout(res, delay); })
+          .then(function(){ return ghApi(method, path, body, retryLeft-1); });
+      }
+      // 错误归类
+      var msg = (err && err.message) || 'Failed to fetch';
+      var friendly;
+      if(/failed to fetch/i.test(msg) || /networkerror/i.test(msg) || /load failed/i.test(msg)){
+        friendly = '网络异常（无法连接 api.github.com）。请检查网络/DNS/VPN，或稍后再试';
+      } else if(/timeout/i.test(msg)){
+        friendly = '请求超时（GitHub 较慢或网络不稳），已重试 1 次仍失败';
+      } else if(/cors/i.test(msg)){
+        friendly = '跨域被拦截，请关闭广告拦截插件或隐私模式后再试';
+      } else {
+        friendly = '网络异常：'+msg+'。建议点上方「🔬 诊断」一键测连通';
+      }
+      var e = new Error(friendly); e.isNetwork=true; e.original=msg; throw e;
     });
-  });
 }
 function ghPath(){ return '/repos/'+GH.owner+'/'+GH.repo+'/contents/xckq-garden/sync.json'; }
 function ghInit(){
