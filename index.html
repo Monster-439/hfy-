@@ -5105,7 +5105,7 @@ function renderCourses(){
         + '<span style="font-size:11px;color:#bbb">· 第'+idx+'阶段</span>'
         + '<span style="margin-left:auto;font-size:11px;color:#bbb">'+cs.length+'门 · '+grpPct+'%</span>'
         + '<span style="font-size:12px;color:#c9c2c6;transition:transform .2s;'+(collapsed?'transform:rotate(-90deg)':'')+'">▾</span></div>';
-      html += '<div id="courseGrp_'+m.id+'" style="'+(collapsed?'display:none':'display:grid;')+'grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">';
+      html += '<div id="courseGrp_'+m.id+'" style="'+(collapsed?'display:none;':'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px')+'">';
       cs.forEach(function(c){
         const cd = Math.min(c.done||0, c.total||0);
         const ct = c.total||0;
