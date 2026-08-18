@@ -5136,84 +5136,126 @@ function renderCourses(){
     totalTot  += (c.total||0);
   });
   const overallPct = totalTot ? Math.round(totalDone/totalTot*100) : 0;
-  let html = '<div style="padding:18px 18px 40px">';
-  // 顶部渐变统计卡（仿截图2）
-  html += '<div style="background:linear-gradient(135deg,#E58AA6 0%,#D35F84 100%);border-radius:18px;padding:18px;color:#fff;box-shadow:0 4px 14px rgba(211,95,132,.28)">';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
-  html += '<div><div style="font-size:15px;font-weight:700">📚 网课进度</div>';
-  html += '<div style="font-size:11px;opacity:.85;margin-top:2px">已学网课 实时同步 · 关联到科目模考</div></div>';
-  html += '<button class="btn popup-btn" style="background:rgba(255,255,255,.25);color:#fff;font-size:13px;padding:7px 14px" onclick="openGoalsPopupForAddCourse()">+ 添加网课</button>';
+  let html = '<div style="padding:14px 14px 40px;background:#F7F7F8;min-height:100vh">';
+  // 顶部标题条（素白）+ 右上「+ 添加网课」按钮（仿截图4）
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);display:flex;align-items:center;justify-content:space-between;gap:10px">';
+  html +=   '<div style="display:flex;align-items:center;gap:10px">'
+    +'<span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#E58AA6,#D35F84);color:#fff;font-size:18px">🎬</span>'
+    +'<div><div style="font-size:15px;font-weight:700;color:#333">网课进度</div>'
+    +'<div style="font-size:11px;color:#aaa;margin-top:1px">网课进度 · 历史积累模式</div></div>'
+    +'</div>';
+  html +=   '<button class="btn popup-btn" style="background:linear-gradient(135deg,#7DA8F0,#5B8DD9);color:#fff;font-size:13px;padding:8px 14px;width:auto;box-shadow:0 4px 12px rgba(91,141,217,.3)" onclick="openGoalsPopupForAddCourse()">+ 添加网课</button>';
   html += '</div>';
-  html += '<div style="display:flex;gap:14px;flex-wrap:wrap">';
-  html += '<div><div style="font-size:24px;font-weight:800">'+allCourses.length+'</div><div style="font-size:11px;opacity:.9">网课总数</div></div>';
-  html += '<div><div style="font-size:24px;font-weight:800">'+totalDone+'<span style="font-size:14px;opacity:.85">/'+totalTot+'</span></div><div style="font-size:11px;opacity:.9">已听/总节数</div></div>';
-  html += '<div><div style="font-size:24px;font-weight:800">'+(totalTot?overallPct:0)+'%</div><div style="font-size:11px;opacity:.9">总体进度</div></div>';
-  html += '</div></div>';
+  // 数据卡：网课总数 / 已听总节数 / 总体进度
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px">';
+  html += renderCourseStat(allCourses.length, '网课总数', '#E58AA6');
+  html += renderCourseStat(totalDone+'/'+totalTot, '已听/总节数', '#A86BC4');
+  html += renderCourseStat((totalTot?overallPct:0)+'%', '总体进度', '#7FB069');
+  html += '</div>';
   if(!allCourses.length){
-    html += '<div style="background:#fff;border-radius:14px;padding:24px;text-align:center;color:#bbb;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-top:16px">还没有网课，点右上角「+ 添加网课」开始记录 📚</div>';
-  } else {
-    // 今日网课计划
-    const todays = allCourses.filter(function(o){ return o.c.todayPlan; });
-    if(todays.length){
-      html += '<div style="margin-top:18px"><div style="font-size:13px;font-weight:700;color:#A86BC4;margin-bottom:8px">📅 今日网课计划</div>';
-      html += '<div style="display:flex;flex-wrap:wrap;gap:8px">';
-      todays.forEach(function(o){
-        const c = o.c, m = o.m;
-        const cd = Math.min(c.done||0, c.total||0);
-        const cp = c.total ? Math.round(cd/c.total*100) : 0;
-        html += '<div style="background:#fff;border:1.5px solid #C9A9E0;border-radius:18px;padding:6px 12px;font-size:12px;color:#A86BC4;display:flex;align-items:center;gap:6px;box-shadow:0 1px 4px rgba(0,0,0,.04)">'
-          +'<span style="font-weight:700">'+escapeHtml(c.name||'课程')+'</span>'
-          +'<span style="color:#bbb">'+cd+'/'+(c.total||0)+' · '+cp+'%</span></div>';
-      });
-      html += '</div></div>';
-    }
-    // 网课卡片（扁平，不按阶段分，但显示阶段标签）
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:18px">';
-    allCourses.forEach(function(o){
-      const m = o.m, c = o.c;
-      const cd = Math.min(c.done||0, c.total||0);
-      const ct = c.total||0;
-      const cp = ct>0?Math.round(cd/ct*100):0;
-      const cColor = cp>=100?'#7FB069':(cp>=60?'#A86BC4':'#e8a13a');
-      const cAcc = c.linked?moduleAccByKey(c.linked):null;
-      const cShort = c.linked&&TOPICS[c.linked]?TOPICS[c.linked].name.slice(0,2):'';
-      const cSubj = c.linked&&TOPICS[c.linked]?TOPICS[c.linked].name:'';
-      const isToday = !!c.todayPlan;
-      let cWarn='';
-      if(c.deadline && cp<100){
-        const dl=goalDaysLeft(c.deadline);
-        if(dl<0) cWarn='<span style="font-size:10px;color:#e8607d;background:#fdeaee;padding:1px 6px;border-radius:8px">⚠️ 逾期</span>';
-        else if(dl<=7) cWarn='<span style="font-size:10px;color:#e8a13a;background:#fdf3e6;padding:1px 6px;border-radius:8px">⏰ 剩'+dl+'天</span>';
-      }
-      let card='<div style="background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:4px solid '+cColor+'">';
-      card+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">'
-        +'<span style="font-weight:700;font-size:14px;color:#444;flex:1">'+escapeHtml(c.name||'课程')+'</span>'
-        +'<span style="font-size:10px;color:#b89baf;background:#FDF3F6;border-radius:8px;padding:1px 7px">'+ (m.emoji||'🎯') +' '+escapeHtml(m.title||'')+'</span>'
-        +'<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="editGoalCourse(\''+m.id+'\',\''+c.id+'\')">✏️</span>'
-        +'<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="deleteGoalCourse(\''+m.id+'\',\''+c.id+'\')">🗑️</span>'
-        +'</div>';
-      if(cSubj) card+='<div style="font-size:11px;color:#999;margin-bottom:2px">'+escapeHtml(cSubj)+(c.platform?' · '+escapeHtml(c.platform):'')+'</div>';
-      else if(c.platform) card+='<div style="font-size:11px;color:#999;margin-bottom:2px">'+escapeHtml(c.platform)+'</div>';
-      card+='<div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin:6px 0 2px"><span>已听 '+cd+'/'+ct+' 节</span><span style="color:'+cColor+';font-weight:700">'+cp+'%</span></div>';
-      card+='<div style="height:8px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:6px"><div style="height:100%;width:'+cp+'%;background:'+cColor+';border-radius:6px"></div></div>';
-      card+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">';
-      if(cAcc!==null) card+='<span style="font-size:10px;color:#A86BC4;background:#F3ECFB;padding:2px 6px;border-radius:8px">📊 '+cShort+'模考 '+cAcc+'%</span>';
-      card+=goalDeadlineBadge(c.deadline);
-      card+=cWarn;
-      card+='</div>';
-      card+='<div style="display:flex;gap:6px;flex-wrap:wrap">';
-      card+='<button class="btn popup-btn" style="flex:1;font-size:12px;padding:6px" onclick="viewCourseLesson(\''+m.id+'\',\''+c.id+'\')">➕ 看一课</button>';
-      card+='<button class="btn btn-outline" style="flex:1;font-size:12px;padding:6px;border-color:'+(isToday?'#e8607d':'#C9A9E0')+';color:'+(isToday?'#e8607d':'#A86BC4')+'" onclick="toggleCourseToday(\''+m.id+'\',\''+c.id+'\')">'+(isToday?'✓ 已在今日':'📅 今日')+'</button>';
-      card+='</div>';
-      // 第二行：专注
-      card+='<button class="btn btn-outline" style="width:100%;margin-top:6px;font-size:12px;padding:6px;border-color:#e8607d;color:#e8607d" onclick="startCourseFocus(\''+m.id+'\',\''+c.id+'\')">🍅 启动番茄钟专注</button>';
-      card+='</div>';
-      html+=card;
-    });
-    html+='</div>';
+    html += '<div style="background:#fff;border-radius:14px;padding:30px;text-align:center;color:#bbb;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-top:14px">还没有网课，点右上角「+ 添加网课」开始记录 📚</div>';
+    html += '</div>';
+    el.innerHTML = html;
+    return;
   }
+  // 今日网课计划（独立卡片块）
+  const todays = allCourses.filter(function(o){ return o.c.todayPlan; });
+  if(todays.length){
+    html += '<div style="background:#fff;border-radius:14px;padding:14px;margin-top:14px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="display:flex;align-items:center;gap:8px">'
+      +'<span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;background:#FCEFF2;color:#D35F84;font-size:14px">📅</span>'
+      +'<div style="font-size:14px;font-weight:700;color:#333">今日网课计划</div>'
+      +'</div><div style="font-size:11px;color:#bbb">'+todays.length+' 节</div></div>';
+    todays.forEach(function(o){
+      const c = o.c, m = o.m;
+      const cd = Math.min(c.done||0, c.total||0);
+      const cp = c.total ? Math.round(cd/c.total*100) : 0;
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #F3F0F2">'
+        +'<label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer">'
+        +'<input type="checkbox" '+(c._todayDone?'checked':'')+' onclick="toggleCoursePlanDone(\''+m.id+'\',\''+c.id+'\')" style="width:16px;height:16px;accent-color:#7FB069">'
+        +'<div style="flex:1"><div style="font-size:13px;color:#333;font-weight:600;text-decoration:'+(c._todayDone?'line-through':'')+';opacity:'+(c._todayDone?'.55':'1')+'">'+escapeHtml(c.name||'课程')+'</div>'
+        +'<div style="font-size:10px;color:#aaa">'+cd+'/'+(c.total||0)+' 节 · '+cp+'%</div></div>'
+        +'</label></div>';
+    });
+    html += '</div>';
+  }
+  // 网课卡片：左右双列网格（仿截图4）
+  html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px">';
+  allCourses.forEach(function(o){
+    const m = o.m, c = o.c;
+    const cd = Math.min(c.done||0, c.total||0);
+    const ct = c.total||0;
+    const cp = ct>0?Math.round(cd/ct*100):0;
+    const cColor = cp>=100?'#7FB069':(cp>=60?'#A86BC4':'#e8a13a');
+    const cAcc = c.linked?moduleAccByKey(c.linked):null;
+    const cShort = c.linked&&TOPICS[c.linked]?TOPICS[c.linked].name.slice(0,2):'';
+    const cSubj = c.linked&&TOPICS[c.linked]?TOPICS[c.linked].name:'';
+    const isToday = !!c.todayPlan;
+    let cWarn='';
+    if(c.deadline && cp<100){
+      const dl=goalDaysLeft(c.deadline);
+      if(dl<0) cWarn='<span style="font-size:10px;color:#e8607d;background:#fdeaee;padding:1px 6px;border-radius:8px">⚠️ 逾期</span>';
+      else if(dl<=7) cWarn='<span style="font-size:10px;color:#e8a13a;background:#fdf3e6;padding:1px 6px;border-radius:8px">⏰ 剩'+dl+'天</span>';
+    }
+    let card='<div style="background:#fff;border-radius:14px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:3px solid '+cColor+';display:flex;flex-direction:column;gap:6px">';
+    card+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+      +'<span style="font-weight:700;font-size:14px;color:#444;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(c.name||'课程')+'</span>'
+      +'<span style="cursor:pointer;font-size:12px;color:#888" onclick="editGoalCourse(\''+m.id+'\',\''+c.id+'\')" title="编辑">✏️</span>'
+      +'<span style="cursor:pointer;font-size:12px;color:#888" onclick="deleteGoalCourse(\''+m.id+'\',\''+c.id+'\')" title="删除">🗑</span>'
+      +'</div>';
+    if(cSubj) card+='<div style="font-size:11px;color:#999">'+escapeHtml(cSubj)+(c.platform?' · '+escapeHtml(c.platform):'')+'</div>';
+    else if(c.platform) card+='<div style="font-size:11px;color:#999">'+escapeHtml(c.platform)+'</div>';
+    card+='<div style="display:flex;justify-content:space-between;font-size:11px;color:#888"><span>已听 '+cd+'/'+ct+' 节</span><span style="color:'+cColor+';font-weight:700">'+cp+'%</span></div>';
+    card+='<div style="height:6px;background:#F0ECE8;border-radius:6px;overflow:hidden"><div style="height:100%;width:'+cp+'%;background:'+cColor+';border-radius:6px"></div></div>';
+    // 数据三宫格
+    card+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:2px 0">';
+    card+='<div style="text-align:center;background:#FBF8F4;border-radius:8px;padding:5px 2px"><div style="font-size:14px;font-weight:800;color:'+cColor+'">'+cp+'%</div><div style="font-size:10px;color:#aaa">完成率</div></div>';
+    card+='<div style="text-align:center;background:#FBF8F4;border-radius:8px;padding:5px 2px"><div style="font-size:14px;font-weight:800;color:#A86BC4">'+(cAcc===null?'—':cAcc+'%')+'</div><div style="font-size:10px;color:#aaa">'+escapeHtml(cShort||'正确率')+'</div></div>';
+    card+='<div style="text-align:center;background:#FBF8F4;border-radius:8px;padding:5px 2px"><div style="font-size:14px;font-weight:800;color:#e8a13a">'+Math.max(0,cd-Math.min(c.total?Math.round(c.total*(cAcc||0)/100):0,cd))+'</div><div style="font-size:10px;color:#aaa">关联错题</div></div>';
+    card+='</div>';
+    card+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
+    if(cWarn) card+=cWarn;
+    card+=goalDeadlineBadge(c.deadline);
+    card+='</div>';
+    // 按钮行：+1节 / -1节 / 今日
+    card+='<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:2px">';
+    card+='<button onclick="event.stopPropagation();viewCourseLesson(\''+m.id+'\',\''+c.id+'\')" style="flex:1;background:#FCEFF2;color:#D35F84;border:none;border-radius:8px;font-size:12px;padding:6px;cursor:pointer;font-weight:700">＋ +1节</button>';
+    card+='<button onclick="event.stopPropagation();if(((qbookStoreByKey?0:0)||0||((store.goals.milestones.find(function(x){return x.id===\''+m.id+'\;}).courses.find(function(x){return x.id===\''+c.id+'\;}).done||0))>0)decrCourseLesson(\''+m.id+'\',\''+c.id+'\')" style="background:#fff;border:1.5px solid #E8D7E0;color:#A86BC4;border-radius:8px;font-size:12px;padding:6px;cursor:pointer">−1节</button>';
+    card+='<button onclick="event.stopPropagation();toggleCourseToday(\''+m.id+'\',\''+c.id+'\')" style="background:'+(isToday?'#e8607d':'#fff')+';color:'+(isToday?'#fff':'#e8607d')+';border:1.5px solid #e8607d;border-radius:8px;font-size:12px;padding:6px;cursor:pointer">'+(isToday?'✓ 今日':'📅 今日')+'</button>';
+    card+='</div>';
+    // 启动番茄钟
+    card+='<button onclick="event.stopPropagation();startCourseFocus(\''+m.id+'\',\''+c.id+'\')" style="width:100%;background:#fff;border:1.5px solid #e8607d;color:#e8607d;border-radius:8px;font-size:12px;padding:6px;cursor:pointer;font-weight:600;margin-top:2px">🍅 启动番茄钟专注</button>';
+    card+='</div>';
+    html+=card;
+  });
+  html+='</div>';
   html += '</div>';
   el.innerHTML = html;
+}
+function renderCourseStat(num, label, color){
+  return '<div style="background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.04);text-align:center">'
+    +'<div style="font-size:24px;font-weight:800;color:'+color+'">'+num+'</div>'
+    +'<div style="font-size:11px;color:#888;margin-top:3px">'+label+'</div>'
+    +'</div>';
+}
+function decrCourseLesson(msId, cId){
+  ensureGoals();
+  const m = store.goals.milestones.find(function(x){ return x.id===msId; });
+  if(!m) return;
+  const c = (m.courses||[]).find(function(x){ return x.id===cId; });
+  if(!c) return;
+  if((c.done||0) <= 0){ if(typeof toast==='function') toast('已经是 0 节了～'); return; }
+  c.done = Math.max(0, (c.done||0) - 1);
+  saveStore(); renderCourses();
+}
+function toggleCoursePlanDone(msId, cId){
+  ensureGoals();
+  const m = store.goals.milestones.find(function(x){ return x.id===msId; });
+  if(!m) return;
+  const c = (m.courses||[]).find(function(x){ return x.id===cId; });
+  if(!c) return;
+  c._todayDone = !c._todayDone;
+  saveStore(); renderCourses();
 }
 function toggleCourseToday(msId, cId){
   ensureGoals();
@@ -5379,17 +5421,22 @@ function addQbookChapterRow(name, total, done, correct, id, time){
   const row = document.createElement('div');
   row.setAttribute('data-qb-chap', '1');
   row.setAttribute('data-chap-id', cid);
-  row.style.cssText = 'background:#FAF6F2;border:1.5px solid #EFE5DF;border-radius:12px;padding:8px 10px;margin-bottom:6px';
-  // 顶部行：章节名 + ⏱用时
-  row.innerHTML = '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'
-    +'<input data-f="name" value="'+escapeHtml(name||'')+'" placeholder="章节名（如 推理基础）" style="flex:1;min-width:120px;padding:7px 9px;border:1.5px solid #D6E0EF;border-radius:10px;font-size:13px;outline:none">'
-    +'<input data-f="time" type="number" min="0" inputmode="numeric" value="'+(time||0)+'" title="用时（分钟）· 观察每日做题速度" placeholder="⏱分" style="width:64px;padding:7px 4px;border:1.5px solid #E8D7E0;border-radius:10px;font-size:13px;outline:none;text-align:center;background:#FFF3F6;color:#A86BC4">'
-    +'<span style="cursor:pointer;font-size:14px;color:#e8607d;padding:0 4px" title="删除此章节" onclick="this.closest(\'[data-qb-chap]\').remove();recomputeQbookChaptersTotal&&recomputeQbookChaptersTotal();">🗑️</span>'
+  row.style.cssText = 'background:#FAF6F2;border:1.5px solid #EFE5DF;border-radius:12px;padding:7px 9px;margin-bottom:6px;box-sizing:border-box;width:100%;overflow:hidden';
+  // 顶行：章节名 + ⏰用时 + 🗑
+  row.innerHTML = '<div style="display:flex;gap:5px;align-items:center;flex-wrap:nowrap">'
+    +'<input data-f="name" value="'+escapeHtml(name||'')+'" placeholder="章节名（如 推理基础）" style="flex:1 1 auto;min-width:0;padding:6px 8px;border:1.5px solid #D6E0EF;border-radius:9px;font-size:12px;outline:none;box-sizing:border-box;background:#fff">'
+    +'<span title="用时（分钟）·观察每日做题速度" style="display:inline-flex;align-items:center;gap:1px;background:#FFF3F6;border:1.5px solid #E8D7E0;border-radius:9px;padding:0 4px;flex-shrink:0">'
+      +'<span style="font-size:11px;line-height:1">⏰</span>'
+      +'<input data-f="time" type="number" min="0" inputmode="numeric" value="'+(time||0)+'" placeholder="0" style="width:32px;padding:6px 2px;border:none;background:transparent;font-size:12px;outline:none;text-align:center;color:#A86BC4;font-weight:700;box-sizing:border-box">'
+      +'<span style="font-size:10px;color:#A86BC4">分</span>'
+    +'</span>'
+    +'<span style="cursor:pointer;font-size:13px;color:#e8607d;padding:0 2px;flex-shrink:0;line-height:1" title="删除此章节" onclick="this.closest(\'[data-qb-chap]\').remove();recomputeQbookChaptersTotal&&recomputeQbookChaptersTotal();">🗑</span>'
     +'</div>'
-    +'<div style="display:flex;gap:6px;align-items:center;margin-top:5px">'
-    +'<input data-f="total" type="number" min="0" inputmode="numeric" value="'+(total||0)+'" title="总题数" placeholder="总" style="flex:1;padding:6px 4px;border:1.5px solid #D6E0EF;border-radius:9px;font-size:12px;outline:none;text-align:center">'
-    +'<input data-f="done" type="number" min="0" inputmode="numeric" value="'+(done||0)+'" title="已做" placeholder="已" style="flex:1;padding:6px 4px;border:1.5px solid #D6E0EF;border-radius:9px;font-size:12px;outline:none;text-align:center">'
-    +'<input data-f="correct" type="number" min="0" inputmode="numeric" value="'+(correct||0)+'" title="正确" placeholder="对" style="flex:1;padding:6px 4px;border:1.5px solid #D6E0EF;border-radius:9px;font-size:12px;outline:none;text-align:center">'
+    // 第二行：总/已/对 三宫格（mini 三件套）
+    +'<div style="display:flex;gap:4px;align-items:center;margin-top:4px">'
+    +'<span style="flex:1;min-width:0;position:relative"><span style="position:absolute;left:4px;top:50%;transform:translateY(-50%);font-size:10px;color:#aaa;pointer-events:none">总</span><input data-f="total" type="number" min="0" inputmode="numeric" value="'+(total||0)+'" style="width:100%;min-width:0;padding:6px 4px 6px 22px;border:1.5px solid #D6E0EF;border-radius:8px;font-size:12px;outline:none;text-align:center;box-sizing:border-box;background:#fff"></span>'
+    +'<span style="flex:1;min-width:0;position:relative"><span style="position:absolute;left:4px;top:50%;transform:translateY(-50%);font-size:10px;color:#A86BC4;pointer-events:none">已</span><input data-f="done" type="number" min="0" inputmode="numeric" value="'+(done||0)+'" style="width:100%;min-width:0;padding:6px 4px 6px 22px;border:1.5px solid #E8D7E0;border-radius:8px;font-size:12px;outline:none;text-align:center;box-sizing:border-box;background:#FFF8FB;color:#A86BC4;font-weight:700"></span>'
+    +'<span style="flex:1;min-width:0;position:relative"><span style="position:absolute;left:4px;top:50%;transform:translateY(-50%);font-size:10px;color:#7FB069;pointer-events:none">对</span><input data-f="correct" type="number" min="0" inputmode="numeric" value="'+(correct||0)+'" style="width:100%;min-width:0;padding:6px 4px 6px 22px;border:1.5px solid #C8DFB8;border-radius:8px;font-size:12px;outline:none;text-align:center;box-sizing:border-box;background:#F5FBEF;color:#5BAE6F;font-weight:700"></span>'
     +'</div>';
   wrap.appendChild(row);
   recomputeQbookChaptersTotal();
@@ -5499,107 +5546,145 @@ function renderQuestionBooks(){
   const err = Math.max(0, done - correct);
   const donePct = total ? Math.round(done/total*100) : 0;
   const accPct  = done ? Math.round(correct/done*100) : 0;
-  let html = '<div style="padding:18px 18px 40px">';
-  // header summary card
-  html += '<div style="background:linear-gradient(135deg,#E58AA6 0%,#D35F84 100%);border-radius:18px;padding:18px;color:#fff;box-shadow:0 4px 14px rgba(211,95,132,.28)">';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
-  html += '<div><div style="font-size:15px;font-weight:700">📖 题本进度总览</div>';
-  html += '<div style="font-size:11px;opacity:.85;margin-top:2px">已学题本 实时同步 · 关联到科目模考</div></div>';
-  html += '<button class="btn popup-btn" style="background:rgba(255,255,255,.25);color:#fff;font-size:13px;padding:7px 14px" onclick="addQuestionBook()">+ 添加题本</button>';
+  let html = '<div style="padding:14px 14px 40px;background:#F7F7F8;min-height:100vh">';
+  // 顶部标题（素白）+ 右上「+ 添加题本」（仿截图6）
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);display:flex;align-items:center;justify-content:space-between;gap:10px">';
+  html += '<div style="display:flex;align-items:center;gap:10px">'
+    +'<span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#E58AA6,#D35F84);color:#fff;font-size:18px">📚</span>'
+    +'<div><div style="font-size:15px;font-weight:700;color:#333">题本进度</div>'
+    +'<div style="font-size:11px;color:#aaa;margin-top:1px">题本进度 · 历史积累模式</div></div>'
+    +'</div>';
+  html += '<button class="btn popup-btn" style="background:linear-gradient(135deg,#7DA8F0,#5B8DD9);color:#fff;font-size:13px;padding:8px 14px;width:auto;box-shadow:0 4px 12px rgba(91,141,217,.3)" onclick="addQuestionBook()">+ 添加题本</button>';
   html += '</div>';
-  html += '<div style="display:flex;gap:14px;flex-wrap:wrap">';
-  html += '<div><div style="font-size:24px;font-weight:800">'+list.length+'</div><div style="font-size:11px;opacity:.9">题本总数</div></div>';
-  html += '<div><div style="font-size:24px;font-weight:800">'+done+'<span style="font-size:14px;opacity:.85">/'+total+'</span></div><div style="font-size:11px;opacity:.9">已完成/总题数</div></div>';
-  html += '<div><div style="font-size:24px;font-weight:800">'+(total?donePct:0)+'%</div><div style="font-size:11px;opacity:.9">总完成率</div></div>';
-  html += '<div><div style="font-size:24px;font-weight:800">'+(done?accPct:0)+'%</div><div style="font-size:11px;opacity:.9">总正确率</div></div>';
-  html += '<div><div style="font-size:24px;font-weight:800">'+err+'</div><div style="font-size:11px;opacity:.9">总错题数</div></div>';
-  html += '</div></div>';
+  // 数据卡：5 个白底圆角小卡（题本总数 / 已完成总题数 / 总完成率 / 总正确率 / 总错题数）
+  html += '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px">';
+  html += '<div style="background:#fff;border-radius:12px;padding:11px 6px;box-shadow:0 2px 6px rgba(0,0,0,.04);text-align:center"><div style="font-size:20px;font-weight:800;color:#E58AA6">'+list.length+'</div><div style="font-size:10px;color:#888;margin-top:2px">题本总数</div></div>';
+  html += '<div style="background:#fff;border-radius:12px;padding:11px 6px;box-shadow:0 2px 6px rgba(0,0,0,.04);text-align:center"><div style="font-size:20px;font-weight:800;color:#A86BC4">'+done+'<span style="font-size:11px;color:#bbb;font-weight:400">/'+total+'</span></div><div style="font-size:10px;color:#888;margin-top:2px">已完成/总题数</div></div>';
+  html += '<div style="background:#fff;border-radius:12px;padding:11px 6px;box-shadow:0 2px 6px rgba(0,0,0,.04);text-align:center"><div style="font-size:20px;font-weight:800;color:#7B8DD9">'+(total?donePct:0)+'%</div><div style="font-size:10px;color:#888;margin-top:2px">总完成率</div></div>';
+  html += '<div style="background:#fff;border-radius:12px;padding:11px 6px;box-shadow:0 2px 6px rgba(0,0,0,.04);text-align:center"><div style="font-size:20px;font-weight:800;color:#7FB069">'+(done?accPct:0)+'%</div><div style="font-size:10px;color:#888;margin-top:2px">总正确率</div></div>';
+  html += '<div style="background:#fff;border-radius:12px;padding:11px 6px;box-shadow:0 2px 6px rgba(0,0,0,.04);text-align:center"><div style="font-size:20px;font-weight:800;color:#e8a13a">'+err+'</div><div style="font-size:10px;color:#888;margin-top:2px">总错题数</div></div>';
+  html += '</div>';
   if(!list.length){
-    html += '<div style="background:#fff;border-radius:14px;padding:24px;text-align:center;color:#bbb;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-top:16px">还没有题本，点右上角「+ 添加题本」开始记录 📖</div>';
-  } else {
-    // 今日题本计划
-    const todays = list.filter(function(b){ return b.todayPlan; });
-    if(todays.length){
-      html += '<div style="margin-top:18px"><div style="font-size:13px;font-weight:700;color:#A86BC4;margin-bottom:8px">📅 今日题本计划</div>';
-      html += '<div style="display:flex;flex-wrap:wrap;gap:8px">';
-      todays.forEach(function(b){
-          const agg = qbookAggregate(b);
-          const pct = agg.total?Math.round(agg.done/agg.total*100):0;
-          const chapCount = (b.chapters||[]).length;
-          html += '<div style="background:#fff;border:1.5px solid #C9A9E0;border-radius:18px;padding:6px 12px;font-size:12px;color:#A86BC4;display:flex;align-items:center;gap:6px;box-shadow:0 1px 4px rgba(0,0,0,.04)">'
-            +'<span style="font-weight:700">'+escapeHtml(b.name||'题本')+'</span>'
-            +(chapCount?'<span style="background:#F3ECFB;color:#A86BC4;border-radius:6px;padding:0 5px;font-size:10px">'+chapCount+'章</span>':'')
-            +'<span style="color:#bbb">'+pct+'%</span></div>';
-        });
-      html += '</div></div>';
-    }
-    // 题本卡片
-    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:18px">';
-    list.forEach(function(b){
+    html += '<div style="background:#fff;border-radius:14px;padding:30px;text-align:center;color:#bbb;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-top:14px">还没有题本，点右上角「+ 添加题本」开始记录 📖</div>';
+    html += '</div>';
+    el.innerHTML = html;
+    return;
+  }
+  // 今日题本计划（仿截图6 右下角独立卡片）
+  const todays = list.filter(function(b){ return b.todayPlan; });
+  if(todays.length){
+    html += '<div style="background:#fff;border-radius:14px;padding:14px;margin-top:14px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="display:flex;align-items:center;gap:8px">'
+      +'<span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;background:#FCEFF2;color:#D35F84;font-size:14px">📅</span>'
+      +'<div style="font-size:14px;font-weight:700;color:#333">今日题本计划</div>'
+      +'</div><div style="font-size:11px;color:#bbb">'+todays.length+' 项</div></div>';
+    todays.forEach(function(b){
       const agg = qbookAggregate(b);
-      const bDone = agg.done, bTot = agg.total, bCorr = agg.correct;
-      const bErr = bDone - bCorr;
-      const bPct = bTot?Math.round(bDone/bTot*100):0;
-      const bAcc = bDone?Math.round(bCorr/bDone*100):0;
-      const bColor = bPct>=100?'#7FB069':(bPct>=60?'#A86BC4':'#e8a13a');
-      const bSubj = qbookSubjectLabel(b.subject);
-      const linkedAcc = b.subject && TOPICS[b.subject] ? moduleAccByKey(b.subject) : null;
-      const isToday = !!b.todayPlan;
-      const overdue = b.deadline && bPct<100 && goalDaysLeft(b.deadline)<0;
-      const chs = Array.isArray(b.chapters) ? b.chapters : [];
-      const chapOpen = !!b._chapOpen;
-      let card = '<div style="background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:4px solid '+bColor+(overdue?';box-shadow:0 0 0 2px #e8607d':'')+'">';
-      card += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">';
-      card += '<span style="font-weight:700;font-size:14px;color:#444;flex:1">'+escapeHtml(b.name||'题本')+'</span>';
-      if(isToday) card += '<span style="font-size:11px;color:#A86BC4;background:#F3ECFB;padding:1px 6px;border-radius:8px">📅 今日</span>';
-      if(chs.length) card += '<span style="font-size:10px;color:#A86BC4;background:#F3ECFB;padding:1px 6px;border-radius:8px">📑 '+chs.length+'章</span>';
-      card += '<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="editQuestionBook(\''+b.id+'\')">✏️</span>';
-      card += '<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="deleteQuestionBook(\''+b.id+'\')">🗑️</span>';
-      card += '</div>';
-      if(bSubj) card += '<div style="font-size:11px;color:#999;margin-bottom:4px">'+escapeHtml(bSubj)+(linkedAcc!==null?' · 模考正确率 '+linkedAcc+'%':'')+'</div>';
-      card += '<div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin:6px 0 2px"><span>进度 '+bDone+'/'+bTot+'</span><span style="color:'+bColor+';font-weight:700">'+bPct+'%</span></div>';
-      card += '<div style="height:8px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:8px"><div style="height:100%;width:'+bPct+'%;background:'+bColor+';border-radius:6px"></div></div>';
-      card += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px">';
-      card += '<div style="flex:1;background:#f7f5f3;border-radius:10px;padding:6px 8px;text-align:center"><div style="font-size:16px;font-weight:800;color:'+bColor+'">'+bPct+'%</div><div style="font-size:10px;color:#999">完成率</div></div>';
-      card += '<div style="flex:1;background:#f7f5f3;border-radius:10px;padding:6px 8px;text-align:center"><div style="font-size:16px;font-weight:800;color:'+(bAcc>=70?'#7FB069':'#e8a13a')+'">'+(bDone?bAcc:0)+'%</div><div style="font-size:10px;color:#999">正确率</div></div>';
-      card += '<div style="flex:1;background:#f7f5f3;border-radius:10px;padding:6px 8px;text-align:center"><div style="font-size:16px;font-weight:800;color:'+(bErr>0?'#e8607d':'#999')+'">'+bErr+'</div><div style="font-size:10px;color:#999">关联错题</div></div>';
-      card += '</div>';
-      // 章节进度（折叠/展开）
-      if(chs.length){
-        card += '<div onclick="toggleQbookChapters(\''+b.id+'\')" style="cursor:pointer;font-size:11px;color:#A86BC4;background:#F3ECFB;border-radius:8px;padding:4px 8px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">'
-          +'<span>📑 章节进度</span><span>'+(chapOpen?'▴':'▾')+'</span></div>';
-        if(chapOpen){
-          card += '<div style="background:#FAF6F2;border-radius:10px;padding:6px 8px;margin-bottom:8px;max-height:140px;overflow:auto">';
-          chs.forEach(function(c){
-            const cd = Math.min(Math.max(0,c.done||0), c.total||0);
-            const cc = Math.min(Math.max(0,c.correct||0), cd);
-            const cp = c.total ? Math.round(cd/c.total*100) : 0;
-            card += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#666;padding:2px 0">'
-              +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(c.name||'章节')+'</span>'
-              +'<span style="color:#999">'+cd+'/'+(c.total||0)+'</span>'
-              +'<div style="width:48px;height:5px;background:#eee;border-radius:3px;overflow:hidden"><div style="height:100%;width:'+cp+'%;background:'+(cp>=100?'#7FB069':(cp>=60?'#A86BC4':'#e8a13a'))+';border-radius:3px"></div></div>'
-              +'<span style="color:#bbb;width:32px;text-align:right">'+cp+'%</span>'
-              +'</div>';
-          });
-          card += '</div>';
-        }
-      }
-      card += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">';
-      card += goalDeadlineBadge(b.deadline);
-      if(overdue) card += '<span style="font-size:10px;color:#e8607d;background:#fdeaee;padding:1px 6px;border-radius:8px">⚠️ 逾期</span>';
-      else if(b.deadline && bPct<100){ const dl=goalDaysLeft(b.deadline); if(dl>=0 && dl<=7) card += '<span style="font-size:10px;color:#e8a13a;background:#fdf3e6;padding:1px 6px;border-radius:8px">⏰ 剩'+dl+'天</span>'; }
-      card += '</div>';
-      card += '<div style="display:flex;gap:6px">';
-      card += '<button class="btn popup-btn" style="flex:1;font-size:12px;padding:6px" onclick="recordQuestionBookProgress(\''+b.id+'\')">📝 记录进度</button>';
-      card += '<button class="btn btn-outline" style="flex:1;font-size:12px;padding:6px;border-color:'+(isToday?'#e8607d':'#C9A9E0')+';color:'+(isToday?'#e8607d':'#A86BC4')+'" onclick="toggleQuestionBookToday(\''+b.id+'\')">'+(isToday?'✓ 已在今日':'📅 今日')+'</button>';
-      card += '</div>';
-      card += '</div>';
-      html += card;
+      const pct = agg.total?Math.round(agg.done/agg.total*100):0;
+      const chs = (b.chapters||[]).length;
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #F3F0F2">'
+        +'<label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer">'
+        +'<input type="checkbox" '+(b._todayDone?'checked':'')+' onclick="toggleQbookPlanDone(\''+b.id+'\')" style="width:16px;height:16px;accent-color:#7FB069">'
+        +'<div style="flex:1"><div style="font-size:13px;color:#333;font-weight:600;text-decoration:'+(b._todayDone?'line-through':'')+';opacity:'+(b._todayDone?'.55':'1')+'">'+escapeHtml(b.name||'题本')+(chs?' <span style="display:inline-block;background:#F3ECFB;color:#A86BC4;border-radius:6px;padding:0 5px;font-size:10px;font-weight:400">'+chs+'章</span>':'')+'</div>'
+        +'<div style="font-size:10px;color:#aaa">'+agg.done+'/'+agg.total+' 题 · '+pct+'%</div></div>'
+        +'</label></div>';
     });
     html += '</div>';
   }
+  // 题本卡片：左右双列网格
+  html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px">';
+  list.forEach(function(b){
+    const agg = qbookAggregate(b);
+    const bDone = agg.done, bTot = agg.total, bCorr = agg.correct;
+    const bErr = bDone - bCorr;
+    const bPct = bTot?Math.round(bDone/bTot*100):0;
+    const bAcc = bDone?Math.round(bCorr/bDone*100):0;
+    const bColor = bPct>=100?'#7FB069':(bPct>=60?'#A86BC4':'#e8a13a');
+    const bSubj = qbookSubjectLabel(b.subject);
+    const linkedAcc = b.subject && TOPICS[b.subject] ? moduleAccByKey(b.subject) : null;
+    const isToday = !!b.todayPlan;
+    const overdue = b.deadline && bPct<100 && goalDaysLeft(b.deadline)<0;
+    const chs = Array.isArray(b.chapters) ? b.chapters : [];
+    const chapOpen = !!b._chapOpen;
+    let card = '<div style="background:#fff;border-radius:14px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:3px solid '+bColor+(overdue?';box-shadow:0 0 0 2px #e8607d':'')+';display:flex;flex-direction:column;gap:6px">';
+    card += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
+    card += '<span style="font-weight:700;font-size:14px;color:#444;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(b.name||'题本')+'</span>';
+    if(isToday) card += '<span style="font-size:10px;color:#A86BC4;background:#F3ECFB;padding:1px 6px;border-radius:8px">📅 今日</span>';
+    card += '<span style="cursor:pointer;font-size:12px;color:#888" onclick="editQuestionBook(\''+b.id+'\')">✏️</span>';
+    card += '<span style="cursor:pointer;font-size:12px;color:#888" onclick="deleteQuestionBook(\''+b.id+'\')">🗑</span>';
+    card += '</div>';
+    if(bSubj) card += '<div style="font-size:11px;color:#999">'+escapeHtml(bSubj)+(linkedAcc!==null?' · 模考正确率 '+linkedAcc+'%':'')+'</div>';
+    card += '<div style="display:flex;justify-content:space-between;font-size:11px;color:#888"><span>进度 '+bDone+'/'+bTot+'</span><span style="color:'+bColor+';font-weight:700">'+bPct+'%</span></div>';
+    card += '<div style="height:6px;background:#F0ECE8;border-radius:6px;overflow:hidden"><div style="height:100%;width:'+bPct+'%;background:'+bColor+';border-radius:6px"></div></div>';
+    // 数据三宫格（完成率/正确率/关联错题）
+    card += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:2px 0">';
+    card += '<div style="text-align:center;background:#FBF8F4;border-radius:8px;padding:5px 2px"><div style="font-size:14px;font-weight:800;color:'+bColor+'">'+bPct+'%</div><div style="font-size:10px;color:#aaa">完成率</div></div>';
+    card += '<div style="text-align:center;background:#FBF8F4;border-radius:8px;padding:5px 2px"><div style="font-size:14px;font-weight:800;color:'+(bAcc>=70?'#7FB069':'#e8a13a')+'">'+(bDone?bAcc:0)+'%</div><div style="font-size:10px;color:#aaa">正确率</div></div>';
+    card += '<div style="text-align:center;background:#FBF8F4;border-radius:8px;padding:5px 2px"><div style="font-size:14px;font-weight:800;color:'+(bErr>0?'#e8607d':'#999')+'">'+bErr+'</div><div style="font-size:10px;color:#aaa">关联错题</div></div>';
+    card += '</div>';
+    // 章节进度（折叠/展开）
+    if(chs.length){
+      card += '<div onclick="toggleQbookChapters(\''+b.id+'\')" style="cursor:pointer;font-size:11px;color:#A86BC4;background:#F3ECFB;border-radius:8px;padding:4px 8px;display:flex;justify-content:space-between;align-items:center">'
+        +'<span>📑 章节进度 · '+chs.length+' 章</span><span>'+(chapOpen?'▴':'▾')+'</span></div>';
+      if(chapOpen){
+        card += '<div style="background:#FAF6F2;border-radius:10px;padding:6px 8px;max-height:120px;overflow:auto">';
+        chs.forEach(function(c){
+          const cd = Math.min(Math.max(0,c.done||0), c.total||0);
+          const cc = Math.min(Math.max(0,c.correct||0), cd);
+          const cp = c.total ? Math.round(cd/c.total*100) : 0;
+          const ct = Math.max(0,c.time||0);
+          card += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#666;padding:2px 0">'
+            +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(c.name||'章节')+'</span>'
+            +'<span style="color:#bbb;font-size:10px">'+ (cd ? Math.round(ct/cd*10)/10 : 0) +'分/题</span>'
+            +'<span style="color:#999">'+cd+'/'+(c.total||0)+'</span>'
+            +'<div style="width:40px;height:5px;background:#eee;border-radius:3px;overflow:hidden"><div style="height:100%;width:'+cp+'%;background:'+(cp>=100?'#7FB069':(cp>=60?'#A86BC4':'#e8a13a'))+';border-radius:3px"></div></div>'
+            +'<span style="color:#bbb;width:28px;text-align:right">'+cp+'%</span>'
+            +'</div>';
+        });
+        card += '</div>';
+      }
+    }
+    // 截止日 / 逾期 / 剩余天数徽章
+    card += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
+    card += goalDeadlineBadge(b.deadline);
+    if(overdue) card += '<span style="font-size:10px;color:#e8607d;background:#fdeaee;padding:1px 6px;border-radius:8px">⚠️ 逾期</span>';
+    else if(b.deadline && bPct<100){ const dl=goalDaysLeft(b.deadline); if(dl>=0 && dl<=7) card += '<span style="font-size:10px;color:#e8a13a;background:#fdf3e6;padding:1px 6px;border-radius:8px">⏰ 剩'+dl+'天</span>'; }
+    card += '</div>';
+    // 按钮行：+1题 / 记录本次 / 今日 / 展开章节
+    card += '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:2px">';
+    card += '<button onclick="event.stopPropagation();qbookPlusOne(\''+b.id+'\')" style="flex:1;background:#FCEFF2;color:#D35F84;border:none;border-radius:8px;font-size:12px;padding:6px;cursor:pointer;font-weight:700">＋ +1</button>';
+    card += '<button onclick="event.stopPropagation();recordQuestionBookProgress(\''+b.id+'\')" style="flex:1.4;background:#fff;border:1.5px solid #C9A9E0;color:#A86BC4;border-radius:8px;font-size:12px;padding:6px;cursor:pointer">📝 记录本次</button>';
+    card += '<button onclick="event.stopPropagation();toggleQuestionBookToday(\''+b.id+'\')" style="background:'+(isToday?'#e8607d':'#fff')+';color:'+(isToday?'#fff':'#e8607d')+';border:1.5px solid #e8607d;border-radius:8px;font-size:12px;padding:6px;cursor:pointer">'+(isToday?'✓ 今日':'📅')+'</button>';
+    card += '</div>';
+    card += '</div>';
+    html += card;
+  });
+  html += '</div>';
   html += '</div>';
   el.innerHTML = html;
+}
+function qbookPlusOne(id){
+  ensureQuestionBooks();
+  const b = qbookById(id); if(!b) return;
+  const chs = Array.isArray(b.chapters) ? b.chapters : [];
+  if(chs.length){
+    // 找第一个未达 100% 的章节
+    const target = chs.find(function(c){ return Math.min(c.done||0, c.total||0) < (c.total||0); }) || chs[0];
+    target.done = Math.min((target.done||0) + 1, target.total||Infinity);
+  } else {
+    b.done = Math.min((b.done||0) + 1, b.total||Infinity);
+  }
+  const agg = qbookAggregate(b);
+  b.total = agg.total; b.done = agg.done; b.correct = agg.correct;
+  b.updatedAt = Date.now();
+  saveStore(); renderQuestionBooks();
+  if(typeof toast==='function') toast('已 +1 题，进度 '+Math.round((b.done/(b.total||1))*100)+'%');
+}
+function toggleQbookPlanDone(id){
+  ensureQuestionBooks();
+  const b = qbookById(id); if(!b) return;
+  b._todayDone = !b._todayDone;
+  saveStore(); renderQuestionBooks();
 }
 function toggleQbookChapters(id){
   ensureQuestionBooks();
@@ -5620,55 +5705,11 @@ function setActiveMindmapSubject(key){
   localStorage.setItem('mm_active_subject', key);
   renderMindmap();
 }
-function renderMindmapNode(node, depth){
-  if(!node) return '';
-  const children = Array.isArray(node.children) ? node.children : [];
-  const isLeaf = children.length === 0;
-  const palette = ['#E58AA6','#A86BC4','#5BAE6F','#e8a13a','#5aa0e6','#9B77C7'];
-  const color = palette[depth % palette.length];
-  const padX = depth===0 ? '18px 22px' : '8px 14px';
-  const padY = depth===0 ? '12px' : '7px';
-  const fs   = depth===0 ? '16px' : '13px';
-  const fw   = depth===0 ? '800' : '600';
-  const bg   = depth===0 ? '#fff' : '#FBF8FC';
-  // 折叠状态
-  const openMap = (store && store.mindmapOpen) ? store.mindmapOpen : (store.mindmapOpen = {});
-  const pathKey = node.path || ('n_'+depth);
-  const isOpen = openMap[pathKey] !== false; // 默认展开
-  // 缩进（每层加 18px）
-  const indent = depth * 18;
-  let html = '<div style="margin-left:'+indent+'px;margin-top:'+(depth===0?'0':'6px')+'">';
-  // 节点行
-  html += '<div style="display:flex;align-items:center;gap:6px;background:'+bg+';border:2px solid '+color+';border-radius:'+(depth===0?'14px':'10px')+';padding:'+padY+' '+padX+';box-shadow:0 2px 6px rgba(0,0,0,.04);'+ (isOpen && !isLeaf ? '' : 'border-style:dashed') +'">';
-  // 折叠按钮（叶子节点不显示）
-  if(!isLeaf){
-    html += '<span onclick="toggleMindmapNode(\''+escapeAttr(pathKey)+'\')" style="cursor:pointer;color:'+color+';font-weight:800;font-size:13px;user-select:none;width:14px;text-align:center">'+(isOpen?'▾':'▸')+'</span>';
-  } else {
-    html += '<span style="color:#ddd;width:14px;text-align:center">·</span>';
-  }
-  html += '<span data-mm-name="'+escapeAttr(pathKey)+'" style="flex:1;color:'+color+';font-size:'+fs+';font-weight:'+fw+(node.done?';text-decoration:line-through;opacity:.55':'')+'">'+escapeHtml(node.name||'(未命名)')+'</span>';
-  // 节点操作按钮组
-  const nodeJson = escapeAttr(JSON.stringify(node).replace(/'/g,"\\'"));
-  html += '<span onclick="addMindmapChild(\''+escapeAttr(pathKey)+'\')" title="添加子节点" style="cursor:pointer;color:#fff;background:'+color+';border-radius:6px;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800">+</span>';
-  html += '<span onclick="editMindmapNode(\''+escapeAttr(pathKey)+'\')" title="重命名" style="cursor:pointer;color:'+color+';font-size:14px">✏️</span>';
-  if(depth > 0){
-    html += '<span onclick="deleteMindmapNode(\''+escapeAttr(pathKey)+'\')" title="删除该节点" style="cursor:pointer;color:#e8607d;font-size:14px">🗑</span>';
-  }
-  html += '</div>';
-  // 子节点
-  if(isOpen && children.length){
-    children.forEach(function(ch){
-      html += renderMindmapNode(ch, depth+1);
-    });
-  }
-  html += '</div>';
-  return html;
-}
+// ----- 思维导图新渲染（放射状：root 居左，分支向右延展） -----
 // path 转义，把单引号/反斜杠转义成 attr-safe 字符串
 function escapeAttr(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 function getMindmapData(){
   const sub = getActiveMindmapSubject();
-  // 用户自定义覆盖默认；clone 后给每节点注入 path
   const base = MINDMAP_DATA[sub] || MINDMAP_DATA.verbal;
   if(!store.mindmapCustom) store.mindmapCustom = {};
   const custom = store.mindmapCustom[sub];
@@ -5690,13 +5731,11 @@ function addMindmapChild(parentPath){
   const name = (typeof prompt==='function') ? (prompt('子节点名称：','')||'').trim() : '';
   if(!name) return;
   const root = getMindmapData();
-  // 找到父节点（按 path）
   const segs = parentPath.split('.');
   let cur = root;
   for(let i=1;i<segs.length;i++){ cur = cur.children[parseInt(segs[i],10)]; if(!cur) return; }
   if(!cur.children) cur.children = [];
   cur.children.push({ name:name, children:[] });
-  // 保存到 store.mindmapCustom
   saveMindmapTreeToStore(root);
   renderMindmap();
   if(typeof toast==='function') toast('已添加子节点：'+name);
@@ -5716,7 +5755,6 @@ function deleteMindmapNode(path){
   const root = getMindmapData();
   if(path.indexOf('.') < 0){ if(typeof toast==='function') toast('根节点不能删除～'); return; }
   const segs = path.split('.');
-  // 找到父
   let parent = root;
   for(let i=1;i<segs.length-1;i++){ parent = parent.children[parseInt(segs[i],10)]; if(!parent) return; }
   const idx = parseInt(segs[segs.length-1], 10);
@@ -5728,9 +5766,7 @@ function deleteMindmapNode(path){
 }
 function saveMindmapTreeToStore(root){
   const sub = getActiveMindmapSubject();
-  // 只保存"已被用户改过的事实"——简化起见，所有用户操作都覆盖 custom
   if(!store.mindmapCustom) store.mindmapCustom = {};
-  // 把 path 字段去掉再存
   function stripPath(node){
     const out = { name: node.name };
     if(node.children) out.children = node.children.map(stripPath);
@@ -5755,34 +5791,59 @@ function renderMindmap(){
   const root = getMindmapData();
   // 笔记
   const notes = (store.mindmapNotes && store.mindmapNotes[sub]) || '';
-  let html = '<div style="padding:18px 18px 40px">';
-  // 顶部标题
-  html += '<div style="background:linear-gradient(135deg,#E58AA6 0%,#D35F84 100%);border-radius:18px;padding:18px;color:#fff;box-shadow:0 4px 14px rgba(211,95,132,.28)">';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">';
-  html += '<div><div style="font-size:15px;font-weight:700">📊 知识体系导图</div>';
-  html += '<div style="font-size:11px;opacity:.85;margin-top:4px">竖向缩进树 · 一步步搭建自己的知识树</div></div>';
-  html += '<button onclick="resetMindmapSubject()" style="background:rgba(255,255,255,.22);border:none;color:#fff;font-size:12px;padding:6px 11px;border-radius:8px;cursor:pointer">↺ 重置</button>';
-  html += '</div></div>';
+  let html = '<div style="padding:14px 14px 40px;background:#F7F7F8;min-height:100vh">';
+  // 顶部标题（素白）
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);display:flex;align-items:center;justify-content:space-between;gap:10px">';
+  html +=   '<div style="display:flex;align-items:center;gap:10px">'
+    +'<span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#E58AA6,#D35F84);color:#fff;font-size:18px">🧠</span>'
+    +'<div><div style="font-size:15px;font-weight:700;color:#333">知识体系思维导图</div>'
+    +'<div style="font-size:11px;color:#aaa;margin-top:1px">放射状结构 · 一步步搭建自己的知识网</div></div>'
+    +'</div>';
+  html +=   '<button onclick="resetMindmapSubject()" style="background:#fff;border:1.5px solid #C9A9E0;color:#A86BC4;border-radius:8px;font-size:12px;padding:6px 12px;cursor:pointer">↺ 重置当前科目</button>';
+  html += '</div>';
   // 6 个科目 tab
   const subs = ['verbal','data','reasoning','quantity','common','shenlun'];
   const subLabel = { verbal:'言语理解与表达', data:'资料分析', reasoning:'判断推理', quantity:'数量关系', common:'常识判断', shenlun:'申论' };
-  html += '<div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;background:#fff;border-radius:14px;padding:8px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
+  html += '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;background:#fff;border-radius:14px;padding:8px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
   subs.forEach(function(k){
     const active = (k===sub);
     html += '<div onclick="setActiveMindmapSubject(\''+k+'\')" style="cursor:pointer;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:700;background:'+(active?'linear-gradient(135deg,#E58AA6,#D35F84)':'#FAF6F2')+';color:'+(active?'#fff':'#888')+';box-shadow:'+(active?'0 2px 8px rgba(211,95,132,.35)':'none')+'">'+subLabel[k]+'</div>';
   });
   html += '</div>';
   // 操作小提示
-  html += '<div style="margin-top:12px;font-size:11px;color:#aaa;display:flex;gap:10px;flex-wrap:wrap;align-items:center">'
-    +'<span>▾ 折叠/展开</span>'
+  html += '<div style="margin-top:10px;font-size:11px;color:#bbb;display:flex;gap:12px;flex-wrap:wrap;align-items:center">'
+    +'<span>▾ 折叠/展开子节点</span>'
     +'<span>＋ 添加子节点</span>'
     +'<span>✏️ 重命名</span>'
     +'<span>🗑 删除</span>'
     +'</div>';
-  // 思维导图本体：竖向卡片树
-  html += '<div style="margin-top:10px;background:#fff;border-radius:14px;padding:14px 10px;box-shadow:0 2px 8px rgba(0,0,0,.04);overflow-x:auto">';
-  html += renderMindmapNode(root, 0);
-  html += '</div>';
+
+  // 思维导图本体：放射状（横向滚动，整体居中）
+  html += '<div style="margin-top:12px;background:#fff;border-radius:18px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.04);overflow-x:auto;background-image:radial-gradient(circle at 1px 1px,rgba(216,168,186,.18) 1px,transparent 0);background-size:18px 18px">';
+  // 容器：横向 flex（root + 主横线 + branches column）
+  html += '<div style="display:flex;align-items:center;gap:0;min-width:max-content;padding:10px">';
+  // L0 root
+  html += '<div data-mm-name="'+escapeAttr(root.path||sub)+'" style="background:linear-gradient(135deg,#E58AA6,#D35F84);color:#fff;padding:18px 22px;border-radius:18px;font-weight:800;font-size:16px;box-shadow:0 8px 24px rgba(211,95,132,.3);white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:8px">'
+    +'<span>📚</span><span>'+escapeHtml(root.name||data.name)+'</span>'
+    +'<span onclick="event.stopPropagation();editMindmapNode(\''+escapeAttr(root.path||sub)+'\')" title="重命名根节点" style="cursor:pointer;font-size:12px;opacity:.9">✏️</span>'
+    +'</div>';
+  // 主横线
+  html += '<div style="width:60px;height:4px;background:#E58AA6;flex-shrink:0;margin:0 -1px"></div>';
+  // L1 branches column
+  html += '<div style="display:flex;flex-direction:column;gap:22px;flex:1">';
+  const branches = Array.isArray(root.children) ? root.children : [];
+  branches.forEach(function(branch){
+    html += renderMindmapBranchRow(branch);
+  });
+  if(!branches.length){
+    html += '<div style="color:#bbb;font-size:12px;padding:8px 14px">还没有分支，点根节点的 ＋ 添加第一个分支</div>';
+    // 即使没有 branches，仍提供 + 按钮让用户加
+    html += '<div><button onclick="addMindmapChild(\''+escapeAttr(root.path||sub)+'\')" style="background:#FCEFF2;color:#D35F84;border:1.5px dashed #E58AA6;border-radius:14px;padding:8px 14px;font-size:12px;cursor:pointer">＋ 添加第一个分支</button></div>';
+  }
+  html += '</div>'; // branches column end
+  html += '</div>'; // 横向 flex end
+  html += '</div>'; // 卡片 end
+
   // 笔记区
   html += '<div style="background:#fff;border-radius:14px;padding:14px;margin-top:12px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:13px;font-weight:700;color:#A86BC4">📝 知识体系搭建笔记</div><span style="font-size:11px;color:#bbb">自动保存</span></div>';
@@ -5790,6 +5851,75 @@ function renderMindmap(){
   html += '</div>';
   html += '</div>';
   el.innerHTML = html;
+}
+// 渲染一个分支行：根节点出来的主线 → 短进入线 → 分支名 → 短出线条 → 子节点堆
+function renderMindmapBranchRow(branch){
+  if(!branch) return '';
+  const children = Array.isArray(branch.children) ? branch.children : [];
+  const pathKey = branch.path;
+  const openMap = (store && store.mindmapOpen) ? store.mindmapOpen : (store.mindmapOpen = {});
+  const isOpen = openMap[pathKey] !== false;
+  // 分支级颜色（一律粉为主，便于视觉一致）
+  const branchColor = '#E58AA6';
+  const branchBg    = '#FCEFF2';
+  // 叶子颜色（白底粉边）
+  const leafColor = '#D35F84';
+  let html = '<div style="display:flex;align-items:center;gap:14px;flex-wrap:nowrap">';
+  // 接到主横线的短线
+  html += '<div style="width:14px;height:3px;background:'+branchColor+';flex-shrink:0;border-radius:2px"></div>';
+  // 分支名胶囊
+  html += '<div style="display:inline-flex;align-items:center;gap:6px;background:'+branchBg+';border:2px solid '+branchColor+';border-radius:14px;padding:8px 14px;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.04);max-width:240px">';
+  // 折叠按钮（仅当有子节点）
+  if(children.length){
+    html += '<span onclick="toggleMindmapNode(\''+escapeAttr(pathKey)+'\')" title="'+(isOpen?'折叠':'展开')+'" style="cursor:pointer;color:'+branchColor+';font-weight:800;font-size:13px;width:14px;text-align:center;line-height:1">'+(isOpen?'▾':'▸')+'</span>';
+  } else {
+    html += '<span style="color:#ddd;width:14px;text-align:center;font-size:13px;line-height:1">·</span>';
+  }
+  html += '<span data-mm-name="'+escapeAttr(pathKey)+'" style="color:'+branchColor+';font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(branch.name||'(未命名)')+'</span>';
+  // 节点操作按钮（行内）
+  html += '<span onclick="event.stopPropagation();addMindmapChild(\''+escapeAttr(pathKey)+'\')" title="添加子节点" style="cursor:pointer;color:#fff;background:'+branchColor+';border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;line-height:1;flex-shrink:0">+</span>';
+  html += '<span onclick="event.stopPropagation();editMindmapNode(\''+escapeAttr(pathKey)+'\')" title="重命名" style="cursor:pointer;font-size:12px;color:'+branchColor+';flex-shrink:0">✏️</span>';
+  html += '<span onclick="event.stopPropagation();deleteMindmapNode(\''+escapeAttr(pathKey)+'\')" title="删除" style="cursor:pointer;color:#e8607d;font-size:12px;flex-shrink:0">🗑</span>';
+  html += '</div>';
+  // 接到叶子的短线
+  if(children.length){
+    html += '<div style="width:18px;height:3px;background:'+branchColor+';flex-shrink:0;border-radius:2px"></div>';
+    // 叶子节点堆（横向多列 wrap）
+    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;flex:1;min-width:0">';
+    if(isOpen){
+      children.forEach(function(leaf){
+        html += renderMindmapLeaf(leaf, leafColor);
+      });
+    } else {
+      html += '<span style="font-size:11px;color:#bbb;padding:4px 6px">（已折叠，共 '+children.length+' 个子节点）</span>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+function renderMindmapLeaf(leaf, color){
+  if(!leaf) return '';
+  const subs = Array.isArray(leaf.children) ? leaf.children : [];
+  let html = '<span style="background:#fff;border:1.5px solid '+color+';color:'+color+';padding:6px 12px;border-radius:10px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px;box-shadow:0 1px 4px rgba(0,0,0,.04)">'
+    + '<span data-mm-name="'+escapeAttr(leaf.path)+'">'+escapeHtml(leaf.name||'(未命名)')+'</span>'
+    + '<span onclick="event.stopPropagation();addMindmapChild(\''+escapeAttr(leaf.path)+'\')" title="添加子节点" style="cursor:pointer;color:#fff;background:'+color+';border-radius:50%;width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;line-height:1">+</span>'
+    + '<span onclick="event.stopPropagation();editMindmapNode(\''+escapeAttr(leaf.path)+'\')" title="重命名" style="cursor:pointer;font-size:10px;color:'+color+'">✏️</span>'
+    + '<span onclick="event.stopPropagation();deleteMindmapNode(\''+escapeAttr(leaf.path)+'\')" title="删除" style="cursor:pointer;color:#e8607d;font-size:10px">🗑</span>'
+    + '</span>';
+  // 如果叶子下面还有孙节点（用户后添加的），把它们竖排到下方
+  if(subs.length){
+    html += '<div style="display:flex;flex-direction:column;gap:6px;flex-basis:100%;margin-top:6px;padding-left:16px;border-left:2px dashed '+color+'">';
+    subs.forEach(function(gc){
+      html += '<div style="display:inline-flex;align-items:center;gap:6px;background:#FBF8FC;border:1px solid #EFE5DF;color:'+color+';padding:5px 10px;border-radius:8px;font-size:11px;font-weight:600">'
+        + '<span data-mm-name="'+escapeAttr(gc.path)+'">└ '+escapeHtml(gc.name||'(未命名)')+'</span>'
+        + '<span onclick="event.stopPropagation();editMindmapNode(\''+escapeAttr(gc.path)+'\')" title="重命名" style="cursor:pointer;color:'+color+';font-size:10px">✏️</span>'
+        + '<span onclick="event.stopPropagation();deleteMindmapNode(\''+escapeAttr(gc.path)+'\')" title="删除" style="cursor:pointer;color:#e8607d;font-size:10px">🗑</span>'
+        + '</div>';
+    });
+    html += '</div>';
+  }
+  return html;
 }
 function saveMindmapNote(sub, val){
   if(!store.mindmapNotes) store.mindmapNotes = {};
