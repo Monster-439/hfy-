@@ -2117,6 +2117,7 @@ body.drawer-open .nav-cloud{display:none;}
         <div class="nav-item" data-page="goals"><span class="nav-icon">🎯</span>目标拆解</div>
         <div class="nav-item" data-page="courses"><span class="nav-icon">📚</span>我的课程</div>
         <div class="nav-item" data-page="qbook"><span class="nav-icon">📖</span>题本进度</div>
+        <div class="nav-item" data-page="mindmap"><span class="nav-icon">📊</span>知识体系导图</div>
       </div>
     </div>
 
@@ -2186,6 +2187,7 @@ body.drawer-open .nav-cloud{display:none;}
 <div class="page" id="page-goals"></div>
 <div class="page" id="page-courses"></div>
 <div class="page" id="page-qbook"></div>
+<div class="page" id="page-mindmap"></div>
 
 <!-- ===== 首页总览 ===== -->
 <div class="page active" id="page-home">
@@ -3656,6 +3658,55 @@ const TOPICS = {
   ]},
 };
 
+// 知识体系导图（左右延展树状结构，最深 3 层）
+const MINDMAP_DATA = {
+  verbal: { name:'言语理解与表达', icon:'📖', children:[
+    { name:'逻辑填空', children:[
+      { name:'逻辑分析' },
+      { name:'递进关系', children:[ {name:'解释关系'},{name:'概括关系'},{name:'反义关系'} ] },
+      { name:'转折关系' },
+      { name:'主题概括', children:[ {name:'概括结构'},{name:'概括类型'},{name:'必要条件'},{name:'概括语境'} ] },
+    ]},
+    { name:'片段阅读', children:[
+      { name:'意图判断' }, { name:'细节判断' }, { name:'标题填入' }, { name:'论证分析' }, { name:'语句排序' },
+    ]},
+    { name:'语句表达', children:[ {name:'语句填空'},{name:'语句连贯'} ] },
+  ]},
+  data: { name:'资料分析', icon:'📊', children:[
+    { name:'基础概念', children:[ {name:'增长率'},{name:'增长量'},{name:'比重'},{name:'倍数'},{name:'平均数'} ] },
+    { name:'速算技巧', children:[ {name:'截位法'},{name:'特征数字'},{name:'错位加减'},{name:'放缩法'} ] },
+    { name:'题型突破', children:[ {name:'简单计算'},{name:'现期基期'},{name:'两期比重'},{name:'平均数增长率'} ] },
+    { name:'材料类型', children:[ {name:'文字材料'},{name:'表格材料'},{name:'图形材料'},{name:'综合材料'} ] },
+  ]},
+  reasoning: { name:'判断推理', icon:'🧩', children:[
+    { name:'图形推理', children:[ {name:'数量类'},{name:'位置类'},{name:'样式类'},{name:'属性类'},{name:'重构折叠'} ] },
+    { name:'定义判断', children:[ {name:'单定义'},{name:'多定义'},{name:'成分分析'},{name:'关键信息'} ] },
+    { name:'类比推理', children:[ {name:'内涵关系'},{name:'外延关系'},{name:'语法关系'},{name:'语义关系'} ] },
+    { name:'逻辑判断', children:[ {name:'翻译推理'},{name:'真假推理'},{name:'分析推理'},{name:'加强削弱'},{name:'前提假设'} ] },
+  ]},
+  quantity: { name:'数量关系', icon:'🔢', children:[
+    { name:'工程问题', children:[ {name:'给定完工'},{name:'给定效率'},{name:'合作施工'} ] },
+    { name:'行程问题', children:[ {name:'基础行程'},{name:'相遇追及'},{name:'流水行船'},{name:'钟表问题'} ] },
+    { name:'利润问题', children:[ {name:'基础利润'},{name:'打折问题'},{name:'分段计费'} ] },
+    { name:'排列组合', children:[ {name:'加乘原理'},{name:'排列'},{name:'组合'},{name:'特殊方法'} ] },
+    { name:'几何问题', children:[ {name:'平面几何'},{name:'立体几何'},{name:'几何特性'} ] },
+    { name:'概率问题', children:[ {name:'古典概率'},{name:'条件概率'},{name:'独立事件'} ] },
+  ]},
+  common: { name:'常识判断', icon:'🌍', children:[
+    { name:'法律常识', children:[ {name:'宪法'},{name:'民法'},{name:'刑法'},{name:'行政法'},{name:'诉讼法'} ] },
+    { name:'人文历史', children:[ {name:'中国古代史'},{name:'中国近现代史'},{name:'世界史'},{name:'文学常识'} ] },
+    { name:'科技常识', children:[ {name:'物理'},{name:'化学'},{name:'生物'},{name:'前沿技术'} ] },
+    { name:'地理国情', children:[ {name:'自然地理'},{name:'人文地理'},{name:'国情社情'} ] },
+  ]},
+  shenlun: { name:'申论', icon:'📝', children:[
+    { name:'归纳概括', children:[ {name:'概括要素'},{name:'概括主旨'},{name:'概括流程'} ] },
+    { name:'提出对策', children:[ {name:'直接对策'},{name:'间接对策'},{name:'对策有效性'} ] },
+    { name:'综合分析', children:[ {name:'解释型'},{name:'评价型'},{name:'比较型'} ] },
+    { name:'贯彻执行', children:[ {name:'讲话稿'},{name:'倡议书'},{name:'调查报告'},{name:'工作方案'} ] },
+    { name:'大作文', children:[ {name:'立意'},{name:'结构'},{name:'论证'},{name:'素材积累'} ] },
+  ]},
+};
+
 const KNOWLEDGE = {
   common: [
     {tag:'法律',text:'我国宪法规定，公民的基本权利中，首要的权利是平等权，任何公民享有宪法和法律规定的权利，同时必须履行宪法和法律规定的义务。'},
@@ -5070,86 +5121,109 @@ function renderCourses(){
   const ms = store.goals.milestones || [];
   const allCourses = [];
   ms.forEach(function(m){ (m.courses||[]).forEach(function(c){ allCourses.push({ m:m, c:c }); }); });
-  let totalDone = 0, totalTot = 0, dueSoon = 0, overdue = 0;
+  let totalDone = 0, totalTot = 0;
   allCourses.forEach(function(o){
     const c = o.c;
-    const cd = Math.min(c.done||0, c.total||0);
-    const ct = c.total||0;
-    totalDone += cd; totalTot += ct;
-    if(c.deadline){
-      const dl = goalDaysLeft(c.deadline);
-      if(dl<0) overdue++;
-      else if(dl<=7 && cd<ct) dueSoon++;
-    }
+    totalDone += Math.min(c.done||0, c.total||0);
+    totalTot  += (c.total||0);
   });
+  const overallPct = totalTot ? Math.round(totalDone/totalTot*100) : 0;
   let html = '<div style="padding:18px 18px 40px">';
-  html += '<div style="background:linear-gradient(135deg,#E58AA6,#D35F84);border-radius:18px;padding:18px;color:#fff;box-shadow:0 4px 14px rgba(211,95,132,.25)">';
-  html += '<div style="font-size:15px;font-weight:700;margin-bottom:10px">📚 我的网课</div>';
+  // 顶部渐变统计卡（仿截图2）
+  html += '<div style="background:linear-gradient(135deg,#E58AA6 0%,#D35F84 100%);border-radius:18px;padding:18px;color:#fff;box-shadow:0 4px 14px rgba(211,95,132,.28)">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  html += '<div><div style="font-size:15px;font-weight:700">📚 网课进度</div>';
+  html += '<div style="font-size:11px;opacity:.85;margin-top:2px">已学网课 实时同步 · 关联到科目模考</div></div>';
+  html += '<button class="btn popup-btn" style="background:rgba(255,255,255,.25);color:#fff;font-size:13px;padding:7px 14px" onclick="openGoalsPopupForAddCourse()">+ 添加网课</button>';
+  html += '</div>';
   html += '<div style="display:flex;gap:14px;flex-wrap:wrap">';
-  html += '<div><div style="font-size:24px;font-weight:800">'+totalDone+'<span style="font-size:14px;opacity:.85">/'+totalTot+'</span></div><div style="font-size:11px;opacity:.9">已学课时</div></div>';
-  html += '<div><div style="font-size:24px;font-weight:800">'+(totalTot?Math.round(totalDone/totalTot*100):0)+'%</div><div style="font-size:11px;opacity:.9">总进度</div></div>';
-  html += '<div><div style="font-size:24px;font-weight:800;color:'+(overdue?'#ffd7df':'#fff')+'">'+overdue+'</div><div style="font-size:11px;opacity:.9">已逾期</div></div>';
-  html += '<div><div style="font-size:24px;font-weight:800;color:'+(dueSoon?'#fff3c4':'#fff')+'">'+dueSoon+'</div><div style="font-size:11px;opacity:.9">7天内到期</div></div>';
+  html += '<div><div style="font-size:24px;font-weight:800">'+allCourses.length+'</div><div style="font-size:11px;opacity:.9">网课总数</div></div>';
+  html += '<div><div style="font-size:24px;font-weight:800">'+totalDone+'<span style="font-size:14px;opacity:.85">/'+totalTot+'</span></div><div style="font-size:11px;opacity:.9">已听/总节数</div></div>';
+  html += '<div><div style="font-size:24px;font-weight:800">'+(totalTot?overallPct:0)+'%</div><div style="font-size:11px;opacity:.9">总体进度</div></div>';
   html += '</div></div>';
   if(!allCourses.length){
-    html += '<div style="background:#fff;border-radius:14px;padding:24px;text-align:center;color:#bbb;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-top:16px">还没有课程，去「🎯 目标拆解」里给某个阶段添加课程吧 📚</div>';
+    html += '<div style="background:#fff;border-radius:14px;padding:24px;text-align:center;color:#bbb;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-top:16px">还没有网课，点右上角「+ 添加网课」开始记录 📚</div>';
   } else {
-    // 全部折叠 / 展开 快捷按钮
-    const anyOpen = ms.some(function(m){ return (m.courses||[]).length && !isCourseGrpCollapsed(m); });
-    html += '<div style="display:flex;gap:8px;margin-top:16px">'
-      + '<button class="btn btn-outline" style="flex:1;font-size:13px;padding:7px" onclick="collapseAllCourseGroups('+!anyOpen+')">'+(anyOpen?'⊟ 全部折叠':'⊞ 全部展开')+'</button></div>';
-    ms.forEach(function(m){
-      const cs = m.courses || [];
-      if(!cs.length) return;
-      const idx = ms.indexOf(m) + 1;
-      const collapsed = isCourseGrpCollapsed(m);
-      // 该阶段课程汇总：门数 + 平均进度
-      let grpDone=0, grpTot=0;
-      cs.forEach(function(c){ grpDone+=Math.min(c.done||0,c.total||0); grpTot+= (c.total||0); });
-      const grpPct = grpTot?Math.round(grpDone/grpTot*100):0;
-      html += '<div style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;user-select:none" onclick="toggleCourseGroup(\''+m.id+'\')">'
-        + '<span style="font-size:18px">'+(m.emoji||'🎯')+'</span>'
-        + '<span style="font-weight:700;font-size:14px;color:#555">'+escapeHtml(m.title)+'</span>'
-        + '<span style="font-size:11px;color:#bbb">· 第'+idx+'阶段</span>'
-        + '<span style="margin-left:auto;font-size:11px;color:#bbb">'+cs.length+'门 · '+grpPct+'%</span>'
-        + '<span style="font-size:12px;color:#c9c2c6;transition:transform .2s;'+(collapsed?'transform:rotate(-90deg)':'')+'">▾</span></div>';
-      html += '<div id="courseGrp_'+m.id+'" style="'+(collapsed?'display:none;':'display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px')+'">';
-      cs.forEach(function(c){
+    // 今日网课计划
+    const todays = allCourses.filter(function(o){ return o.c.todayPlan; });
+    if(todays.length){
+      html += '<div style="margin-top:18px"><div style="font-size:13px;font-weight:700;color:#A86BC4;margin-bottom:8px">📅 今日网课计划</div>';
+      html += '<div style="display:flex;flex-wrap:wrap;gap:8px">';
+      todays.forEach(function(o){
+        const c = o.c, m = o.m;
         const cd = Math.min(c.done||0, c.total||0);
-        const ct = c.total||0;
-        const cp = ct>0?Math.round(cd/ct*100):0;
-        const cColor = cp>=100?'#7FB069':'#e8a13a';
-        const cAcc = c.linked?moduleAccByKey(c.linked):null;
-        const cShort = c.linked&&TOPICS[c.linked]?TOPICS[c.linked].name.slice(0,2):'';
-        let cWarn='';
-        if(c.deadline && cp<100){
-          const dl=goalDaysLeft(c.deadline);
-          if(dl<0) cWarn='<span style="font-size:10px;color:#e8607d;background:#fdeaee;padding:1px 6px;border-radius:8px">⚠️ 逾期</span>';
-          else if(dl<=7) cWarn='<span style="font-size:10px;color:#e8a13a;background:#fdf3e6;padding:1px 6px;border-radius:8px">⏰ 剩'+dl+'天</span>';
-        }
-        let card='<div style="background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:4px solid '+cColor+'">';
-        card+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-weight:700;font-size:14px;color:#444;flex:1">'+escapeHtml(c.name||'课程')+'</span>'
-          +'<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="editGoalCourse(\''+m.id+'\',\''+c.id+'\')">✏️</span>'
-          +'<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="deleteGoalCourse(\''+m.id+'\',\''+c.id+'\')">🗑️</span></div>';
-        if(c.platform) card+='<div style="font-size:11px;color:#999;margin:2px 0">'+escapeHtml(c.platform)+'</div>';
-        card+='<div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin:6px 0 2px"><span>已学 '+cd+'/'+ct+' 节</span><span style="color:'+cColor+';font-weight:700">'+cp+'%</span></div>';
-        card+='<div style="height:8px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:6px"><div style="height:100%;width:'+cp+'%;background:'+cColor+';border-radius:6px"></div></div>';
-        card+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
-        if(cAcc!==null) card+='<span style="font-size:10px;color:#4a9d6b;background:#eef7ee;padding:2px 6px;border-radius:8px">📊 '+cShort+' '+cAcc+'%</span>';
-        card+=goalDeadlineBadge(c.deadline);
-        card+=cWarn;
-        card+='</div>';
-        card+='<div style="display:flex;gap:8px;margin-top:10px">'
-          +'<button class="btn popup-btn" style="flex:1;font-size:13px" onclick="viewCourseLesson(\''+m.id+'\',\''+c.id+'\')">➕ 看一课</button>'
-          +'<button class="btn btn-outline" style="flex:1;font-size:13px;border-color:#e8607d;color:#e8607d" onclick="startCourseFocus(\''+m.id+'\',\''+c.id+'\')">🍅 专注</button></div>';
-        card+='</div>';
-        html+=card;
+        const cp = c.total ? Math.round(cd/c.total*100) : 0;
+        html += '<div style="background:#fff;border:1.5px solid #C9A9E0;border-radius:18px;padding:6px 12px;font-size:12px;color:#A86BC4;display:flex;align-items:center;gap:6px;box-shadow:0 1px 4px rgba(0,0,0,.04)">'
+          +'<span style="font-weight:700">'+escapeHtml(c.name||'课程')+'</span>'
+          +'<span style="color:#bbb">'+cd+'/'+(c.total||0)+' · '+cp+'%</span></div>';
       });
-      html+='</div></div>';
+      html += '</div></div>';
+    }
+    // 网课卡片（扁平，不按阶段分，但显示阶段标签）
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:18px">';
+    allCourses.forEach(function(o){
+      const m = o.m, c = o.c;
+      const cd = Math.min(c.done||0, c.total||0);
+      const ct = c.total||0;
+      const cp = ct>0?Math.round(cd/ct*100):0;
+      const cColor = cp>=100?'#7FB069':(cp>=60?'#A86BC4':'#e8a13a');
+      const cAcc = c.linked?moduleAccByKey(c.linked):null;
+      const cShort = c.linked&&TOPICS[c.linked]?TOPICS[c.linked].name.slice(0,2):'';
+      const cSubj = c.linked&&TOPICS[c.linked]?TOPICS[c.linked].name:'';
+      const isToday = !!c.todayPlan;
+      let cWarn='';
+      if(c.deadline && cp<100){
+        const dl=goalDaysLeft(c.deadline);
+        if(dl<0) cWarn='<span style="font-size:10px;color:#e8607d;background:#fdeaee;padding:1px 6px;border-radius:8px">⚠️ 逾期</span>';
+        else if(dl<=7) cWarn='<span style="font-size:10px;color:#e8a13a;background:#fdf3e6;padding:1px 6px;border-radius:8px">⏰ 剩'+dl+'天</span>';
+      }
+      let card='<div style="background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:4px solid '+cColor+'">';
+      card+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px">'
+        +'<span style="font-weight:700;font-size:14px;color:#444;flex:1">'+escapeHtml(c.name||'课程')+'</span>'
+        +'<span style="font-size:10px;color:#b89baf;background:#FDF3F6;border-radius:8px;padding:1px 7px">'+ (m.emoji||'🎯') +' '+escapeHtml(m.title||'')+'</span>'
+        +'<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="editGoalCourse(\''+m.id+'\',\''+c.id+'\')">✏️</span>'
+        +'<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="deleteGoalCourse(\''+m.id+'\',\''+c.id+'\')">🗑️</span>'
+        +'</div>';
+      if(cSubj) card+='<div style="font-size:11px;color:#999;margin-bottom:2px">'+escapeHtml(cSubj)+(c.platform?' · '+escapeHtml(c.platform):'')+'</div>';
+      else if(c.platform) card+='<div style="font-size:11px;color:#999;margin-bottom:2px">'+escapeHtml(c.platform)+'</div>';
+      card+='<div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin:6px 0 2px"><span>已听 '+cd+'/'+ct+' 节</span><span style="color:'+cColor+';font-weight:700">'+cp+'%</span></div>';
+      card+='<div style="height:8px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:6px"><div style="height:100%;width:'+cp+'%;background:'+cColor+';border-radius:6px"></div></div>';
+      card+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">';
+      if(cAcc!==null) card+='<span style="font-size:10px;color:#A86BC4;background:#F3ECFB;padding:2px 6px;border-radius:8px">📊 '+cShort+'模考 '+cAcc+'%</span>';
+      card+=goalDeadlineBadge(c.deadline);
+      card+=cWarn;
+      card+='</div>';
+      card+='<div style="display:flex;gap:6px;flex-wrap:wrap">';
+      card+='<button class="btn popup-btn" style="flex:1;font-size:12px;padding:6px" onclick="viewCourseLesson(\''+m.id+'\',\''+c.id+'\')">➕ 看一课</button>';
+      card+='<button class="btn btn-outline" style="flex:1;font-size:12px;padding:6px;border-color:'+(isToday?'#e8607d':'#C9A9E0')+';color:'+(isToday?'#e8607d':'#A86BC4')+'" onclick="toggleCourseToday(\''+m.id+'\',\''+c.id+'\')">'+(isToday?'✓ 已在今日':'📅 今日')+'</button>';
+      card+='</div>';
+      // 第二行：专注
+      card+='<button class="btn btn-outline" style="width:100%;margin-top:6px;font-size:12px;padding:6px;border-color:#e8607d;color:#e8607d" onclick="startCourseFocus(\''+m.id+'\',\''+c.id+'\')">🍅 启动番茄钟专注</button>';
+      card+='</div>';
+      html+=card;
     });
+    html+='</div>';
   }
   html += '</div>';
   el.innerHTML = html;
+}
+function toggleCourseToday(msId, cId){
+  ensureGoals();
+  const m = store.goals.milestones.find(function(x){ return x.id===msId; });
+  if(!m) return;
+  const c = (m.courses||[]).find(function(x){ return x.id===cId; });
+  if(!c) return;
+  c.todayPlan = !c.todayPlan;
+  saveStore(); renderCourses();
+}
+function openGoalsPopupForAddCourse(){
+  // 找一个有课程空间的里程碑；如果都没有，提示先建里程碑
+  ensureGoals();
+  const ms = store.goals.milestones;
+  if(!ms.length){ if(typeof toast==='function') toast('先去「🎯 目标拆解」加个阶段再添课程吧～'); return; }
+  // 默认挂在第一个尚未 100% 的里程碑；都满了就挂第一个
+  let target = ms.find(function(m){ return (milestoneProgress?milestoneProgress(m):0) < 100; }) || ms[0];
+  editGoalCourse(target.id, null);
 }
 
 // ====================================================
@@ -5177,11 +5251,31 @@ function closeQbookPopup(){
 function addQuestionBook(){ editQuestionBook(null); }
 function editQuestionBook(id){
   ensureQuestionBooks();
-  const b = id ? qbookById(id) : { name:'', subject:'', total:0, done:0, correct:0, deadline:'', notes:'' };
+  const b = id ? qbookById(id) : { name:'', subject:'', total:0, done:0, correct:0, deadline:'', notes:'', chapters:[] };
   if(!b) return;
+  if(!Array.isArray(b.chapters)) b.chapters = [];
   let selOpts = '<option value="">不关联</option>';
   for(const key in TOPICS){
     selOpts += '<option value="'+key+'"'+(b.subject===key?' selected':'')+'>'+TOPICS[key].name+'</option>';
+  }
+  const hasChap = b.chapters.length > 0;
+  // 顶层 total/done/correct：若已存在章节，显示「只读·章节累加」；否则显示可编辑
+  let topBlock;
+  if(hasChap){
+    let tt=0,dd=0,cc=0;
+    b.chapters.forEach(function(c){ tt+=Math.max(0,c.total||0); dd+=Math.min(Math.max(0,c.done||0), c.total||0); cc+=Math.min(Math.max(0,c.correct||0), c.done||0); });
+    topBlock = '<div style="background:#FAF6F2;border:1.5px dashed #E2D6CC;border-radius:12px;padding:10px 12px;margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:#666">'
+      +'<div><span style="opacity:.7">总题数</span> <span style="font-weight:700;color:#444">'+tt+'</span></div>'
+      +'<div><span style="opacity:.7">已做</span> <span style="font-weight:700;color:#A86BC4">'+dd+'</span></div>'
+      +'<div><span style="opacity:.7">正确</span> <span style="font-weight:700;color:#7FB069">'+cc+'</span></div>'
+      +'<div style="flex:1;text-align:right;font-size:11px;color:#aaa">由下方章节累加 · 编辑章节即可</div>'
+      +'</div>';
+  } else {
+    topBlock = '<div style="display:flex;gap:8px;margin-top:10px">'
+      +'<div style="flex:1;text-align:left;font-size:13px;color:#666">总题数<input id="qbTotal" type="number" min="0" inputmode="numeric" value="'+(b.total||0)+'" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 600"></div>'
+      +'<div style="flex:1;text-align:left;font-size:13px;color:#666">已做<input id="qbDone" type="number" min="0" inputmode="numeric" value="'+(b.done||0)+'" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 0"></div>'
+      +'<div style="flex:1;text-align:left;font-size:13px;color:#666">正确<input id="qbCorrect" type="number" min="0" inputmode="numeric" value="'+(b.correct||0)+'" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 0"></div>'
+      +'</div>';
   }
   const inner = '<div class="popup-sparkles"><span>📖</span><span>💜</span><span>🌸</span><span>💜</span><span>📖</span></div>'
     + '<div class="popup-ico">📖</div>'
@@ -5190,11 +5284,17 @@ function editQuestionBook(id){
     + '<input id="qbName" value="'+escapeHtml(b.name||'')+'" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如：逻辑600 / 龙门图推500">'
     + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">关联科目（可选，自动带出模考正确率）</div>'
     + '<select id="qbSubject" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none;background:#fff">'+selOpts+'</select>'
-    + '<div style="display:flex;gap:8px;margin-top:10px">'
-    + '<div style="flex:1;text-align:left;font-size:13px;color:#666">总题数<input id="qbTotal" type="number" min="0" inputmode="numeric" value="'+(b.total||0)+'" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 600"></div>'
-    + '<div style="flex:1;text-align:left;font-size:13px;color:#666">已做<input id="qbDone" type="number" min="0" inputmode="numeric" value="'+(b.done||0)+'" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 0"></div>'
-    + '<div style="flex:1;text-align:left;font-size:13px;color:#666">正确<input id="qbCorrect" type="number" min="0" inputmode="numeric" value="'+(b.correct||0)+'" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 0"></div>'
-    + '</div>'
+    + topBlock
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:12px 0 4px;display:flex;align-items:center;justify-content:space-between">'
+      +'<span>📑 章节（篇章） <span id="qbChaptersHint" style="font-weight:400;color:#aaa;font-size:11px">'+(hasChap?'共 '+b.chapters.length+' 章 · 章节累加':'还没有章节，加一个吧～')+'</span></span>'
+      +'<button class="btn popup-btn" style="background:#F3ECFB;color:#A86BC4;font-size:12px;padding:5px 10px;box-shadow:none" onclick="addQbookChapterRow(\'\',0,0,0)">+ 添加章节</button>'
+      +'</div>'
+    + '<div id="qbChaptersBox" style="margin-bottom:6px"></div>'
+    + '<div style="background:#F3ECFB;border-radius:10px;padding:8px 10px;display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:#A86BC4">'
+      +'<span>章节累计 · 总题 <b id="qbTotalSum">0</b></span>'
+      +'<span>已做 <b id="qbDoneSum">0</b></span>'
+      +'<span>正确 <b id="qbCorrectSum">0</b></span>'
+      +'</div>'
     + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">截止日（可选）</div>'
     + '<input id="qbDeadline" type="date" value="'+escapeHtml(b.deadline||'')+'" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none">'
     + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">备注（可选）</div>'
@@ -5203,26 +5303,103 @@ function editQuestionBook(id){
     + '<button class="btn popup-btn" style="background:#eee;color:#888;box-shadow:none" onclick="closeQbookPopup()">取消</button>'
     + '<button class="btn popup-btn" onclick="saveQuestionBook(\''+(id||'')+'\')">保存</button></div>';
   openQbookPopup(inner);
+  // 回填已有章节
+  if(b.chapters.length){
+    b.chapters.forEach(function(c){ addQbookChapterRow(c.name, c.total, c.done, c.correct, c.id); });
+  } else {
+    recomputeQbookChaptersTotal();
+  }
 }
 function saveQuestionBook(id){
   ensureQuestionBooks();
   const name = (document.getElementById('qbName').value||'').trim();
   if(!name){ if(typeof toast==='function') toast('题本名称不能为空～'); return; }
   const subject = document.getElementById('qbSubject').value || '';
-  const total = Math.max(0, parseInt(document.getElementById('qbTotal').value,10)||0);
-  let done = Math.max(0, parseInt(document.getElementById('qbDone').value,10)||0);
-  if(done>total) done = total;
-  let correct = Math.max(0, parseInt(document.getElementById('qbCorrect').value,10)||0);
-  if(correct>done) correct = done;
   const deadline = document.getElementById('qbDeadline').value || '';
   const notes = (document.getElementById('qbNotes').value||'').trim();
+  // 读章节（编辑模式下，章节是 dom 动态生成的）
+  const chapBox = document.getElementById('qbChaptersBox');
+  let chapters = [];
+  if(chapBox){
+    chapters = readQbookChaptersFromDom();
+  }
+  let total=0, done=0, correct=0;
+  if(chapters.length){
+    chapters.forEach(function(c){
+      c.total = Math.max(0, c.total||0);
+      c.done = Math.min(Math.max(0, c.done||0), c.total);
+      c.correct = Math.min(Math.max(0, c.correct||0), c.done);
+      total += c.total; done += c.done; correct += c.correct;
+    });
+  } else {
+    total = Math.max(0, parseInt(document.getElementById('qbTotal').value,10)||0);
+    done  = Math.min(Math.max(0, parseInt(document.getElementById('qbDone').value,10)||0), total);
+    correct = Math.min(Math.max(0, parseInt(document.getElementById('qbCorrect').value,10)||0), done);
+  }
   if(id){
     const b = qbookById(id);
-    if(b){ b.name=name; b.subject=subject; b.total=total; b.done=done; b.correct=correct; b.deadline=deadline; b.notes=notes; b.updatedAt=Date.now(); }
+    if(b){ b.name=name; b.subject=subject; b.total=total; b.done=done; b.correct=correct; b.deadline=deadline; b.notes=notes; b.chapters=chapters; b.updatedAt=Date.now(); }
   } else {
-    store.questionBooks.push({ id:'qb_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, subject:subject, total:total, done:done, correct:correct, deadline:deadline, notes:notes, todayPlan:false, createdAt:Date.now(), updatedAt:Date.now() });
+    store.questionBooks.push({ id:'qb_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, subject:subject, total:total, done:done, correct:correct, deadline:deadline, notes:notes, chapters:chapters, todayPlan:false, createdAt:Date.now(), updatedAt:Date.now() });
   }
   saveStore(); closeQbookPopup(); renderQuestionBooks();
+}
+function readQbookChaptersFromDom(){
+  const wrap = document.getElementById('qbChaptersBox');
+  if(!wrap) return [];
+  const rows = wrap.querySelectorAll('[data-qb-chap]');
+  const out = [];
+  rows.forEach(function(r){
+    const id   = r.getAttribute('data-chap-id') || ('qc_'+Date.now()+'_'+Math.random().toString(36).slice(2,6));
+    const name = (r.querySelector('[data-f="name"]').value||'').trim();
+    const total   = Math.max(0, parseInt((r.querySelector('[data-f="total"]').value||'0'),10)||0);
+    const done    = Math.max(0, parseInt((r.querySelector('[data-f="done"]').value||'0'),10)||0);
+    const correct = Math.max(0, parseInt((r.querySelector('[data-f="correct"]').value||'0'),10)||0);
+    if(name) out.push({ id:id, name:name, total:total, done:done, correct:correct });
+  });
+  return out;
+}
+function addQbookChapterRow(name, total, done, correct, id){
+  const wrap = document.getElementById('qbChaptersBox');
+  if(!wrap) return;
+  const cid = id || ('qc_'+Date.now()+'_'+Math.random().toString(36).slice(2,6));
+  const row = document.createElement('div');
+  row.setAttribute('data-qb-chap', '1');
+  row.setAttribute('data-chap-id', cid);
+  row.style.cssText = 'background:#FAF6F2;border:1.5px solid #EFE5DF;border-radius:12px;padding:8px 10px;margin-bottom:6px';
+  row.innerHTML = '<div style="display:flex;gap:6px;align-items:center">'
+    +'<input data-f="name" value="'+escapeHtml(name||'')+'" placeholder="章节名（如 推理基础）" style="flex:1;padding:7px 9px;border:1.5px solid #D6E0EF;border-radius:10px;font-size:13px;outline:none;min-width:0">'
+    +'<input data-f="total" type="number" min="0" inputmode="numeric" value="'+(total||0)+'" title="总题数" placeholder="总" style="width:54px;padding:7px 4px;border:1.5px solid #D6E0EF;border-radius:10px;font-size:13px;outline:none;text-align:center">'
+    +'<input data-f="done" type="number" min="0" inputmode="numeric" value="'+(done||0)+'" title="已做" placeholder="已" style="width:54px;padding:7px 4px;border:1.5px solid #D6E0EF;border-radius:10px;font-size:13px;outline:none;text-align:center">'
+    +'<input data-f="correct" type="number" min="0" inputmode="numeric" value="'+(correct||0)+'" title="正确" placeholder="对" style="width:54px;padding:7px 4px;border:1.5px solid #D6E0EF;border-radius:10px;font-size:13px;outline:none;text-align:center">'
+    +'<span style="cursor:pointer;font-size:14px;color:#e8607d;padding:0 4px" title="删除此章节" onclick="this.closest(\'[data-qb-chap]\').remove()">🗑️</span>'
+    +'</div>';
+  wrap.appendChild(row);
+  recomputeQbookChaptersTotal();
+}
+function recomputeQbookChaptersTotal(){
+  const chs = readQbookChaptersFromDom();
+  let total=0,done=0,correct=0;
+  chs.forEach(function(c){ total+=c.total; done+=c.done; correct+=c.correct; });
+  const t = document.getElementById('qbTotalSum'); if(t) t.textContent = total;
+  const d = document.getElementById('qbDoneSum');  if(d) d.textContent = done;
+  const c = document.getElementById('qbCorrectSum'); if(c) c.textContent = correct;
+  const hint = document.getElementById('qbChaptersHint');
+  if(hint) hint.textContent = chs.length ? '共 '+chs.length+' 章 · 章节累加' : '还没有章节，加一个吧～';
+}
+function qbookAggregate(b){
+  const chs = Array.isArray(b.chapters) ? b.chapters : [];
+  if(chs.length){
+    let total=0,done=0,correct=0;
+    chs.forEach(function(c){
+      const ct=Math.max(0,c.total||0);
+      const cd=Math.min(Math.max(0,c.done||0), ct);
+      const cc=Math.min(Math.max(0,c.correct||0), cd);
+      total+=ct; done+=cd; correct+=cc;
+    });
+    return { total:total, done:done, correct:correct, fromChapters:true, chapters:chs };
+  }
+  return { total:Math.max(0,b.total||0), done:Math.min(Math.max(0,b.done||0), b.total||0), correct:Math.min(Math.max(0,b.correct||0), b.done||0), fromChapters:false, chapters:[] };
 }
 function deleteQuestionBook(id){
   ensureQuestionBooks();
@@ -5239,10 +5416,23 @@ function toggleQuestionBookToday(id){
 function recordQuestionBookProgress(id){
   ensureQuestionBooks();
   const b = qbookById(id); if(!b) return;
+  const agg = qbookAggregate(b);
+  const chs = Array.isArray(b.chapters) ? b.chapters : [];
+  let chapSel = '';
+  if(chs.length){
+    chapSel = '<div style="text-align:left;font-size:13px;color:#666;margin:6px 0 4px">记录到哪个章节</div>'
+      + '<select id="qbAddChap" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none;background:#fff">';
+    chs.forEach(function(c, i){
+      const pct = c.total ? Math.round(Math.min(c.done||0, c.total)/c.total*100) : 0;
+      chapSel += '<option value="'+c.id+'">'+escapeHtml(c.name)+' · '+Math.min(c.done||0,c.total||0)+'/'+(c.total||0)+' · '+pct+'%</option>';
+    });
+    chapSel += '</select>';
+  }
   const inner = '<div class="popup-sparkles"><span>📝</span><span>💜</span><span>🌸</span><span>💜</span><span>📝</span></div>'
     + '<div class="popup-ico">📝</div>'
     + '<div class="popup-title">记录进度 · '+escapeHtml(b.name)+'</div>'
-    + '<div style="font-size:12px;color:#999;margin-bottom:10px">当前：已做 '+(b.done||0)+'/'+(b.total||0)+'，正确 '+(b.correct||0)+'</div>'
+    + '<div style="font-size:12px;color:#999;margin-bottom:10px">当前：已做 '+agg.done+'/'+agg.total+'，正确 '+agg.correct+(chs.length?' · 共 '+chs.length+' 章':'· 单本记录')+'</div>'
+    + chapSel
     + '<div style="text-align:left;font-size:13px;color:#666;margin:6px 0 4px">本次新增做了多少题</div>'
     + '<input id="qbAddDone" type="number" min="0" inputmode="numeric" value="0" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 20">'
     + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">其中正确多少题</div>'
@@ -5257,11 +5447,20 @@ function commitQuestionBookProgress(id){
   const addDone = Math.max(0, parseInt(document.getElementById('qbAddDone').value,10)||0);
   const addCorrect = Math.max(0, parseInt(document.getElementById('qbAddCorrect').value,10)||0);
   if(addDone===0 && addCorrect===0){ closeQbookPopup(); return; }
-  let nd = (b.done||0) + addDone;
-  if(nd > (b.total||0)) nd = b.total||0;
-  let nc = (b.correct||0) + Math.min(addCorrect, addDone);
-  if(nc > nd) nc = nd;
-  b.done = nd; b.correct = nc; b.updatedAt = Date.now();
+  const chapSel = document.getElementById('qbAddChap');
+  const chapId = chapSel ? chapSel.value : null;
+  const chs = Array.isArray(b.chapters) ? b.chapters : [];
+  if(chs.length && chapId){
+    const c = chs.find(function(x){ return x.id===chapId; });
+    if(c){
+      c.done = Math.min((c.done||0) + addDone, c.total||0);
+      c.correct = Math.min((c.correct||0) + Math.min(addCorrect, addDone), c.done);
+      c.updatedAt = Date.now();
+    }
+  }
+  // 顶层聚合
+  const agg = qbookAggregate(b);
+  b.total = agg.total; b.done = agg.done; b.correct = agg.correct; b.updatedAt = Date.now();
   saveStore(); closeQbookPopup(); renderQuestionBooks();
 }
 function renderQuestionBooks(){
@@ -5269,12 +5468,11 @@ function renderQuestionBooks(){
   if(!el) return;
   ensureQuestionBooks();
   const list = store.questionBooks;
-  // 汇总
+  // 汇总（用 qbookAggregate，已支持章节累加）
   let total=0, done=0, correct=0;
   list.forEach(function(b){
-    total += Math.max(0, b.total||0);
-    done  += Math.min(Math.max(0, b.done||0), b.total||0);
-    correct += Math.min(Math.max(0, b.correct||0), b.done||0);
+    const a = qbookAggregate(b);
+    total += a.total; done += a.done; correct += a.correct;
   });
   const err = Math.max(0, done - correct);
   const donePct = total ? Math.round(done/total*100) : 0;
@@ -5303,19 +5501,21 @@ function renderQuestionBooks(){
       html += '<div style="margin-top:18px"><div style="font-size:13px;font-weight:700;color:#A86BC4;margin-bottom:8px">📅 今日题本计划</div>';
       html += '<div style="display:flex;flex-wrap:wrap;gap:8px">';
       todays.forEach(function(b){
-        const pct = b.total?Math.round(Math.min(b.done||0,b.total||0)/b.total*100):0;
-        html += '<div style="background:#fff;border:1.5px solid #C9A9E0;border-radius:18px;padding:6px 12px;font-size:12px;color:#A86BC4;display:flex;align-items:center;gap:6px;box-shadow:0 1px 4px rgba(0,0,0,.04)">'
-          +'<span style="font-weight:700">'+escapeHtml(b.name||'题本')+'</span>'
-          +'<span style="color:#bbb">'+pct+'%</span></div>';
-      });
+          const agg = qbookAggregate(b);
+          const pct = agg.total?Math.round(agg.done/agg.total*100):0;
+          const chapCount = (b.chapters||[]).length;
+          html += '<div style="background:#fff;border:1.5px solid #C9A9E0;border-radius:18px;padding:6px 12px;font-size:12px;color:#A86BC4;display:flex;align-items:center;gap:6px;box-shadow:0 1px 4px rgba(0,0,0,.04)">'
+            +'<span style="font-weight:700">'+escapeHtml(b.name||'题本')+'</span>'
+            +(chapCount?'<span style="background:#F3ECFB;color:#A86BC4;border-radius:6px;padding:0 5px;font-size:10px">'+chapCount+'章</span>':'')
+            +'<span style="color:#bbb">'+pct+'%</span></div>';
+        });
       html += '</div></div>';
     }
     // 题本卡片
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:18px">';
     list.forEach(function(b){
-      const bDone = Math.min(Math.max(0, b.done||0), b.total||0);
-      const bTot = b.total||0;
-      const bCorr = Math.min(Math.max(0, b.correct||0), bDone);
+      const agg = qbookAggregate(b);
+      const bDone = agg.done, bTot = agg.total, bCorr = agg.correct;
       const bErr = bDone - bCorr;
       const bPct = bTot?Math.round(bDone/bTot*100):0;
       const bAcc = bDone?Math.round(bCorr/bDone*100):0;
@@ -5324,10 +5524,13 @@ function renderQuestionBooks(){
       const linkedAcc = b.subject && TOPICS[b.subject] ? moduleAccByKey(b.subject) : null;
       const isToday = !!b.todayPlan;
       const overdue = b.deadline && bPct<100 && goalDaysLeft(b.deadline)<0;
+      const chs = Array.isArray(b.chapters) ? b.chapters : [];
+      const chapOpen = !!b._chapOpen;
       let card = '<div style="background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:4px solid '+bColor+(overdue?';box-shadow:0 0 0 2px #e8607d':'')+'">';
       card += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">';
       card += '<span style="font-weight:700;font-size:14px;color:#444;flex:1">'+escapeHtml(b.name||'题本')+'</span>';
       if(isToday) card += '<span style="font-size:11px;color:#A86BC4;background:#F3ECFB;padding:1px 6px;border-radius:8px">📅 今日</span>';
+      if(chs.length) card += '<span style="font-size:10px;color:#A86BC4;background:#F3ECFB;padding:1px 6px;border-radius:8px">📑 '+chs.length+'章</span>';
       card += '<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="editQuestionBook(\''+b.id+'\')">✏️</span>';
       card += '<span style="cursor:pointer;font-size:12px;color:#ccc" onclick="deleteQuestionBook(\''+b.id+'\')">🗑️</span>';
       card += '</div>';
@@ -5339,6 +5542,26 @@ function renderQuestionBooks(){
       card += '<div style="flex:1;background:#f7f5f3;border-radius:10px;padding:6px 8px;text-align:center"><div style="font-size:16px;font-weight:800;color:'+(bAcc>=70?'#7FB069':'#e8a13a')+'">'+(bDone?bAcc:0)+'%</div><div style="font-size:10px;color:#999">正确率</div></div>';
       card += '<div style="flex:1;background:#f7f5f3;border-radius:10px;padding:6px 8px;text-align:center"><div style="font-size:16px;font-weight:800;color:'+(bErr>0?'#e8607d':'#999')+'">'+bErr+'</div><div style="font-size:10px;color:#999">关联错题</div></div>';
       card += '</div>';
+      // 章节进度（折叠/展开）
+      if(chs.length){
+        card += '<div onclick="toggleQbookChapters(\''+b.id+'\')" style="cursor:pointer;font-size:11px;color:#A86BC4;background:#F3ECFB;border-radius:8px;padding:4px 8px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">'
+          +'<span>📑 章节进度</span><span>'+(chapOpen?'▴':'▾')+'</span></div>';
+        if(chapOpen){
+          card += '<div style="background:#FAF6F2;border-radius:10px;padding:6px 8px;margin-bottom:8px;max-height:140px;overflow:auto">';
+          chs.forEach(function(c){
+            const cd = Math.min(Math.max(0,c.done||0), c.total||0);
+            const cc = Math.min(Math.max(0,c.correct||0), cd);
+            const cp = c.total ? Math.round(cd/c.total*100) : 0;
+            card += '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#666;padding:2px 0">'
+              +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(c.name||'章节')+'</span>'
+              +'<span style="color:#999">'+cd+'/'+(c.total||0)+'</span>'
+              +'<div style="width:48px;height:5px;background:#eee;border-radius:3px;overflow:hidden"><div style="height:100%;width:'+cp+'%;background:'+(cp>=100?'#7FB069':(cp>=60?'#A86BC4':'#e8a13a'))+';border-radius:3px"></div></div>'
+              +'<span style="color:#bbb;width:32px;text-align:right">'+cp+'%</span>'
+              +'</div>';
+          });
+          card += '</div>';
+        }
+      }
       card += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px">';
       card += goalDeadlineBadge(b.deadline);
       if(overdue) card += '<span style="font-size:10px;color:#e8607d;background:#fdeaee;padding:1px 6px;border-radius:8px">⚠️ 逾期</span>';
@@ -5356,6 +5579,124 @@ function renderQuestionBooks(){
   html += '</div>';
   el.innerHTML = html;
 }
+function toggleQbookChapters(id){
+  ensureQuestionBooks();
+  const b = qbookById(id); if(!b) return;
+  b._chapOpen = !b._chapOpen;
+  renderQuestionBooks();
+}
+
+// ====================================================
+//  知识体系导图（Mind Map）
+// ====================================================
+function getActiveMindmapSubject(){
+  const key = localStorage.getItem('mm_active_subject');
+  if(MINDMAP_DATA[key]) return key;
+  return 'verbal';
+}
+function setActiveMindmapSubject(key){
+  localStorage.setItem('mm_active_subject', key);
+  renderMindmap();
+}
+function renderMindmapNode(node, depth){
+  if(!node) return '';
+  const isLeaf = !node.children || !node.children.length;
+  const palette = ['#E58AA6','#A86BC4','#5BAE6F','#e8a13a','#5aa0e6','#9B77C7'];
+  const color = palette[depth % palette.length];
+  const padY = depth===0 ? '10px 18px' : (depth===1 ? '7px 13px' : '5px 11px');
+  const fs   = depth===0 ? '15px' : (depth===1 ? '13px' : '12px');
+  const fw   = depth===0 ? '800' : (depth===1 ? '700' : '600');
+  let html = '<div style="display:flex;flex-direction:column;align-items:center;min-width:max-content">';
+  html += '<div style="background:#fff;border:2px solid '+color+';color:'+color+';border-radius:14px;padding:'+padY+';font-size:'+fs+';font-weight:'+fw+';text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.05);white-space:nowrap">'+escapeHtml(node.name||'')+'</div>';
+  if(!isLeaf){
+    html += '<div style="width:2px;height:14px;background:'+color+';opacity:.4"></div>';
+    html += '<div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;justify-content:center">';
+    node.children.forEach(function(ch){
+      html += renderMindmapNode(ch, depth+1);
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+function renderMindmap(){
+  const el = document.getElementById('page-mindmap');
+  if(!el) return;
+  if(typeof ensureStore==='function') ensureStore();
+  const sub = getActiveMindmapSubject();
+  const data = MINDMAP_DATA[sub] || MINDMAP_DATA.verbal;
+  // 顶部统计聚合（来自已有数据）
+  const today = (typeof todayKey==='function') ? todayKey() : '';
+  const focusMin = today && store.checkins ? Math.round((store.checkins[today]||0)*60) : 0;
+  const todoPending = (store.todos||[]).filter(function(t){ return !t.done && t.date===today; }).length;
+  const todoAllToday = (store.todos||[]).filter(function(t){ return t.date===today; }).length;
+  const moduleDoneToday = (store.plans && store.plans[today]) ? store.plans[today].filter(function(p){ return p.done; }).length : 0;
+  const moduleAllToday  = (store.plans && store.plans[today]) ? store.plans[today].length : 0;
+  let overallPct = 0;
+  try { if(typeof progress==='object' && progress.overallPct) overallPct = progress.overallPct; } catch(e){}
+  // 笔记
+  const notes = (store.mindmapNotes && store.mindmapNotes[sub]) || '';
+  let html = '<div style="padding:18px 18px 40px">';
+  // 顶部标题
+  html += '<div style="background:linear-gradient(135deg,#E58AA6 0%,#D35F84 100%);border-radius:18px;padding:18px;color:#fff;box-shadow:0 4px 14px rgba(211,95,132,.28)">';
+  html += '<div style="font-size:15px;font-weight:700">📊 知识体系导图</div>';
+  html += '<div style="font-size:11px;opacity:.85;margin-top:4px">俯瞰考点结构 · 一步步搭建自己的知识树</div>';
+  html += '</div>';
+  // 6 个科目 tab
+  const subs = ['verbal','data','reasoning','quantity','common','shenlun'];
+  const subLabel = { verbal:'言语理解与表达', data:'资料分析', reasoning:'判断推理', quantity:'数量关系', common:'常识判断', shenlun:'申论' };
+  html += '<div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;background:#fff;border-radius:14px;padding:8px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
+  subs.forEach(function(k){
+    const active = (k===sub);
+    html += '<div onclick="setActiveMindmapSubject(\''+k+'\')" style="cursor:pointer;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:700;background:'+(active?'linear-gradient(135deg,#E58AA6,#D35F84)':'#FAF6F2')+';color:'+(active?'#fff':'#888')+';box-shadow:'+(active?'0 2px 8px rgba(211,95,132,.35)':'none')+'">'+subLabel[k]+'</div>';
+  });
+  html += '</div>';
+  // 导图标题（root）
+  html += '<div style="margin-top:18px;background:#fff;border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
+  html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span style="font-size:20px">'+data.icon+'</span><span style="font-weight:700;font-size:15px;color:#444">'+data.name+' 思维导图</span><span style="margin-left:auto;font-size:11px;color:#bbb">可滚动 →</span></div>';
+  // 导图本体：横向 flex（root + branches）
+  html += '<div style="overflow-x:auto;padding:6px 0">';
+  html += '<div style="display:flex;align-items:flex-start;gap:18px;min-width:max-content;padding:4px">';
+  html += renderMindmapNode(data, 0);
+  html += '</div></div></div>';
+  // 学习计时 + 番茄钟 + 学习进度 三联卡
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px">';
+  html += '<div style="background:#fff;border-radius:12px;padding:10px 8px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.04)">'
+    +'<div style="font-size:11px;color:#888;margin-bottom:4px">⏱️ 学习计时</div>'
+    +'<div style="font-size:22px;font-weight:800;color:#E58AA6">'+Math.floor(focusMin/60)+':'+String(focusMin%60).padStart(2,'0')+'</div>'
+    +'<div style="font-size:10px;color:#aaa">今日已专注</div></div>';
+  html += '<div style="background:#fff;border-radius:12px;padding:10px 8px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.04)">'
+    +'<div style="font-size:11px;color:#888;margin-bottom:4px">🍅 番茄钟</div>'
+    +'<div style="font-size:22px;font-weight:800;color:#A86BC4">'+(store.tomatoCount||0)+'</div>'
+    +'<div style="font-size:10px;color:#aaa">今日完成</div></div>';
+  html += '<div style="background:#fff;border-radius:12px;padding:10px 8px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.04)">'
+    +'<div style="font-size:11px;color:#888;margin-bottom:4px">📈 学习进度</div>'
+    +'<div style="font-size:22px;font-weight:800;color:#7FB069">'+overallPct+'%</div>'
+    +'<div style="font-size:10px;color:#aaa">总体完成</div></div>';
+  html += '</div>';
+  // 待办事项 + 计划模块
+  html += '<div style="background:#fff;border-radius:12px;padding:12px;margin-top:12px;box-shadow:0 2px 8px rgba(0,0,0,.04);display:flex;align-items:center;gap:14px">'
+    +'<span style="font-size:18px">✅</span>'
+    +'<div style="flex:1">'
+    +'<div style="font-size:13px;font-weight:700;color:#444">待办事项 <span style="font-size:11px;color:#bbb;font-weight:400">'+todoPending+'/'+todoAllToday+'</span></div>'
+    +'<div style="font-size:11px;color:#999">今日完成 '+moduleDoneToday+'/'+moduleAllToday+' 个计划模块</div>'
+    +'</div>'
+    +'<button class="btn popup-btn" style="font-size:12px;padding:5px 12px" onclick="goPage(\'todo\')">查看</button>'
+    +'</div>';
+  // 笔记区
+  html += '<div style="background:#fff;border-radius:14px;padding:14px;margin-top:12px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:13px;font-weight:700;color:#A86BC4">📝 知识体系搭建笔记</div><span style="font-size:11px;color:#bbb">自动保存</span></div>';
+  html += '<textarea id="mmNote" oninput="saveMindmapNote(\''+sub+'\',this.value)" placeholder="记录这科的搭建思路、心得、薄弱点……" style="width:100%;min-height:90px;padding:10px 12px;border:1.5px solid #F3ECFB;border-radius:10px;font-size:13px;line-height:1.6;outline:none;resize:vertical;box-sizing:border-box;color:#444;font-family:inherit;background:#FBF8FC">'+escapeHtml(notes)+'</textarea>';
+  html += '</div>';
+  html += '</div>';
+  el.innerHTML = html;
+}
+function saveMindmapNote(sub, val){
+  if(!store.mindmapNotes) store.mindmapNotes = {};
+  store.mindmapNotes[sub] = val;
+  if(typeof saveStore==='function') saveStore();
+}
+
 function onPageShow(page){
   if(page==='home'){ renderHome(); updateEbBadge(); }
   if(page==='plan') renderPlan();
@@ -5378,6 +5719,7 @@ function onPageShow(page){
   if(page==='goals') renderGoals();
   if(page==='courses') renderCourses();
   if(page==='qbook') renderQuestionBooks();
+  if(page==='mindmap') renderMindmap();
   if(page==='diary') renderDiary();
   if(page==='garden'){ renderGarden(); maybeShowMorning(); }
   if(page==='secret') renderSecretGarden();
