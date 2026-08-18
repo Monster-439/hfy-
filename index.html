@@ -1089,9 +1089,9 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .garden-stage.stageup{animation:stagepop .55s ease;}
 @keyframes stagepop{0%{transform:scale(1);}40%{transform:scale(1.12);}100%{transform:scale(1);}}
 .garden-badges{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:14px;}
-.g-badge{flex:0 1 calc(33.333% - 7px);min-width:0;text-align:center;background:var(--pink-softer);border-radius:14px;padding:10px 6px;font-size:13px;color:var(--text-sub);}
+.g-badge{flex:0 0 calc(33.333% - 7px);width:calc(33.333% - 7px);box-sizing:border-box;min-width:0;text-align:center;background:var(--pink-softer);border-radius:14px;padding:10px 6px;font-size:13px;color:var(--text-sub);}
 .g-badge b{display:block;font-size:20px;color:var(--text-main);margin-top:2px;}
-.g-badge.bottom-row{flex:0 1 calc(33.333% - 7px);}
+.g-badge.bottom-row{flex:0 0 calc(33.333% - 7px);width:calc(33.333% - 7px);}
 .garden-acts{display:flex;gap:10px;flex-wrap:wrap;}
 .garden-acts .btn{flex:1;}
 /* 三状态条已移入 flower-scene，保留旧选择器防报错 */
@@ -10590,13 +10590,13 @@ function renderErrors(){
 document.getElementById('examDate').value = todayKey();
 renderHome();
 migrateEbbinghaus();
+applyTheme(store.colorTheme || 'sakura');
+applyDarkMode();
 renderCountdowns();
 // 每小时刷新一次考试倒计时，跨天自动更新
 setInterval(renderCountdowns, 3600000);
 renderErrors();
 renderNavQuote();
-applyDarkMode();
-applyTheme(store.colorTheme || 'sakura');
 const _kpFile = document.getElementById('kpFile');
 if(_kpFile) _kpFile.addEventListener('change', onKpFile);
 
