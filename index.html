@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -772,6 +772,16 @@ body[data-color-theme="sky"]{
 .cal-day.empty{visibility:hidden;}
 .cal-day.disabled{background:#f3f3f3;color:#bbb;cursor:not-allowed;border-color:transparent;}
 .cal-day.disabled:hover{transform:none;border-color:transparent;}
+/* 联动：学习日历叠加 📚/🎓 标记（题本/课程做过点） */
+.cal-day.study-soft{background:#F3F8FF;border-color:#D6E6FB;}
+.cal-day.study-mid{background:#E3F0FF;border-color:#A9CCF5;}
+.cal-day.study-strong{background:#D2E6FF;border-color:#7FB0EE;}
+.cal-day .cal-badges{display:flex;gap:2px;margin-top:2px;align-items:center;justify-content:center;line-height:1;}
+.cal-day .cal-badge{font-size:10px;font-weight:700;padding:1px 4px;border-radius:7px;background:rgba(255,255,255,.85);box-shadow:0 1px 2px rgba(0,0,0,.08);white-space:nowrap;}
+.cal-day .cal-badge.qb{color:#2E86C1;}
+.cal-day .cal-badge.cs{color:#8E44AD;}
+.cal-day.checked .cal-badges{}.cal-day.checked .cal-badge{background:rgba(255,255,255,.6);}
+@media(max-width:480px){.cal-day .cal-badge{font-size:9px;padding:0 3px;}.cal-day .cal-badges{margin-top:1px;}}
 
 /* 打卡成功弹窗 */
 .popup-overlay{
@@ -4628,10 +4638,36 @@ function dailyAgg(k){
 
 function reportSwitch(t){ reportTab = t; renderReport(); }
 
+// 联动：错题最多章节 TOP3（周报聚焦重做）
+function computeErrTopChapters(){
+  if(!store.errors || !store.errors.length) return [];
+  const map = {};
+  store.errors.forEach(function(e){
+    if(e.src!=='qbook') return;
+    const bk = e.bookId || '';
+    const ch = e.chapName || '';
+    const kk = bk + '|' + ch;
+    if(!map[kk]) map[kk] = { bookId: bk, chapName: ch, count: 0 };
+    // 优先取条目里记录的错题数（如「本次错题 N 道」），否则计 1
+    const mm = (e.content||'').match(/本次错题\s*(\d+)\s*道/);
+    map[kk].count += mm ? parseInt(mm[1],10) : 1;
+  });
+  const arr = Object.keys(map).map(function(k){
+    const it = map[k];
+    const b = (typeof qbookById==='function') ? qbookById(it.bookId) : null;
+    return {
+      bookId: it.bookId,
+      label: (b && b.name) ? b.name : '题本',
+      chapLabel: it.chapName || '（未分章）',
+      count: it.count
+    };
+  });
+  arr.sort(function(a,b){ return b.count - a.count; });
+  return arr.slice(0, 3);
+}
 function renderReport(){
   const el = document.getElementById('page-report');
   if(!el) return;
-  const range = reportPeriodRange();
   const days = [];
   const cur = new Date(range.start);
   while(cur <= range.end){
@@ -4693,6 +4729,23 @@ function renderReport(){
     + stat('📚', qbTxt, '题本进度')
     + stat('🎓', csTxt, '课程进度')
     + stat('💧', checkinDays+'天', '打卡天数') + '</div>';
+  // 联动：错题最多章节 TOP3（错题重做聚焦）
+  const errTop = computeErrTopChapters();
+  if(errTop.length){
+    html += '<div class="wr-err-top">'
+      + '<div class="wr-err-top-title">🔥 错题最多章节 TOP3</div>'
+      + '<div style="font-size:11px;color:var(--text-sub);margin-bottom:8px">点击直达「重做错题」</div>'
+      + errTop.map(function(e, idx){
+        const medal = ['🥇','🥈','🥉'][idx] || '·';
+        const bId = e.bookId || '';
+        return '<div class="wr-err-top-row" onclick="redoQbookErrors(\''+bId+'\')" style="display:flex;align-items:center;gap:10px;padding:9px 12px;margin-bottom:6px;background:#fff;border-radius:10px;cursor:pointer;border:1px solid var(--border-soft);box-shadow:0 1px 3px rgba(0,0,0,.04)">'
+          + '<span style="font-size:18px;width:24px;text-align:center">'+medal+'</span>'
+          + '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:var(--text-main);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(e.label)+'</div><div style="font-size:11px;color:var(--text-sub)">'+escapeHtml(e.chapLabel)+'</div></div>'
+          + '<div style="text-align:right"><div style="font-size:18px;font-weight:800;color:#E5484D">'+e.count+'</div><div style="font-size:10px;color:var(--text-sub)">道错题</div></div>'
+          + '</div>';
+      }).join('')
+      + '</div>';
+  }
   if(activeDays===0 && totalFocus===0 && totalDone===0){
     html += '<div class="wr-empty">📭 这段时间还没有学习数据<br>先开一个番茄钟或做几道题吧～</div>';
   } else {
@@ -5297,6 +5350,104 @@ function viewCourseLesson(msId, cId){
   if(typeof renderTodoList==='function') renderTodoList();
   if(typeof toast==='function') toast('已学 1 节《'+c.name+'》📚 已记打卡·待办·计划');
 }
+// 联动：📖 做1节（弹窗记时长/完成度/笔记）— 取代原 +1节 按钮
+function recordCourseLesson(msId, cId){
+  ensureGoals();
+  const m = store.goals.milestones.find(function(x){ return x.id===msId; });
+  if(!m) return;
+  const c = (m.courses||[]).find(function(x){ return x.id===cId; });
+  if(!c) return;
+  const defMin = (c.lessonMin && c.lessonMin>0) ? c.lessonMin : 30;
+  const today = (typeof todayKey==='function') ? todayKey() : (new Date()).toISOString().slice(0,10);
+  const html = '<div style="padding:4px 0 8px">'
+    + '<div style="font-size:12px;color:var(--text-sub);margin-bottom:10px">《'+escapeHtml(c.name||'课程')+'》 · 已学 '+(c.done||0)+'/'+(c.total||0)+' 节</div>'
+    + '<div style="margin-bottom:10px"><label style="font-size:12px;color:var(--text-sub)">本节时长（分钟）</label>'
+      + '<div style="display:flex;gap:6px;margin-top:4px">'
+      + '<input id="crMin" type="number" min="1" max="600" value="'+defMin+'" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:14px">'
+      + '<button onclick="document.getElementById(\'crMin\').value=15" style="padding:6px 10px;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px">15</button>'
+      + '<button onclick="document.getElementById(\'crMin\').value=30" style="padding:6px 10px;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px">30</button>'
+      + '<button onclick="document.getElementById(\'crMin\').value=45" style="padding:6px 10px;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px">45</button>'
+      + '<button onclick="document.getElementById(\'crMin\').value=60" style="padding:6px 10px;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px">60</button>'
+      + '</div></div>'
+    + '<div style="margin-bottom:10px"><label style="font-size:12px;color:var(--text-sub);display:block;margin-bottom:4px">完成度</label>'
+      + '<div style="display:flex;gap:6px">'
+      + '<label style="flex:1;display:flex;align-items:center;gap:4px;padding:8px;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer"><input type="radio" name="crFin" value="done" checked> ✅ 学完</label>'
+      + '<label style="flex:1;display:flex;align-items:center;gap:4px;padding:8px;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer"><input type="radio" name="crFin" value="partial"> 🟡 部分</label>'
+      + '<label style="flex:1;display:flex;align-items:center;gap:4px;padding:8px;background:#fff;border:1px solid var(--border);border-radius:6px;cursor:pointer"><input type="radio" name="crFin" value="skip"> 🔴 跳过</label>'
+      + '</div></div>'
+    + '<div style="margin-bottom:10px"><label style="font-size:12px;color:var(--text-sub)">本节笔记（可选）</label>'
+      + '<textarea id="crNote" rows="2" placeholder="关键公式 / 难点 / 启发..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;margin-top:4px;resize:vertical"></textarea></div>'
+    + '<div style="display:flex;gap:8px;margin-top:14px">'
+      + '<button onclick="closePopup()" style="flex:1;padding:10px;background:#fff;border:1px solid var(--border);border-radius:8px;cursor:pointer">取消</button>'
+      + '<button onclick="commitCourseLesson(\''+msId+'\',\''+cId+'\')" style="flex:1;padding:10px;background:var(--pink-btn);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">📖 记录</button>'
+      + '</div></div>';
+  openPopup('📖 做 1 节', html);
+  setTimeout(function(){
+    const inp = document.getElementById('crMin'); if(inp) inp.focus();
+  }, 60);
+}
+function commitCourseLesson(msId, cId){
+  ensureGoals();
+  const m = store.goals.milestones.find(function(x){ return x.id===msId; });
+  if(!m) return;
+  const c = (m.courses||[]).find(function(x){ return x.id===cId; });
+  if(!c) return;
+  const mins = Math.max(1, parseInt((document.getElementById('crMin')||{}).value)||0);
+  const finRadio = document.querySelector('input[name="crFin"]:checked');
+  const fin = finRadio ? finRadio.value : 'done';
+  const note = (document.getElementById('crNote')||{}).value || '';
+  if(!mins){ if(typeof toast==='function') toast('请填时长'); return; }
+  const today = (typeof todayKey==='function') ? todayKey() : (new Date()).toISOString().slice(0,10);
+  // 写时长
+  c.time = (c.time||0) + mins;
+  // 写笔记
+  if(note && note.trim()){
+    c.note = (c.note ? (c.note+'\n') : '') + '['+today+' '+mins+'分] ' + note.trim();
+  }
+  // 完成度 → 进度 / 错题归集
+  if(fin==='done'){
+    if((c.done||0) < (c.total||0)) c.done = (c.done||0) + 1;
+  } else {
+    // 部分 / 跳过 → 入错题本（联动 collectQbookErrors 同样思路）
+    if(!store.errors) store.errors = [];
+    const key = (c.id||'c') + '|' + today + '|lesson-' + Math.floor(Date.now()/1000);
+    if(!store.errors.some(function(e){ return e.src==='course' && e.key===key; })){
+      store.errors.push({
+        id:'err'+Date.now()+'_'+Math.floor(Math.random()*1000),
+        module: '课程',
+        bookId: c.id||'',
+        chapName: c.name||'',
+        content: '《'+escapeHtml(c.name||'课程')+'》本节'+(fin==='partial'?'部分完成':'跳过')+ (note?(' · '+note.trim().slice(0,30)):''),
+        explain: note || (fin==='partial'?'部分完成':'跳过本节'),
+        photos: [],
+        date: today,
+        src: 'course',
+        key: key,
+        srcLabel: '课程'
+      });
+    }
+  }
+  // 打卡小时数（与 viewCourseLesson 一致）
+  if(!store.checkins) store.checkins = {};
+  store.checkins[today] = (store.checkins[today]||0) + mins/60;
+  // 里程碑庆祝
+  if(typeof milestoneProgress==='function' && milestoneProgress(m) >= 100 && !m.celebrated){
+    m.celebrated = true;
+    if(!m.achievedAt) m.achievedAt = Date.now();
+    if(typeof celebrateMilestone==='function') celebrateMilestone(m);
+  }
+  // 联动：课程记录写入当日做题档案（供学习日历叠加 🎓 图标 + 周报统计）
+  if(!store.records) store.records = {};
+  if(!store.records[today]) store.records[today] = [];
+  store.records[today].push({ module:(c.name||'课程'), done:(fin==='done'?1:0), right:0, time:Date.now(), kind:'course', courseId:c.id });
+  saveStore();
+  if(typeof closePopup==='function') closePopup();
+  renderGoals();
+  if(typeof renderPlan==='function') renderPlan();
+  if(typeof renderTodoList==='function') renderTodoList();
+  if(typeof renderErrors==='function') renderErrors();
+  if(typeof toast==='function') toast((fin==='done'?'📖 完成 1 节《':'⚠️ 标记 '+(fin==='partial'?'部分':'跳过')+' · 已入错题本《') + (c.name||'课程')+'》'+mins+'分');
+}
 function startCourseFocus(msId, cId){
   ensureGoals();
   const m = store.goals.milestones.find(function(x){ return x.id===msId; });
@@ -5607,7 +5758,7 @@ function renderCourses(){
     card+='</div>';
     // 按钮行：+1节 / -1节 / 今日
     card+='<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:2px">';
-    card+='<button onclick="event.stopPropagation();viewCourseLesson(\''+m.id+'\',\''+c.id+'\')" style="flex:1;background:#FCEFF2;color:var(--pink-deep);border:none;border-radius:8px;font-size:12px;padding:6px;cursor:pointer;font-weight:700">＋ +1节</button>';
+    card+='<button onclick="event.stopPropagation();recordCourseLesson(\''+m.id+'\',\''+c.id+'\')" style="flex:1;background:#FCEFF2;color:var(--pink-deep);border:none;border-radius:8px;font-size:12px;padding:6px;cursor:pointer;font-weight:700" title="弹窗记时长/完成度/笔记">📖 做1节</button>';
     card+='<button onclick="event.stopPropagation();if(((qbookStoreByKey?0:0)||0||((store.goals.milestones.find(function(x){return x.id===\''+m.id+'\;}).courses.find(function(x){return x.id===\''+c.id+'\;}).done||0))>0)decrCourseLesson(\''+m.id+'\',\''+c.id+'\')" style="background:#fff;border:1.5px solid #E8D7E0;color:#A86BC4;border-radius:8px;font-size:12px;padding:6px;cursor:pointer">−1节</button>';
     card+='<button onclick="event.stopPropagation();toggleCourseToday(\''+m.id+'\',\''+c.id+'\')" style="background:'+(isToday?'#E5484D':'#fff')+';color:'+(isToday?'#fff':'#E5484D')+';border:1.5px solid #E5484D;border-radius:8px;font-size:12px;padding:6px;cursor:pointer">'+(isToday?'✓ 今日':'📅 今日')+'</button>';
     card+='</div>';
@@ -5962,6 +6113,12 @@ function commitQuestionBookStats(tdId){
   if(b.todayPlan) b._todayDone = true;
   const wrong = Math.max(0, done - correct);
   if(wrong>0) collectQbookErrors(b, chapName, wrong, correct, '题本');
+  if(done>0){
+    const today = (typeof todayKey==='function') ? todayKey() : (new Date()).toISOString().slice(0,10);
+    if(!store.records) store.records = {};
+    if(!store.records[today]) store.records[today] = [];
+    store.records[today].push({ module:(b.name||'题本'), done:done, right:Math.min(correct,done), time:Date.now(), kind:'qbook', qbookId:b.id });
+  }
   saveStore(); closeQbookPopup(); renderQuestionBooks(); renderTodoList(); renderPlan();
   if(typeof renderHome==='function') renderHome();
 }
@@ -6023,6 +6180,13 @@ function commitQuestionBookProgress(id){
   b.total = agg.total; b.done = agg.done; b.correct = agg.correct; b.updatedAt = Date.now();
   const wrong = Math.max(0, addDone - addCorrect);
   if(wrong>0) collectQbookErrors(b, chapName, wrong, addCorrect, '题本');
+  // 联动：题本记录写入当日做题档案（供学习日历叠加 📚 图标 + 周报统计）
+  if(addDone>0){
+    const today = (typeof todayKey==='function') ? todayKey() : (new Date()).toISOString().slice(0,10);
+    if(!store.records) store.records = {};
+    if(!store.records[today]) store.records[today] = [];
+    store.records[today].push({ module:(b.name||'题本'), done:addDone, right:Math.min(addCorrect,addDone), time:Date.now(), kind:'qbook', qbookId:b.id });
+  }
   saveStore(); closeQbookPopup(); renderQuestionBooks();
   if(typeof renderTodoList==='function') renderTodoList();
   if(typeof renderPlan==='function') renderPlan();
@@ -6146,9 +6310,10 @@ function renderQuestionBooks(){
     if(overdue) card += '<span style="font-size:10px;color:#E5484D;background:#fde8e8;padding:1px 6px;border-radius:8px">⚠️ 逾期</span>';
     else if(b.deadline && bPct<100){ const dl=goalDaysLeft(b.deadline); if(dl>=0 && dl<=7) card += '<span style="font-size:10px;color:#e8a13a;background:#fdf3e6;padding:1px 6px;border-radius:8px">⏰ 剩'+dl+'天</span>'; }
     card += '</div>';
-    // 按钮行：+1题 / 记录本次 / 今日 / 展开章节
+    // 按钮行：重做错题 / 标记不会 / 记录本次 / 今日（联动上轮 collectQbookErrors 错题归集）
     card += '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:2px">';
-    card += '<button onclick="event.stopPropagation();qbookPlusOne(\''+b.id+'\')" style="flex:1;background:#FCEFF2;color:var(--pink-deep);border:none;border-radius:8px;font-size:12px;padding:6px;cursor:pointer;font-weight:700">＋ +1</button>';
+    card += '<button onclick="event.stopPropagation();redoQbookErrors(\''+b.id+'\')" style="flex:1;background:#FCEFF2;color:var(--pink-deep);border:none;border-radius:8px;font-size:12px;padding:6px;cursor:pointer;font-weight:700" title="跳到错题本重做本题本的错题">🔁 重做错题</button>';
+    card += '<button onclick="event.stopPropagation();markQbookUnmastered(\''+b.id+'\')" style="flex:1;background:#fff;border:1.5px solid #C9A9E0;color:#A86BC4;border-radius:8px;font-size:12px;padding:6px;cursor:pointer" title="把不会的题直接入错题本">🎯 标记不会</button>';
     card += '<button onclick="event.stopPropagation();recordQuestionBookProgress(\''+b.id+'\')" style="flex:1.4;background:#fff;border:1.5px solid #C9A9E0;color:#A86BC4;border-radius:8px;font-size:12px;padding:6px;cursor:pointer">📝 记录本次</button>';
     card += '<button onclick="event.stopPropagation();toggleQuestionBookToday(\''+b.id+'\')" style="background:'+(isToday?'#E5484D':'#fff')+';color:'+(isToday?'#fff':'#E5484D')+';border:1.5px solid #E5484D;border-radius:8px;font-size:12px;padding:6px;cursor:pointer">'+(isToday?'✓ 今日':'📅')+'</button>';
     card += '</div>';
@@ -6175,6 +6340,71 @@ function qbookPlusOne(id){
   b.updatedAt = Date.now();
   saveStore(); renderQuestionBooks();
   if(typeof toast==='function') toast('已 +1 题，进度 '+Math.round((b.done/(b.total||1))*100)+'%');
+}
+// 联动：🔁 重做错题 — 跳到错题本页 + 按本题本过滤
+let _errorsBookFilter = null;
+function redoQbookErrors(bookId){
+  if(!store.errors) store.errors = [];
+  const b = qbookById(bookId); if(!b) return;
+  const matched = store.errors.filter(function(e){
+    return (e.src==='qbook' && (e.bookId===bookId || (e.key&& e.key.indexOf(bookId+'|')===0)));
+  });
+  if(matched.length===0){
+    if(typeof toast==='function') toast('《'+(b.name||'题本')+'》暂无错题可重做');
+    return;
+  }
+  _errorsBookFilter = bookId;
+  if(typeof showPage==='function') showPage('errors');
+  if(typeof renderErrors==='function') renderErrors();
+  if(typeof toast==='function') toast('🔁 找到 '+matched.length+' 道《'+(b.name||'题本')+'》错题，开始重做');
+}
+// 联动：🎯 标记不会 — 弹窗输入不会几道，直接入错题本
+function markQbookUnmastered(bookId){
+  const b = qbookById(bookId); if(!b) return;
+  const chs = Array.isArray(b.chapters) ? b.chapters : [];
+  // 找第一个未达 100% 的章节
+  const cur = chs.find(function(c){ return Math.min(c.done||0, c.total||0) < (c.total||0); }) || chs[0];
+  const chapName = cur ? (cur.name||'') : '';
+  const html = '<div style="padding:4px 0 8px"><div style="font-size:13px;color:var(--text-sub);margin-bottom:10px">将立刻入「错题本」，方便日后复习重做。</div>'
+    + '<div style="margin-bottom:8px"><label style="font-size:12px;color:var(--text-sub)">章节</label><div style="font-weight:700;color:var(--text-main);margin-top:2px">'+(chapName||'（整本）')+'</div></div>'
+    + '<div style="margin-bottom:8px"><label style="font-size:12px;color:var(--text-sub)">不会几道</label><input id="markUnmasteredN" type="number" min="1" max="50" value="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:14px;margin-top:2px"></div>'
+    + '<div style="display:flex;gap:8px;margin-top:14px"><button onclick="closePopup()" style="flex:1;padding:8px;background:#fff;border:1px solid var(--border);border-radius:8px;cursor:pointer">取消</button>'
+    + '<button onclick="commitMarkUnmastered(\''+bookId+'\', \''+escapeHtml(chapName)+'\')" style="flex:1;padding:8px;background:var(--pink-btn);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">🎯 标记不会</button></div></div>';
+  openPopup('🎯 标记不会', html);
+}
+function commitMarkUnmastered(bookId, chapName){
+  const b = qbookById(bookId); if(!b) return;
+  const n = Math.max(1, parseInt((document.getElementById('markUnmasteredN')||{}).value)||0);
+  if(!n){ if(typeof toast==='function') toast('请输入不会几道'); return; }
+  if(!store.errors) store.errors = [];
+  const tk = (typeof todayKey==='function') ? todayKey() : (new Date()).toISOString().slice(0,10);
+  const key = (b.id||'b') + '|' + (chapName||'') + '|' + tk + '|mark';
+  if(store.errors.some(function(e){ return e.src==='qbook' && e.key===key; })){
+    if(typeof toast==='function') toast('今天已标记过啦');
+    return;
+  }
+  store.errors.push({
+    id:'err'+Date.now()+'_'+Math.floor(Math.random()*1000),
+    module: '题本',
+    bookId: b.id||'',
+    chapName: chapName||'',
+    content: '《'+escapeHtml(b.name||'题本')+'》'+(chapName?(' · '+chapName):'')+' 标记不会 '+n+' 道',
+    explain: '手动标记不会',
+    photos: [],
+    date: tk,
+    src: 'qbook',
+    key: key,
+    srcLabel: '标记不会'
+  });
+  saveStore();
+  if(typeof renderQuestionBooks==='function') renderQuestionBooks();
+  if(typeof renderErrors==='function') renderErrors();
+  if(typeof closePopup==='function') closePopup();
+  if(typeof toast==='function') toast('🎯 已标记 '+n+' 道入错题本');
+}
+function clearBookErrorsFilter(){
+  _errorsBookFilter = null;
+  renderErrors();
 }
 function toggleQbookPlanDone(id){
   ensureQuestionBooks();
@@ -8725,6 +8955,8 @@ function collectQbookErrors(b, chapName, wrong, correct, srcLabel){
   store.errors.push({
     id:'err'+Date.now()+'_'+Math.floor(Math.random()*1000),
     module: '题本',
+    bookId: b.id||'',
+    chapName: chapName||'',
     content: '《'+escapeHtml(b.name||'题本')+'》'+(chapName?(' · '+chapName):'')+' 本次错题 '+wrong+' 道（做对 '+Math.max(0,correct||0)+'）',
     explain: '',
     photos: [],
@@ -9897,12 +10129,30 @@ function renderCalendar(){
     const allowed = isCheckinAllowed(dateStr);
     const disabled = !allowed && !isChecked;   // 未来或两天前及更早且未打卡 → 不可点
     const ico = dayIconOf(d);
-    const cls = (isChecked?'checked ':'') + (isToday?'today ':'') + (disabled?'disabled ':'');
+    // 联动：当日题本/课程记录 → 叠加 📚/🎓 图标（来自 store.records kind 字段）
+    const dayRecs = (store.records && store.records[dateStr]) || [];
+    const qbDone = dayRecs.filter(function(r){ return r.kind==='qbook'; }).reduce(function(s,r){ return s+(r.done||0); }, 0);
+    const csDone = dayRecs.filter(function(r){ return r.kind==='course'; }).reduce(function(s,r){ return s+(r.done||0); }, 0);
+    const hasQb = qbDone>0, hasCs = csDone>0;
+    const studyTotal = qbDone + csDone;
+    let studyCls = '';
+    if(studyTotal>0 && !isChecked){
+      studyCls = studyTotal>=10 ? ' study-strong' : (studyTotal>=3 ? ' study-mid' : ' study-soft');
+    }
+    const cls = (isChecked?'checked ':'') + (isToday?'today ':'') + (disabled?'disabled ':'') + studyCls;
     const click = disabled ? '' : `onclick="selectDate('${dateStr}')"`;
+    let badges = '';
+    if(hasQb || hasCs){
+      badges = '<div class="cal-badges">'
+        + (hasQb ? '<span class="cal-badge qb" title="题本做了'+qbDone+'道">📚'+(qbDone>1?qbDone:'')+'</span>' : '')
+        + (hasCs ? '<span class="cal-badge cs" title="课程'+csDone+'节">🎓'+(csDone>1?csDone:'')+'</span>' : '')
+        + '</div>';
+    }
     html += `<div class="cal-day ${cls.trim()}" ${click}>
       ${isChecked?'<div class="day-ico">'+ico+'</div>':''}
       <div class="day-num">${d}</div>
       ${isChecked?'<div class="hours">'+(Math.round(hours*10)/10)+'h</div>':''}
+      ${badges}
     </div>`;
   }
   document.getElementById('checkinCalendar').innerHTML = html;
@@ -10831,13 +11081,22 @@ function renderErrors(){
   const filter = document.getElementById('errorFilter').value;
   let errors = [...store.errors].reverse();
   if(filter!=='all') errors = errors.filter(e=>e.module===filter);
+  // 联动：重做错题 — 按 bookId 过滤
+  let bookBanner = '';
+  if(_errorsBookFilter){
+    const bf = _errorsBookFilter;
+    errors = errors.filter(function(e){ return e.bookId===bf || (e.key && e.key.indexOf(bf+'|')===0); });
+    const b = (typeof qbookById==='function') ? qbookById(bf) : null;
+    const bName = b ? (b.name||'该题本') : '该题本';
+    bookBanner = '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:10px;background:var(--bg-soft);border-radius:8px;border:1px solid var(--border-soft);"><span style="font-size:13px;font-weight:700;color:var(--pink-deep)">🔁 重做错题：'+(bName||'该题本')+'</span><span style="font-size:11px;color:var(--text-sub)">'+errors.length+' 道</span><span style="margin-left:auto;font-size:11px;color:var(--pink-btn);cursor:pointer;text-decoration:underline" onclick="clearBookErrorsFilter()">显示全部错题</span></div>';
+  }
 
   const list = document.getElementById('errorAllList');
   if(errors.length===0){
-    list.innerHTML = '<div class="empty-state"><span class="emoji">❌</span>暂无错题记录</div>';
+    list.innerHTML = bookBanner + '<div class="empty-state"><span class="emoji">❌</span>暂无错题记录</div>';
     return;
   }
-  list.innerHTML = errors.map(e=>`
+  list.innerHTML = bookBanner + errors.map(e=>`
     <div class="error-item" style="flex-direction:column;align-items:stretch;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
         <span class="type-tag">${e.module}</span>
@@ -15923,6 +16182,24 @@ function completeUp(){
   }
   showTomatoCelebrate(wholeMin, drops);
 }
+// 联动：番茄完成 → 自动弹「记录本次」弹窗（用番茄分钟数预填用时）
+function autoOpenPostFocusPopup(src, ref, minutes){
+  try{
+    if(src==='qbook' && typeof recordQuestionBookProgress==='function'){
+      recordQuestionBookProgress(ref);
+      setTimeout(function(){
+        const el = document.getElementById('qbAddTime');
+        if(el){ el.value = String(Math.max(1, Math.round(minutes||0))); }
+      }, 80);
+    } else if(src==='course' && ref && typeof recordCourseLesson==='function'){
+      recordCourseLesson(ref.msId, ref.cId);
+      setTimeout(function(){
+        const el = document.getElementById('crMin');
+        if(el){ el.value = String(Math.max(1, Math.round(minutes||0))); }
+      }, 80);
+    }
+  }catch(e){ if(window.console) console.warn('autoOpenPostFocusPopup', e); }
+}
 // 正计时达标庆祝弹窗（像开花那样明显）
 const TOMATO_CHEERS = [
   '坚持本身就是一种了不起的能力，今天的你又比昨天稳了一点 💪',
@@ -16073,6 +16350,8 @@ function addFocus(minutes, modOverride, opts){
           b.updatedAt = Date.now();
           if(b.todayPlan) b._todayDone = true;
           setTimeout(function(){ if(typeof toast==='function') toast('📚 题本进度 +1'); }, 320);
+          // 联动：番茄完成 → 自动弹「记录本次」并预填番茄分钟数
+          setTimeout(function(){ try{ autoOpenPostFocusPopup('qbook', td.qbookId, minutes); }catch(e){} }, 900);
         }
       }
       if(td && td.src==='course' && td.courseId && store.goals && store.goals.milestones){
@@ -16082,6 +16361,8 @@ function addFocus(minutes, modOverride, opts){
             if(!((c.done||0) >= (c.total||0)) || !(c.total>0)) c.done = (c.done||0)+1;
             c._todayDone = !!c.todayPlan;
             setTimeout(function(){ if(typeof toast==='function') toast('🎓 课程进度 +1'); }, 320);
+            // 联动：番茄完成 → 自动弹「做1节」并预填番茄分钟数
+            setTimeout(function(){ try{ autoOpenPostFocusPopup('course', {msId:m.id, cId:c.id}, minutes); }catch(e){} }, 900);
             break;
           }
         }
