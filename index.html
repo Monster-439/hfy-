@@ -6376,56 +6376,55 @@ function redoQbookErrors(bookId){
     return;
   }
   _errorsBookFilter = bookId;
-  if(typeof showPage==='function') showPage('errors');
+  if(typeof showPage==='function') showPage('error');
   if(typeof renderErrors==='function') renderErrors();
   if(typeof toast==='function') toast('🔁 找到 '+matched.length+' 道《'+(b.name||'题本')+'》错题，开始重做');
 }
-// 联动：🔗 关联错题 — 弹窗输入几道，直接入错题本并跳转错题记录
+// 联动：🔗 关联错题 — 跳转到「错题记录」添加错题表单，并把题本信息预填
 function markQbookUnmastered(bookId){
   const b = qbookById(bookId); if(!b) return;
   const chs = Array.isArray(b.chapters) ? b.chapters : [];
-  // 找第一个未达 100% 的章节
   const cur = chs.find(function(c){ return Math.min(c.done||0, c.total||0) < (c.total||0); }) || chs[0];
   const chapName = cur ? (cur.name||'') : '';
-  const html = '<div style="padding:4px 0 8px"><div style="font-size:13px;color:var(--text-sub);margin-bottom:10px">将立刻入「错题本」，方便日后复习重做。</div>'
-    + '<div style="margin-bottom:8px"><label style="font-size:12px;color:var(--text-sub)">章节</label><div style="font-weight:700;color:var(--text-main);margin-top:2px">'+(chapName||'（整本）')+'</div></div>'
-    + '<div style="margin-bottom:8px"><label style="font-size:12px;color:var(--text-sub)">不会几道</label><input id="markUnmasteredN" type="number" min="1" max="50" value="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:14px;margin-top:2px"></div>'
+  const html = '<div style="padding:4px 0 8px">'
+    + '<div style="font-size:13px;color:var(--text-sub);margin-bottom:12px;line-height:1.6">将打开「错题记录」添加错题表单，<b>题本与章节</b>会自动预填到内容区，方便你继续填写题目/解析/拍照。</div>'
+    + '<div style="display:flex;gap:8px"><div style="flex:1;background:var(--bg-soft);border-radius:8px;padding:8px 10px"><div style="font-size:11px;color:var(--text-sub)">题本</div><div style="font-weight:700;color:var(--text-main);font-size:13px">'+(b.name||'题本')+'</div></div>'
+    + '<div style="flex:1;background:var(--bg-soft);border-radius:8px;padding:8px 10px"><div style="font-size:11px;color:var(--text-sub)">章节</div><div style="font-weight:700;color:var(--text-main);font-size:13px">'+(chapName||'（整本）')+'</div></div></div>'
     + '<div style="display:flex;gap:8px;margin-top:14px"><button onclick="closePopup()" style="flex:1;padding:8px;background:#fff;border:1px solid var(--border);border-radius:8px;cursor:pointer">取消</button>'
-    + '<button onclick="commitMarkUnmastered(\''+bookId+'\', \''+escapeHtml(chapName)+'\')" style="flex:1;padding:8px;background:var(--pink-btn);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">🔗 关联错题</button></div></div>';
+    + '<button onclick="commitMarkUnmastered(\''+bookId+'\', \''+escapeHtml(chapName)+'\')" style="flex:1.4;padding:8px;background:var(--pink-btn);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">📝 去添加错题</button></div></div>';
   openPopup('🔗 关联错题', html);
 }
 function commitMarkUnmastered(bookId, chapName){
   const b = qbookById(bookId); if(!b) return;
-  const n = Math.max(1, parseInt((document.getElementById('markUnmasteredN')||{}).value)||0);
-  if(!n){ if(typeof toast==='function') toast('请输入不会几道'); return; }
-  if(!store.errors) store.errors = [];
-  const tk = (typeof todayKey==='function') ? todayKey() : (new Date()).toISOString().slice(0,10);
-  const key = (b.id||'b') + '|' + (chapName||'') + '|' + tk + '|mark';
-  if(store.errors.some(function(e){ return e.src==='qbook' && e.key===key; })){
-    if(typeof toast==='function') toast('今天已标记过啦');
-    return;
-  }
-  store.errors.push({
-    id:'err'+Date.now()+'_'+Math.floor(Math.random()*1000),
-    module: '题本',
-    bookId: b.id||'',
-    chapName: chapName||'',
-    content: '《'+escapeHtml(b.name||'题本')+'》'+(chapName?(' · '+chapName):'')+' 关联错题 '+n+' 道',
-    explain: '手动关联到错题本',
-    photos: [],
-    date: tk,
-    src: 'qbook',
-    key: key,
-    srcLabel: '关联错题'
-  });
-  saveStore();
-  if(typeof renderQuestionBooks==='function') renderQuestionBooks();
-  // 联动：标记后直接弹出/跳到「错题记录」页，并过滤到本题本，方便立刻看到刚记的错题
-  _errorsBookFilter = b.id || '';
   if(typeof closePopup==='function') closePopup();
-  if(typeof showPage==='function') showPage('errors');
+
+  // 1) 暂存元数据，让 addError 保存时自动挂上 bookId/chapName/src
+  store._pendingQbookErr = {
+    bookId: bookId || '',
+    chapName: chapName || '',
+    bName: b.name || '题本',
+    ts: Date.now()
+  };
+
+  // 2) 跳到错题记录页（注意 nav-item/页面 ID 是 'error'，不是 'errors'）
+  if(typeof showPage==='function') showPage('error');
+
+  // 3) 清除题本过滤（如果有），并 prefill textarea
+  if(typeof _errorsBookFilter!=='undefined' && _errorsBookFilter){ _errorsBookFilter = null; }
+  const ta = document.getElementById('errorInput');
+  if(ta){
+    const pre = '【来自《'+(b.name||'题本')+'》'+(chapName?' · '+chapName:'')+'】\n';
+    ta.value = pre + '请填或粘贴错题内容、解析…';
+    ta.focus();
+    setTimeout(function(){
+      const end = pre.length;
+      try{ ta.setSelectionRange(end, ta.value.length); }catch(e){}
+    }, 80);
+  }
+
+  if(typeof renderQuestionBooks==='function') renderQuestionBooks();
   if(typeof renderErrors==='function') renderErrors();
-  if(typeof toast==='function') toast('🔗 已关联 '+n+' 道入错题本，已打开错题记录');
+  if(typeof toast==='function') toast('📝 已打开「错题记录」· 顶部已预填题本信息');
 }
 function clearBookErrorsFilter(){
   _errorsBookFilter = null;
@@ -11082,19 +11081,53 @@ function addError(){
   const content = document.getElementById('errorInput').value.trim();
   const module = document.getElementById('errorModule').value;
   if(!content && currentPhotos.length===0){ toast('请输入错题内容或拍照'); return; }
+
+  // 联动：从题本卡片「关联错题」进来的话，会暂存 _pendingQbookErr
+  const pending = store._pendingQbookErr || null;
+  let realContent = content || '(图片错题)';
+  // 洗掉模板前缀（如果还在）
+  if(pending && realContent.indexOf('【来自《')===0){
+    const nl = realContent.indexOf('\n');
+    if(nl>0){
+      const rest = realContent.slice(nl+1).trim();
+      if(rest) realContent = rest; else realContent = realContent.slice(0, nl).trim() + '（待补内容）';
+    }
+  }
+
   store.errors.push({
-    id:'err'+Date.now(),
+    id:'err'+Date.now()+'_'+Math.floor(Math.random()*1000),
     module,
-    content: content || '(图片错题)',
+    content: realContent,
     photos: [...currentPhotos],
-    date: todayKey()
+    date: todayKey(),
+    // 关联题本时附上元数据
+    src: pending ? 'qbook' : undefined,
+    bookId: pending ? pending.bookId : undefined,
+    chapName: pending ? pending.chapName : undefined,
+    key: pending ? (pending.bookId+'|'+pending.chapName+'|'+todayKey()+'|'+Date.now()) : undefined,
+    srcLabel: pending ? '关联题本' : undefined,
+    explain: pending ? '来自《'+(pending.bName||'题本')+'》'+(pending.chapName?' · '+pending.chapName:'') : ''
   });
   saveStore();
   document.getElementById('errorInput').value = '';
   currentPhotos = [];
   renderErrorPhotos();
-  renderErrors();
-  toast('错题已保存');
+
+  // 连续添加：不清 _pendingQbookErr，让用户能在同一题本下连续录入多道错题
+  if(typeof renderErrors==='function') renderErrors();
+  toast('错题已保存'+(pending?' · 已关联《'+(pending.bName||'题本')+'》':''));
+}
+
+// 离开错题记录页（跳到其他页）时清掉暂存，避免被错误继承到无关错题
+if(typeof _origAddErrorFinish==='undefined'){
+  // 用导航点击钩子统一清理
+  document.addEventListener('click', function(e){
+    const nav = e.target.closest && e.target.closest('.nav-item');
+    if(nav && nav.dataset && nav.dataset.page && nav.dataset.page!=='error' && store._pendingQbookErr){
+      delete store._pendingQbookErr;
+      saveStore();
+    }
+  }, true);
 }
 
 function deleteError(id){
