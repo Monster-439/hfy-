@@ -1109,6 +1109,13 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .set-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:14px;}
 .set-row span{flex-shrink:0;width:72px;color:var(--text);font-weight:600;}
 .set-row input{flex:1;min-width:0;}
+/* 自定义鸡汤库 */
+.custom-quote-list{display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;padding:4px 2px;background:rgba(255,255,255,.5);border-radius:10px;}
+.custom-quote-item{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#fff;border-radius:8px;font-size:13px;line-height:1.5;border:1px solid var(--border);}
+.custom-quote-item .cq-text{flex:1;min-width:0;word-break:break-all;color:var(--text);}
+.custom-quote-item .cq-del{background:transparent;border:none;color:var(--text-sub);font-size:16px;cursor:pointer;padding:2px 6px;border-radius:6px;}
+.custom-quote-item .cq-del:hover{background:#fde0e3;color:#E05A5A;}
+.custom-quote-empty{text-align:center;color:var(--text-sub);font-size:13px;padding:14px 8px;}
 /* 备份与同步 */
 .backup-acts{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
 .backup-acts .btn{flex:1;min-width:130px;}
@@ -3250,6 +3257,20 @@ body.drawer-open .nav-cloud{display:none;}
   </div>
 
   <div class="card">
+    <div class="card-title"><span class="dot"></span>💬 我的鸡汤库</div>
+    <p class="import-empty" style="text-align:left;margin-bottom:12px;">抽屉底部的「每日鸡汤」本来会从 65+ 句里按天轮换抽一句。你可以在这里<b>添加专属鸡汤</b>（例如你喜欢的座右铭、为自己打气的话），添加后会从你的鸡汤里优先抽取。再多都不怕，一年轮不完～也支持删 / 改。</p>
+    <div class="custom-quote-list" id="customQuoteList"></div>
+    <div class="custom-quote-add" style="display:flex;gap:6px;margin-top:10px;">
+      <input id="customQuoteInput" maxlength="80" placeholder="例如：今天也要元气满满鸭🦆" style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;">
+      <button class="btn btn-sm" onclick="addCustomQuote()">➕ 添加</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="btn btn-outline btn-sm" onclick="shuffleNextQuote()">🎲 下一句换一批</button>
+      <span style="flex:1;font-size:12px;color:var(--text-sub);align-self:center;">小提示：占位符 {DAYS} = 距离考试天数 / {STREAK} = 连续打卡 / {TOMATOS} = 今日番茄</span>
+    </div>
+  </div>
+
+  <div class="card">
     <div class="card-title"><span class="dot"></span>🌗 外观模式</div>
     <p class="import-empty" style="text-align:left;margin-bottom:12px;">备考到深夜，眼睛也要被温柔对待～一键切换深色 / 浅色模式，你的选择会被记住，下次打开还是喜欢的样子。</p>
     <div class="set-row" style="align-items:center;">
@@ -4232,23 +4253,189 @@ function setColorTheme(id){
 // 切回宽屏时自动收起抽屉，避免残留
 window.addEventListener('resize',()=>{ if(window.innerWidth>767) closeDrawer(); });
 
-// 导航栏底部的每日鸡汤（按日期轮换，每天一句）
+// 导航栏底部的每日鸡汤（按日期轮换，每天一句）— 65+ 句，覆盖早/午/晚、专属/方法/复盘、距离考试/打卡番茄/小瑜个人
+// 取鸡汤当日可用占位变量，供 NAV_QUOTES 文本内 {DAYS}/{STREAK}/{TOMATOS}/{TODAYQ}/{TODAYC}/{ERRCOUNT} 替换
+function _quotePlaceholders(){
+  const out = {};
+  try{
+    const today = (typeof todayKey==='function') ? todayKey() : (new Date()).toISOString().slice(0,10);
+    // {DAYS}：最近一场未过期考试的剩余天数（小到大排序后取最小）
+    const list = (store && Array.isArray(store.examList)) ? store.examList.slice() : [];
+    const nowMid = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime();
+    const cand = list.map(function(ex){
+      const p = (ex.date||'').split('-');
+      if(p.length!==3) return null;
+      const t = new Date(+p[0], +p[1]-1, +p[2]).getTime();
+      const d = Math.round((t - nowMid)/86400000);
+      return { d: d, n: ex.name || ex.title || '考试' };
+    }).filter(function(x){ return x && x.d >= 0; }).sort(function(a,b){ return a.d-b.d; });
+    if(cand.length) out.DAYS = cand[0].d;
+    // {STREAK}：连续打卡天数
+    out.STREAK = (typeof calcCheckinStreak==='function') ? (calcCheckinStreak()||0) : 0;
+    // {TOMATOS}：今日番茄完成数（倒计时+正计时）
+    out.TOMATOS = (store && Array.isArray(store.focusLog)) ? store.focusLog.filter(function(x){ return x.date===today && (x.mode==='down'||x.mode==='up'); }).length : 0;
+    // {TODAYQ}：今日题本做题数（来自 records）
+    const recs = (store && store.records && store.records[today]) || [];
+    out.TODAYQ = recs.filter(function(r){ return r.kind==='qbook'; }).reduce(function(s,r){ return s + (r.done||0); }, 0);
+    // {TODAYC}：今日课程节数
+    out.TODAYC = recs.filter(function(r){ return r.kind==='course'; }).reduce(function(s,r){ return s + (r.done||0); }, 0);
+    // {ERRCOUNT}：累计错题数（store.errors）
+    out.ERRCOUNT = (store && Array.isArray(store.errors)) ? store.errors.length : 0;
+  }catch(e){}
+  return out;
+}
+
+// 根据当日数据动态生成鸡汤候选（仅当 NAV_QUOTES 之外用）
+function pickDynamicQuote(){
+  const P = _quotePlaceholders();
+  const pool = [];
+  // 1. 距离考试
+  if(typeof P.DAYS === 'number'){
+    pool.push('🎯 还有 ' + P.DAYS + ' 天到「' + ((store.examList[0] && (store.examList[0].name||store.examList[0].title)) || '考试') + '」，每一道题都在缩短它。');
+    pool.push('⏳ 还剩 ' + P.DAYS + ' 天，今天刷一道少一道的距离。');
+    if(P.DAYS <= 30) pool.push('🔥 还有 ' + P.DAYS + ' 天，把每周模考排在日历上，干就完了。');
+    if(P.DAYS <= 7)  pool.push('⚡ 最后 ' + P.DAYS + ' 天，节奏放稳，押题不押运。');
+  }
+  // 2. 今日题本做题数
+  if(P.TODAYQ === 0 && new Date().getHours() >= 10){
+    pool.push('📒 今日第一题还没开始，告诉小花你要做什么～');
+  } else if(P.TODAYQ < 10){
+    pool.push('✏️ 今日已做 ' + P.TODAYQ + ' 题，离"日刷 30"差 ' + Math.max(0, 30-P.TODAYQ) + ' 道。');
+  } else if(P.TODAYQ >= 30){
+    pool.push('🏆 今日 ' + P.TODAYQ + ' 题，小瑜是真正的卷王！');
+  }
+  // 3. 今日课程
+  if(P.TODAYC >= 1) pool.push('🎓 今日 ' + P.TODAYC + ' 节课程已学完，稳稳的。');
+  // 4. 连续打卡
+  if(P.STREAK >= 3) pool.push('🔥 连续打卡 ' + P.STREAK + ' 天，小花已经开始为你骄傲了。');
+  else if(P.STREAK >= 1) pool.push('🌱 今日打卡已记，今天又是崭新的 1。');
+  // 5. 番茄钟
+  if(P.TOMATOS >= 4) pool.push('🍅 今日 ' + P.TOMATOS + ' 个番茄，看一眼日历都发光。');
+  else if(P.TOMATOS >= 1) pool.push('🍅 今日已完成 ' + P.TOMATOS + ' 个番茄，再加一个？');
+  // 6. 错题
+  if(P.ERRCOUNT >= 30) pool.push('📚 错题本收了 ' + P.ERRCOUNT + ' 道，搞懂一道少踩一个坑。');
+  // 7. 今日计划完成度
+  try{
+    const today = todayKey();
+    const plans = (store.plans && store.plans[today]) || [];
+    if(plans.length){
+      const done = plans.filter(function(p){ return p.done; }).length;
+      if(done === plans.length) pool.push('🎉 今日计划全部完成，今晚可以早睡 30 分钟。');
+      else if(done >= plans.length/2 && done < plans.length) pool.push('📈 今日计划过半，再咬咬牙就能收工啦。');
+    }
+  }catch(e){}
+  return pool;
+}
 const NAV_QUOTES = [
-  '🌱 今天的每一分钟，都是未来上岸的底气。',
+  // —— 早安/起锚 ——
+  '🌅 起床的小瑜，已经赢过 80% 的对手啦～',
+  '☀️ 早安小瑜！今天的你，是昨天的续集，但比昨天更亮一点。',
+  '🌱 新的一天，又多一份上岸的可能。',
+  '☕ 喝一杯热的学习，再苦也甜。',
+  '🌞 早起的人，比星光更靠近梦想。',
+  '🪞 起床第一件事：抱抱镜子里的自己，今天也很棒。',
+  '🌼 一日之计在于晨，小瑜你已经在路上。',
+
+  // —— 学习过程 ——
   '📚 不怕慢，就怕站；每天进步一点点。',
-  '⏰ 时间不会辜负认真的人，加油小瑜！',
-  '💪 行测刷题千遍，其义自见；坚持就有光。',
-  '🌸 情绪低落时，也请记得你为什么出发。',
-  '🍀 把大目标拆成小任务，今天也能搞定。',
-  '✨ 你读过的书，都会变成考场上的底气。',
-  '🚀 上岸不是终点，是更好自己的起点。',
+  '📝 每一道错题，都是上岸路上的一级台阶。',
+  '🍅 一个番茄钟，一段不被打扰的修行。',
   '🧘 专注当下这一刻，焦虑自然会退场。',
-  '🌟 别人在刷手机，你在刷题，差距就这样拉开。',
-  '📝 错题是礼物，搞懂一道就少踩一个坑。',
   '💡 备考很苦，但梦想很甜，撑住！',
+  '📖 错题是礼物，搞懂一道就少踩一个坑。',
+  '🪴 慢慢来，比较快——小瑜，行测申论都是长跑。',
+  '⏰ 时间不会辜负认真的人，加油小瑜！',
+  '✏️ 写得下来，才算真的懂。',
+  '🧩 把大题拆小题，再把小题做对，稳稳的。',
+  '🛤 考公这条路，你不是一个人，有小花陪你。',
+  '⛏ 慢一点挖，比挖一大片烂坑更出活。',
+  '🪜 登山的意义，是每一步都踩得稳。',
+
+  // —— 经典原句 ——
+  '✨ 你读过的书，都会变成考场上的底气。',
+  '💪 行测刷题千遍，其义自见；坚持就有光。',
+  '🌟 别人在刷手机，你在刷题，差距就这样拉开。',
   '🌷 每天浇灌小花，也浇灌更好的自己。',
   '🏔️ 山高路远，行则将至；事虽难，做则必成。',
-  '🍅 一个番茄钟，一段不被打扰的修行。'
+  '🌱 今天的每一分钟，都是未来上岸的底气。',
+  '🌸 情绪低落时，也请记得你为什么出发。',
+  '🍀 把大目标拆成小任务，今天也能搞定。',
+  '🚀 上岸不是终点，是更好自己的起点。',
+
+  // —— 江西 · 国考 ——
+  '🎯 还有 {DAYS} 天到国考，每一道题都在缩短它。',
+  '🇨🇳 还有 {DAYS} 天到江西联考，赣鄱的岗位在等你。',
+  '🌶 赣鄱大地的岗位，向努力过的人敞开。',
+  '🍥 把「我想上岸」变成「我能上岸」，每天都是证据。',
+  '🪧 心里装着考场，脚下踩稳今天。',
+  '🏮 国考与省考，双线作战，你也可以都很稳。',
+  '🎓 上岸那天，回头看看今天做题的自己。',
+
+  // —— 午间 ——
+  '🍚 吃饱了再做题，脑子也是要吃饭的呀。',
+  '🍵 睡前来一眼错题，比刷剧更解渴。',
+  '🛏 午休 20 分钟，比灌两杯咖啡更提神。',
+  '🍱 中午晒晒太阳，下午再做难题也更灵。',
+
+  // —— 晚间/收尾 ——
+  '🌙 晚上的小瑜，记得给今天的自己发一朵小红花。',
+  '🌚 熬夜是专注最大的杀手——23:30 前睡。',
+  '🪟 关掉手机，告诉自己"明天的我会更稳"。',
+  '🛁 累了一天，先去洗个澡再回来看错题。',
+  '🌜 睡前给自己一个微笑，明早有的是力气。',
+  '🪴 一夜好眠，明日复盘，稳稳上岸。',
+  '🪴 23:00 后所有备考群静默，把最安静的时间留给自己。',
+
+  // —— 连续坚持 ——
+  '🔥 连续打卡 {STREAK} 天，小花已经开始为你骄傲。',
+  '📈 复盘第 {COUNT} 次了，每一次都比上一次更明白。',
+  '🥇 番茄钟累计 {TOMATOS} 个，离上岸又近了一点。',
+  '📅 今日题本 {TODAYQ} 题，小瑜正在刷出好手感。',
+  '📒 今日课程 {TODAYC} 节，稳稳在学。',
+  '🏆 错题本收 {ERRCOUNT} 道，搞懂一道少踩一个坑。',
+
+  // —— 个人/小瑜 ——
+  '🌼 小瑜说："我走得慢，但绝不后退。"',
+  '🦋 别人看到的是结果，你经历的是过程。',
+  '🌿 一千个坚持的夜晚，换一个上岸的清晨。',
+  '🪐 慢一点没关系，方向对了就不晚。',
+  '🪞 多年后回头看，今天的你会谢现在。',
+  '🌻 小瑜你呀，从来不是一个人在战斗。',
+  '🧚 你的努力，小花都记着账呢。',
+  '🌳 你的坚持，是这花园里最贵的那棵树。',
+
+  // —— 心情/状态 ——
+  '☔ 焦虑是因为在乎，慢一点也是前进。',
+  '🌬 深吸一口气，吐掉昨天的疲惫。',
+  '🫶 抱抱今天的小瑜，你已经尽力了。',
+  '🌈 风雨也是风景，哭完照样做题。',
+  '🪞 今天可以累，可以哭，但不可以放弃。',
+  '☁ 心情低气压？接一杯热水，再看看错题本。',
+  '🥛 一杯温牛奶，把今晚的焦虑化掉。',
+
+  // —— 明日 ——
+  '🛎 明天的你，会感谢今晚的多刷 5 题。',
+  '🌜 睡前把最难的一题放进梦里，醒来再战。',
+  '🌝 今晚早睡的小瑜，明天会跑得更快。',
+
+  // —— 上岸宣言 ——
+  '🎓 上岸那天，回头看看今天做题的自己。',
+  '🎉 「上岸」两个字，是最好的奖状。',
+  '🏆 这 100 天，都是为了一个字——值。',
+  '🛬 考场上你会平静下来，因为这些题你都见过。',
+
+  // —— 学习方法 ——
+  '📊 错题本比新题更重要，要时常翻。',
+  '🧪 模考两天复盘一次，比天天做新题更出分。',
+  '📋 每天的 3 件事比 30 件事更重要。',
+  '🔁 复习比刷新题性价比高 3 倍。',
+  '🎯 薄弱项不逃避，敢碰才能拿分。',
+  '🧠 申论不背范文，背 5 个开头 5 个结尾，组合无敌。',
+  '📐 行测数资把公式默写一遍，比刷 100 题更稳。',
+  '📝 言语靠积累，每天读 1 篇时评，比刷题更见效。',
+  '⏱ 资料分析 30 秒没思路，先跳过去，回头再战。',
+  '🎨 判断推理先做图形和类比，再做定义和逻辑。',
+  '🔖 常识靠时政，每天 15 分钟，胜过考前突击。'
 ];
 function renderNavQuote(){
   const el = document.getElementById('navQuote');
@@ -4256,8 +4443,87 @@ function renderNavQuote(){
   const now = new Date();
   const start = new Date(now.getFullYear(),0,0);
   const dayOfYear = Math.floor((now - start)/86400000);
-  const q = NAV_QUOTES[dayOfYear % NAV_QUOTES.length];
+  // 抽取：自定义 > 动态 > 静态。动态约 1/3 概率命中；命中后从动态池取；未命中或池空则在 (自定义+静态) 取
+  let q = '';
+  const dyn = (typeof pickDynamicQuote==='function') ? pickDynamicQuote() : [];
+  const custom = (store && Array.isArray(store.customQuotes)) ? store.customQuotes : [];
+  if(dyn.length && (dayOfYear % 3 === 0)){
+    q = dyn[dayOfYear % dyn.length];
+  } else {
+    const pool = custom.concat(NAV_QUOTES);
+    q = pool.length ? pool[dayOfYear % pool.length] : NAV_QUOTES[0];
+  }
+  // 替换占位符 {DAYS}/{STREAK}/{TOMATOS}/{TODAYQ}/{TODAYC}/{ERRCOUNT}/{COUNT}
+  q = String(q).replace(/\{(\w+)\}/g, function(_, k){
+    if(k==='COUNT') return String(parseInt((localStorage.getItem('quoteCount')||'0'),10)+1);
+    const v = (typeof _quotePlaceholders==='function') ? _quotePlaceholders()[k] : null;
+    return (v==null || v===undefined) ? '' : String(v);
+  });
+  // 占位调用计数（仅记录「COUNT」型自增）
+  try { if(q.indexOf('{COUNT}')!==-1) localStorage.setItem('quoteCount', String(parseInt((localStorage.getItem('quoteCount')||'0'),10)+1)); }catch(e){}
   el.innerHTML = '<span class="nq-emoji">💬</span>'+q+'<span class="nq-date">'+now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0')+' 每日鸡汤</span>';
+}
+
+// 自定义鸡汤 CRUD —— 用户在设置页加/删，drawer 每日鸡汤抽取时优先抽这里的
+function _ensureCustomQuotes(){
+  if(!store) return [];
+  if(!Array.isArray(store.customQuotes)) store.customQuotes = [];
+  return store.customQuotes;
+}
+function renderCustomQuoteList(){
+  const el = document.getElementById('customQuoteList');
+  if(!el) return;
+  const list = _ensureCustomQuotes();
+  if(list.length === 0){
+    el.innerHTML = '<div class="custom-quote-empty">还没有添加专属鸡汤～在下方输入框写一句吧 ✍️</div>';
+    return;
+  }
+  el.innerHTML = list.map(function(q, idx){
+    const safe = String(q).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return '<div class="custom-quote-item">'
+      + '<span class="cq-text">'+safe+'</span>'
+      + '<button class="cq-del" title="删除这条" onclick="delCustomQuote('+idx+')">✕</button>'
+      + '</div>';
+  }).join('');
+}
+function addCustomQuote(){
+  const inp = document.getElementById('customQuoteInput');
+  if(!inp) return;
+  const v = inp.value.trim();
+  if(!v){ if(typeof toast==='function') toast('请先输入一句鸡汤'); return; }
+  if(v.length > 80){ if(typeof toast==='function') toast('一句控制在 80 字以内吧'); return; }
+  const list = _ensureCustomQuotes();
+  if(list.indexOf(v) !== -1){ if(typeof toast==='function') toast('这条已经有了～'); return; }
+  list.push(v);
+  if(typeof saveStore==='function') saveStore();
+  inp.value = '';
+  renderCustomQuoteList();
+  if(typeof renderNavQuote==='function') renderNavQuote();
+  if(typeof toast==='function') toast('✨ 已添加，轮到它的那天会更亮');
+}
+function delCustomQuote(idx){
+  const list = _ensureCustomQuotes();
+  if(idx < 0 || idx >= list.length) return;
+  list.splice(idx, 1);
+  if(typeof saveStore==='function') saveStore();
+  renderCustomQuoteList();
+  if(typeof renderNavQuote==='function') renderNavQuote();
+  if(typeof toast==='function') toast('已删除');
+}
+// 手动把当天 next 偏移到下一句（避免跨日才能换一批）
+function shuffleNextQuote(){
+  if(typeof renderNavQuote!=='function') return;
+  try{
+    // 让 renderNavQuote 当天抽不同的：把今天的 dayOfYear 加 1 后再 mod
+    const oldFn = renderNavQuote;
+    let stepped = 0;
+    renderNavQuote = function(){ stepped++; if(stepped > 8) { renderNavQuote = oldFn; oldFn(); return; } const el = document.getElementById('navQuote'); if(!el) return; const P = (typeof _quotePlaceholders==='function') ? _quotePlaceholders() : {}; const dyn = (typeof pickDynamicQuote==='function') ? pickDynamicQuote() : []; const custom = _ensureCustomQuotes(); const pool = custom.concat(NAV_QUOTES); const useDyn = dyn.length && (Math.random() < 0.5); const list = useDyn ? dyn : pool; const r = list[(Math.floor(Math.random()*list.length))]; const q = String(r).replace(/\{(\w+)\}/g, function(_, k){ if(k==='COUNT') return ''; const v = P[k]; return (v==null||v===undefined)?'':String(v); }); el.innerHTML = '<span class="nq-emoji">💬</span>'+q+'<span class="nq-date">✨ 手动换的一句</span>'; };
+    renderNavQuote();
+    renderNavQuote = oldFn;
+  }catch(e){
+    if(typeof toast==='function') toast('换一句失败：'+(e.message||e));
+  }
+  if(typeof toast==='function') toast('🎲 已换一批');
 }
 
 // ====================================================
@@ -6767,7 +7033,7 @@ function onPageShow(page){
   if(page==='shenlun') renderShenlun();
   if(page==='verbal'||page==='idiom') renderIdiomDeck();
   if(page==='quiz') renderQuiz();
-  if(page==='setting') renderSetting();
+  if(page==='setting'){ renderSetting(); renderCustomQuoteList(); }
   if(page==='review') renderReview();
   if(page==='ebbinghaus') renderEbbinghaus();
   if(page==='flashcard') renderFlashcards();
