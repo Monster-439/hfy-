@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -6310,10 +6310,10 @@ function renderQuestionBooks(){
     if(overdue) card += '<span style="font-size:10px;color:#E5484D;background:#fde8e8;padding:1px 6px;border-radius:8px">⚠️ 逾期</span>';
     else if(b.deadline && bPct<100){ const dl=goalDaysLeft(b.deadline); if(dl>=0 && dl<=7) card += '<span style="font-size:10px;color:#e8a13a;background:#fdf3e6;padding:1px 6px;border-radius:8px">⏰ 剩'+dl+'天</span>'; }
     card += '</div>';
-    // 按钮行：重做错题 / 标记不会 / 记录本次 / 今日（联动上轮 collectQbookErrors 错题归集）
+    // 按钮行：重做错题 / 关联错题 / 记录本次 / 今日（联动上轮 collectQbookErrors 错题归集）
     card += '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:2px">';
     card += '<button onclick="event.stopPropagation();redoQbookErrors(\''+b.id+'\')" style="flex:1;background:#FCEFF2;color:var(--pink-deep);border:none;border-radius:8px;font-size:12px;padding:6px;cursor:pointer;font-weight:700" title="跳到错题本重做本题本的错题">🔁 重做错题</button>';
-    card += '<button onclick="event.stopPropagation();markQbookUnmastered(\''+b.id+'\')" style="flex:1;background:#fff;border:1.5px solid #C9A9E0;color:#A86BC4;border-radius:8px;font-size:12px;padding:6px;cursor:pointer" title="把不会的题直接入错题本">🎯 标记不会</button>';
+    card += '<button onclick="event.stopPropagation();markQbookUnmastered(\''+b.id+'\')" style="flex:1;background:#fff;border:1.5px solid #C9A9E0;color:#A86BC4;border-radius:8px;font-size:12px;padding:6px;cursor:pointer" title="把不会的题直接入错题本">🔗 关联错题</button>';
     card += '<button onclick="event.stopPropagation();recordQuestionBookProgress(\''+b.id+'\')" style="flex:1.4;background:#fff;border:1.5px solid #C9A9E0;color:#A86BC4;border-radius:8px;font-size:12px;padding:6px;cursor:pointer">📝 记录本次</button>';
     card += '<button onclick="event.stopPropagation();toggleQuestionBookToday(\''+b.id+'\')" style="background:'+(isToday?'#E5484D':'#fff')+';color:'+(isToday?'#fff':'#E5484D')+';border:1.5px solid #E5484D;border-radius:8px;font-size:12px;padding:6px;cursor:pointer">'+(isToday?'✓ 今日':'📅')+'</button>';
     card += '</div>';
@@ -6341,6 +6341,28 @@ function qbookPlusOne(id){
   saveStore(); renderQuestionBooks();
   if(typeof toast==='function') toast('已 +1 题，进度 '+Math.round((b.done/(b.total||1))*100)+'%');
 }
+// 通用弹窗：传入 title + 任意 html 片段
+function openPopup(title, html){
+  const o = document.getElementById('genericPopup');
+  if(!o){
+    if(typeof console!=='undefined') console.warn('genericPopup overlay 未找到');
+    return;
+  }
+  const card = document.getElementById('genericPopupCard');
+  if(!card) return;
+  card.innerHTML =
+    '<div class="popup-sparkles"><span>✨</span><span>💜</span><span>🌸</span><span>💜</span><span>✨</span></div>'
+    + '<div class="popup-title">'+ (title||'') +'</div>'
+    + '<div style="text-align:left">'+ (html||'') +'</div>';
+  o.classList.add('show');
+  // 强制触发回流使 sparkles 动画从头播放
+  o.offsetHeight;
+}
+function closePopup(){
+  const o = document.getElementById('genericPopup');
+  if(o) o.classList.remove('show');
+}
+
 // 联动：🔁 重做错题 — 跳到错题本页 + 按本题本过滤
 let _errorsBookFilter = null;
 function redoQbookErrors(bookId){
@@ -6358,7 +6380,7 @@ function redoQbookErrors(bookId){
   if(typeof renderErrors==='function') renderErrors();
   if(typeof toast==='function') toast('🔁 找到 '+matched.length+' 道《'+(b.name||'题本')+'》错题，开始重做');
 }
-// 联动：🎯 标记不会 — 弹窗输入不会几道，直接入错题本
+// 联动：🔗 关联错题 — 弹窗输入几道，直接入错题本并跳转错题记录
 function markQbookUnmastered(bookId){
   const b = qbookById(bookId); if(!b) return;
   const chs = Array.isArray(b.chapters) ? b.chapters : [];
@@ -6369,8 +6391,8 @@ function markQbookUnmastered(bookId){
     + '<div style="margin-bottom:8px"><label style="font-size:12px;color:var(--text-sub)">章节</label><div style="font-weight:700;color:var(--text-main);margin-top:2px">'+(chapName||'（整本）')+'</div></div>'
     + '<div style="margin-bottom:8px"><label style="font-size:12px;color:var(--text-sub)">不会几道</label><input id="markUnmasteredN" type="number" min="1" max="50" value="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:14px;margin-top:2px"></div>'
     + '<div style="display:flex;gap:8px;margin-top:14px"><button onclick="closePopup()" style="flex:1;padding:8px;background:#fff;border:1px solid var(--border);border-radius:8px;cursor:pointer">取消</button>'
-    + '<button onclick="commitMarkUnmastered(\''+bookId+'\', \''+escapeHtml(chapName)+'\')" style="flex:1;padding:8px;background:var(--pink-btn);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">🎯 标记不会</button></div></div>';
-  openPopup('🎯 标记不会', html);
+    + '<button onclick="commitMarkUnmastered(\''+bookId+'\', \''+escapeHtml(chapName)+'\')" style="flex:1;padding:8px;background:var(--pink-btn);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">🔗 关联错题</button></div></div>';
+  openPopup('🔗 关联错题', html);
 }
 function commitMarkUnmastered(bookId, chapName){
   const b = qbookById(bookId); if(!b) return;
@@ -6388,13 +6410,13 @@ function commitMarkUnmastered(bookId, chapName){
     module: '题本',
     bookId: b.id||'',
     chapName: chapName||'',
-    content: '《'+escapeHtml(b.name||'题本')+'》'+(chapName?(' · '+chapName):'')+' 标记不会 '+n+' 道',
-    explain: '手动标记不会',
+    content: '《'+escapeHtml(b.name||'题本')+'》'+(chapName?(' · '+chapName):'')+' 关联错题 '+n+' 道',
+    explain: '手动关联到错题本',
     photos: [],
     date: tk,
     src: 'qbook',
     key: key,
-    srcLabel: '标记不会'
+    srcLabel: '关联错题'
   });
   saveStore();
   if(typeof renderQuestionBooks==='function') renderQuestionBooks();
@@ -6403,7 +6425,7 @@ function commitMarkUnmastered(bookId, chapName){
   if(typeof closePopup==='function') closePopup();
   if(typeof showPage==='function') showPage('errors');
   if(typeof renderErrors==='function') renderErrors();
-  if(typeof toast==='function') toast('🎯 已标记 '+n+' 道，已打开错题记录');
+  if(typeof toast==='function') toast('🔗 已关联 '+n+' 道入错题本，已打开错题记录');
 }
 function clearBookErrorsFilter(){
   _errorsBookFilter = null;
@@ -9561,7 +9583,8 @@ function generatePlan(){
   rowsBox.innerHTML = '';
   buildDailyPlan(weak, anyData).forEach(function(d){ addGenRow(d.text, d.module, d.count); });
   // 月计划
-  document.getElementById('genMonthArea').value = buildMonthPlan(weak, anyData);
+  const monthArea = document.getElementById('monthPlanArea') || document.getElementById('genMonthArea');
+  if(monthArea) monthArea.value = buildMonthPlan(weak, anyData);
   document.getElementById('genPlanModal').classList.add('show');
 }
 
@@ -17645,6 +17668,11 @@ function renderQuizComplete(){
 </div>
 
 <!-- ========== 养成庆祝弹窗（复用早安弹窗视觉，由 JS 动态生成） ========== -->
+
+<!-- ========== 通用弹窗（openPopup/closePopup） ========== -->
+<div class="popup-overlay" id="genericPopup" onclick="if(event.target===this)closePopup()">
+  <div class="popup-card" id="genericPopupCard"></div>
+</div>
 
 <!-- ========== 领取奖励「兑换成功」弹窗 ========== -->
 <div class="popup-overlay" id="rewardOverlay">
