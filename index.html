@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -5627,8 +5627,21 @@ function toggleCourseToday(msId, cId){
   if(!m) return;
   const c = (m.courses||[]).find(function(x){ return x.id===cId; });
   if(!c) return;
+  const today = todayKey();
   c.todayPlan = !c.todayPlan;
-  saveStore(); renderCourses();
+  if(!store.todos) store.todos = [];
+  const exist = store.todos.find(function(td){ return td.src==='course' && td.courseId===cId; });
+  if(c.todayPlan){
+    if(!exist) store.todos.unshift({ id:'td'+Date.now()+Math.floor(Math.random()*1000), mod:m.title||'课程', text:'🎓 '+c.name, done:false, created:today, finished:'', date:today, src:'course', courseId:cId });
+  } else {
+    store.todos = store.todos.filter(function(td){ return !(td.src==='course' && td.courseId===cId); });
+    c._todayDone = false;
+  }
+  saveStore(); renderCourses(); renderTodoList(); renderHome();
+}
+function toggleTodayItem(type, id){
+  if(type==='plan'){ togglePlan(id); }
+  else { toggleTodo(id); }
 }
 function openGoalsPopupForAddCourse(){
   // 找一个有课程空间的里程碑；如果都没有，提示先建里程碑
@@ -8737,22 +8750,29 @@ function renderHome(){
     </div>`;
   }).join('');
 
-  // 今日计划
+  // 今日计划：每日计划 + 今日题本 + 今日课程 三源整合，统一勾选、状态互通
   const plans = store.plans[today]||[];
-  const donePlans = plans.filter(p=>p.done).length;
-  const planPct = plans.length>0 ? Math.round(donePlans/plans.length*100) : 0;
+  const qbookTodos = (store.todos||[]).filter(function(td){ return td.src==='qbook' && td.date===today; });
+  const courseTodos = (store.todos||[]).filter(function(td){ return td.src==='course' && td.date===today; });
+  const todayItems = [];
+  plans.forEach(function(p){ todayItems.push({ type:'plan', id:p.id, text:p.text, meta:p.module+(p.count?' · '+p.count+'题':''), done:p.done }); });
+  qbookTodos.forEach(function(td){ todayItems.push({ type:'qbook', id:td.id, text:td.text, meta:'题本', done:td.done }); });
+  courseTodos.forEach(function(td){ todayItems.push({ type:'course', id:td.id, text:td.text, meta:'课程', done:td.done }); });
+  const donePlans = todayItems.filter(function(x){ return x.done; }).length;
+  const planPct = todayItems.length>0 ? Math.round(donePlans/todayItems.length*100) : 0;
   document.getElementById('overviewPlanBar').style.width = planPct+'%';
   const pl = document.getElementById('overviewPlanList');
-  if(plans.length===0){
+  if(todayItems.length===0){
     pl.innerHTML = '<div class="empty-state" style="padding:16px;"><span class="emoji">📋</span>今日暂无计划</div>';
   } else {
-    pl.innerHTML = plans.map(p=>`
-      <div class="plan-item ${p.done?'done':''}">
-        <div class="plan-check ${p.done?'checked':''}" onclick="togglePlan('${p.id}')"></div>
-        <span class="plan-text">${p.text}</span>
-        <span class="plan-meta">${p.module}${p.count?' · '+p.count+'题':''}</span>
-      </div>
-    `).join('');
+    pl.innerHTML = todayItems.map(function(it){
+      const tag = it.type==='plan' ? '📌 ' : '';
+      return '<div class="plan-item '+(it.done?'done':'')+'">'
+        + '<div class="plan-check '+(it.done?'checked':'')+'" onclick="toggleTodayItem(\''+it.type+'\',\''+it.id+'\')"></div>'
+        + '<span class="plan-text">'+tag+escapeHtml(it.text)+'</span>'
+        + '<span class="plan-meta">'+(it.meta||'')+'</span>'
+        + '</div>';
+    }).join('');
   }
 
   // 近7日图表
@@ -16018,10 +16038,34 @@ function toggleTodo(id){
     const p = (store.plans[today]||[]).find(x=>x.id===td.planId);
     if(p){ p.done = td.done; }
   }
-  if(td.done && td.src==='qbook'){
-    saveStore(); renderTodoList(); renderPlan();
-    openQbookStatsPopup(id);
-    return;
+  if(td.done){
+    if(td.src==='qbook'){
+      saveStore(); renderTodoList(); renderPlan(); renderQuestionBooks();
+      openQbookStatsPopup(id);
+      return;
+    }
+    if(td.src==='course'){
+      if(store.goals && store.goals.milestones){
+        for(const m of store.goals.milestones){
+          const c = (m.courses||[]).find(function(x){ return x.id===td.courseId; });
+          if(c){ c._todayDone = true; break; }
+        }
+      }
+      saveStore(); renderTodoList(); renderPlan(); renderCourses(); renderHome();
+      if(typeof toast==='function') toast('课程完成 ✅');
+      return;
+    }
+  } else {
+    if(td.src==='course'){
+      if(store.goals && store.goals.milestones){
+        for(const m of store.goals.milestones){
+          const c = (m.courses||[]).find(function(x){ return x.id===td.courseId; });
+          if(c){ c._todayDone = false; break; }
+        }
+      }
+      saveStore(); renderTodoList(); renderPlan(); renderCourses();
+      return;
+    }
   }
   saveStore(); renderTodoList(); renderPlan();
 }
