@@ -6398,9 +6398,12 @@ function commitMarkUnmastered(bookId, chapName){
   });
   saveStore();
   if(typeof renderQuestionBooks==='function') renderQuestionBooks();
-  if(typeof renderErrors==='function') renderErrors();
+  // 联动：标记后直接弹出/跳到「错题记录」页，并过滤到本题本，方便立刻看到刚记的错题
+  _errorsBookFilter = b.id || '';
   if(typeof closePopup==='function') closePopup();
-  if(typeof toast==='function') toast('🎯 已标记 '+n+' 道入错题本');
+  if(typeof showPage==='function') showPage('errors');
+  if(typeof renderErrors==='function') renderErrors();
+  if(typeof toast==='function') toast('🎯 已标记 '+n+' 道，已打开错题记录');
 }
 function clearBookErrorsFilter(){
   _errorsBookFilter = null;
