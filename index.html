@@ -679,6 +679,7 @@ body[data-color-theme="sky"]{
 .gen-weak-box{background:var(--pink-softest);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:14px;}
 .gen-weak-title{font-size:13px;font-weight:700;color:var(--text-main);margin-bottom:8px;}
 .gen-weak-item{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-sub);margin:5px 0;}
+.gen-weak-sub{font-size:12px;font-weight:700;color:var(--pink-deep);margin:8px 0 4px;letter-spacing:.2px;}
 .gen-weak-tag{font-size:11px;padding:1px 9px;border-radius:10px;font-weight:700;flex:0 0 auto;}
 .gen-weak-tag.weak{background:#F8D2DC;color:#C94F73;}
 .gen-weak-tag.mid{background:#FCEFD6;color:#B98A2E;}
@@ -9596,19 +9597,105 @@ const MODULE_COURSE = {
   '其他':'针对性补弱网课'
 };
 
-// 计算各模块薄弱程度（与首页累计口径一致）
+// 计算各模块薄弱程度（与首页累计口径一致 + 多源汇总，匹配题本/课程/试卷/手动/错题的真实名字）
+// 返回 {standard:[], custom:[], errRecent:[], totalDone, totalWrong, anyData}
+//  - standard: TOPICS 6 个标准模块（仍按 TOPICS.name 聚合，便于"常识/言语/判断"等维度对比）
+//  - custom  : 所有出现过的 module 名字（含题本/课程/试卷名等），按薄弱 score 排序
+//  - errRecent: store.errors 最近 5 条（错题直接列出来，跟薄弱度同权重）
+// 注意：题本/课程记录 store.records 时 module 写的是 b.name / c.name，不是 TOPICS.name，所以必须把所有 module 名字汇总。
 function computeWeakModules(){
-  const arr = Object.keys(TOPICS).map(function(key){
+  const recs = store.records||{};
+  const errs = store.errors||[];
+
+  // 1) TOPICS 6 个标准模块（标准口径，仍按 name 聚合）
+  const standard = Object.keys(TOPICS).map(function(key){
     const t = TOPICS[key];
     const totalDone = moduleCumuDone(t.name);
     const totalErr = moduleCumuWrong(t.name);
     const rate = totalDone>0 ? Math.round((totalDone-totalErr)/totalDone*100) : null;
-    // 越薄弱分越高：低正确率 + 错题多
     const score = (rate===null?60:(100-rate)) + Math.min(totalErr,30)*1.2;
-    return {key:key,name:t.name,rate:rate,err:totalErr,totalDone:totalDone,score:score};
+    return {key:key, name:t.name, icon:t.icon||'📚', rate:rate, err:totalErr, totalDone:totalDone, score:score, isStandard:true};
   });
-  arr.sort(function(a,b){return b.score-a.score;});
-  return arr;
+  standard.sort(function(a,b){return b.score-a.score;});
+
+  // 2) 多源汇总：按"实际出现过的 module 名字"汇总（题本/课程/试卷/手动全聚合）
+  const map = {}; // name -> {name,done,right,wrong,items[],src:set}
+  function bump(name, done, right, wrong, src, extraName){
+    const k = name || '未命名';
+    if(!map[k]) map[k] = {name:k, done:0, right:0, wrong:0, items:0, srcSet:{}, extras:{}};
+    map[k].done += (done||0);
+    map[k].right += (right||0);
+    map[k].wrong += (wrong||0);
+    map[k].items += 1;
+    map[k].srcSet[src] = (map[k].srcSet[src]||0) + 1;
+    if(extraName) map[k].extras[extraName] = (map[k].extras[extraName]||0) + 1;
+  }
+  Object.keys(recs).forEach(function(d){
+    (recs[d]||[]).forEach(function(r){
+      const m = r.module || r.mod || '';
+      if(!m) return;
+      // 推断来源
+      const src = r.kind==='qbook' ? 'qbook' : (r.kind==='course' ? 'course' : (r.manual ? 'manual' : 'auto'));
+      // 如果来自题本/课程，把题本/课程名作为 extra（用于显示「题本《2024国考》·言语专项」）
+      let extra = '';
+      if(r.kind==='qbook' && r.qbookId && typeof qbookById==='function'){
+        const b = qbookById(r.qbookId);
+        if(b) extra = b.name || '';
+      } else if(r.kind==='course' && r.courseId && typeof courseById==='function'){
+        const c = courseById(r.courseId);
+        if(c) extra = c.name || '';
+      }
+      bump(m, r.done||0, r.right||0, Math.max(0,(r.done||0)-(r.right||0)), src, extra);
+    });
+  });
+  // errors 也算入 module 维度（错题本的真实 module 字段）
+  errs.forEach(function(e){
+    const m = e.module || '错题';
+    bump(m, 1, 0, 1, 'error', e.bookId ? (e.chapName||'') : '');
+  });
+  // 关键：把 custom 中名字 == TOPICS.name 的合并到 standard（避免重复显示）
+  const standardName = {};
+  standard.forEach(function(s){ standardName[s.name] = true; });
+  const custom = [];
+  Object.keys(map).forEach(function(name){
+    const it = map[name];
+    const totalDone = it.done;
+    const wrong = Math.max(it.wrong, it.done-it.right); // 取大值，确保覆盖
+    const rate = totalDone>0 ? Math.round((totalDone - wrong)/totalDone*100) : null;
+    const score = (rate===null?60:(100-rate)) + Math.min(wrong,30)*1.2 + Math.min(it.items,10)*0.5;
+    const mainSrc = Object.keys(it.srcSet).sort(function(a,b){return (it.srcSet[b]||0)-(it.srcSet[a]||0);})[0] || 'auto';
+    const topExtra = Object.keys(it.extras).sort(function(a,b){return (it.extras[b]||0)-(it.extras[a]||0);})[0] || '';
+    if(standardName[name]){
+      // 合并到 standard 对应项（累加 rate/score 取较大者，体现真实出现）
+      const s = standard.find(function(x){return x.name===name;});
+      if(s){
+        // 如果原 standard 没数据但 custom 有，把数据带回（处理题本名==TOPICS.name 的少数情况）
+        if(s.totalDone===0 && totalDone>0){
+          s.totalDone = totalDone; s.err = wrong; s.rate = rate; s.score = Math.max(s.score,score);
+          s.fromCustom = {src:mainSrc, extra:topExtra};
+        }
+        s.extraSrc = mainSrc; s.extraName = topExtra;
+      }
+      return;
+    }
+    custom.push({
+      key:'custom|'+name, name:name, rate:rate, err:wrong, totalDone:totalDone, score:score,
+      isStandard:false, src:mainSrc, extraName:topExtra, items:it.items
+    });
+  });
+  custom.sort(function(a,b){return b.score-a.score;});
+
+  // 3) 最近 5 条错题（直接列原文，不只算模块）
+  const errRecent = errs.slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');}).slice(0,5).map(function(e){
+    return {id:e.id, content:e.content||'（无内容）', module:e.module||'错题', date:e.date||'', srcLabel:e.srcLabel||'题本'};
+  });
+
+  // 4) 汇总：判定是否完全无数据
+  const totalDone = standard.reduce(function(s,x){return s+x.totalDone;},0) + custom.reduce(function(s,x){return s+x.totalDone;},0);
+  const totalWrong = errRecent.length + custom.reduce(function(s,x){return s+x.err;},0);
+  const anyData = totalDone>0 || totalWrong>0;
+
+  return {standard:standard, custom:custom, errRecent:errRecent, totalDone:totalDone, totalWrong:totalWrong, anyData:anyData};
 }
 
 // 从近 14 天的 focusLog 中学习高效时段：返回前 3 个最活跃的小时（[h1,h2,h3]）
@@ -9645,26 +9732,31 @@ function addMinutes(h,m,dur){
 }
 
 // 生成每日计划：返回 [{text,module,count,start,end,intensity,type,slotIdx}]
+// weak = {standard, custom, errRecent, totalDone, totalWrong, anyData}
+// 完全无数据时 anyData=false → 用「入门打底」温和版（不是模板了，是推荐起点）
+// 有数据时：用真实错题/练过内容排序，TOP 错题重做 + TOP 薄弱补强 + 必含晨读/睡前复盘
 function buildDailyPlan(weak, anyData){
+  const analysis = weak && weak.standard ? weak : computeWeakModules();
+  const standard = analysis.standard || [];
+  const custom   = analysis.custom || [];
+  const errRecent= analysis.errRecent || [];
+  const _anyData = (typeof anyData === 'boolean') ? anyData : analysis.anyData;
+
   const eff = computeEfficientHours();
-  // 时段池：7:00 - 22:30，每 30 分钟一格
   const slots = [];
   for(let h=7;h<=22;h++){ slots.push({h,m:0}); slots.push({h,m:30}); }
   const used = new Set();
   function pickSlot(intensity, durMin){
     const need = Math.ceil(durMin/30);
-    // 候选小时集合
     let hSet;
     if(intensity==='high'){ hSet = eff.concat([9,10,11,14,15,16,20,21]); }
     else if(intensity==='low'){ hSet = [7,12,18,22]; }
     else { hSet = [8,9,10,13,14,15,16,17,19,20]; }
-    // 优先按 hSet 顺序扫描
     for(let attempt=0; attempt<2; attempt++){
       const tryH = attempt===0 ? hSet : [7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22];
       for(const h of tryH){
         for(let i=0;i<slots.length;i++){
           if(slots[i].h!==h) continue;
-          // 连续 need 格都空
           let ok = true;
           for(let k=0;k<need;k++){
             if(i+k>=slots.length || used.has(i+k)){ ok=false; break; }
@@ -9677,43 +9769,60 @@ function buildDailyPlan(weak, anyData){
     }
     return -1;
   }
-  // 动作候选
-  const acts = [];
   function P(name){ return MODULE_COURSE[name] || '补弱网课'; }
-  if(!anyData){
-    acts.push({intensity:'high', dur:60, type:'course', module:'言语理解', text:'🎬 看【言语理解】方法精讲（1.2x 倍速+做笔记）'});
-    acts.push({intensity:'med',  dur:60, type:'drill',  module:'判断推理', text:'📝 判断推理 专项刷题 40 题（严格计时）→ 复盘 15 分钟', count:40});
-    acts.push({intensity:'med',  dur:50, type:'drill',  module:'资料分析', text:'📝 资料分析 速算练习 25 题（计时）', count:25});
-    acts.push({intensity:'low',  dur:25, type:'review', module:'常识判断', text:'📖 常识/时政 晨读 15 分钟 → APP 刷常识 10 题', count:10});
-    acts.push({intensity:'med',  dur:90, type:'drill',  module:'试卷练习', text:'⏱ 限时做 1 套真题卷（严格按考试 120 分钟节奏）+ 对答案 30 分钟', count:1});
+
+  const acts = [];
+  if(!_anyData){
+    // 真没数据：给温和入门版（不是死模板，是合理的"开局建议"）
+    acts.push({intensity:'high', dur:60, type:'course', module:'言语理解', text:'🎬 第一次？先看【言语理解】方法精讲 1 节（约 1 小时，1.2x 倍速+笔记）'});
+    acts.push({intensity:'med',  dur:60, type:'drill',  module:'判断推理', text:'📝 找 30 道判断推理题计时做，熟悉题型与节奏（不计对错，先找手感）', count:30});
+    acts.push({intensity:'low',  dur:25, type:'review', module:'常识判断', text:'📖 常识/时政 晨读 15 分钟 → APP 刷 10 题', count:10});
+    acts.push({intensity:'med',  dur:90, type:'drill',  module:'试卷练习', text:'⏱ 周末做 1 套真题（按考试 120 分钟节奏）找节奏', count:1});
   } else {
-    if(weak[0]){
-      const w=weak[0];
-      const why = (w.rate!==null && w.rate<75) ? ('正确率仅 '+w.rate+'%，优先补方法') : '巩固提升';
-      acts.push({intensity:'high', dur:60, type:'course', module:w.name, text:'🎬 看【'+w.name+'】'+P(w.name)+'（'+why+'，1.2x+笔记）'});
-      acts.push({intensity:'med',  dur:60, type:'drill',  module:w.name, text:'📝 '+w.name+' 专项刷题 30 题（严格计时，错题即时复盘）', count:30});
+    // ★ 1) 真实错题 → 今日必复盘（按 errRecent）
+    if(errRecent.length){
+      const topErr = errRecent[0];
+      const tag = topErr.module || '错题';
+      const shortName = (topErr.content||'').split(' ·')[0].slice(0, 14) || '错题';
+      acts.push({intensity:'low', dur:30, type:'review', module:tag,
+        text:'🔁 先复盘【'+shortName+'】错题（'+errRecent.length+' 条最近错题里挑 3 道重做 + 看解析）', count:Math.min(3,errRecent.length)});
     }
-    if(weak[1]){
-      const w=weak[1];
-      acts.push({intensity:'med', dur:50, type:'drill', module:w.name, text:'📝 '+w.name+' 专项刷题 40 题（严格计时）→ 复盘 15 分钟', count:40});
+    // ★ 2) custom TOP2（你最近练过且错题最多）→ 强烈建议重做
+    const topCustom = custom.slice(0, 2);
+    topCustom.forEach(function(c){
+      const cnt = Math.min(40, Math.max(10, c.err>0?Math.min(c.err*2,30):20));
+      acts.push({intensity:'med', dur:50, type:'drill', module:c.name,
+        text:'🎯 重做【'+c.name+'】专项 ' + cnt + ' 题（正确率 '+ (c.rate===null?'—':c.rate+'%') +'，按错题率 2 倍量补强）', count:cnt, source:'custom'});
+    });
+    // ★ 3) standard TOP1（最薄弱的标准模块）→ 看方法课
+    const topStd = standard[0];
+    if(topStd){
+      const why = (topStd.rate!==null && topStd.rate<75) ? ('正确率仅 '+topStd.rate+'%，优先补方法')
+                  : (topStd.rate===null ? '还没练过，先建立节奏' : '巩固提升');
+      acts.push({intensity:'high', dur:60, type:'course', module:topStd.name,
+        text:'🎬 看【'+topStd.name+'】'+P(topStd.name)+'（'+why+'，1.2x 倍速+记笔记）', source:'standard'});
+      // 再补一个 30 题计时刷
+      acts.push({intensity:'med', dur:50, type:'drill', module:topStd.name,
+        text:'📝 '+topStd.name+' 计时刷 30 题 → 即时复盘 15 分钟', count:30, source:'standard'});
     }
-    if(weak[2]){
-      const w=weak[2];
-      acts.push({intensity:'high', dur:50, type:'course', module:w.name, text:'🎬 看【'+w.name+'】'+P(w.name)+' 30 分钟（1.2x+笔记）'});
-      acts.push({intensity:'med',  dur:50, type:'drill',  module:w.name, text:'📝 '+w.name+' 配套练习 25 题（计时）', count:25});
+    // ★ 4) 如果 custom 还有剩余，做题最多的也加一行巩固
+    if(custom[2]){
+      const c = custom[2];
+      acts.push({intensity:'low', dur:30, type:'drill', module:c.name,
+        text:'🔄 巩固【'+c.name+'】基础题 20 道（你练得最多的内容，再稳一稳）', count:20, source:'custom'});
     }
-    const errTop = weak.filter(w=>w.err>0).sort((a,b)=>b.err-a.err)[0];
-    if(errTop){
-      const cnt = errTop.err>30?30:errTop.err;
-      acts.push({intensity:'low', dur:50, type:'review', module:errTop.name, text:'🔁 重做【'+errTop.name+'】错题 '+cnt+' 道 + 整理易错点笔记 20 分钟', count:cnt});
-    }
-    if(acts.length<4){
-      acts.push({intensity:'med', dur:90, type:'drill', module:'试卷练习', text:'⏱ 限时做 1 套真题卷（严格按考试 120 分钟节奏）', count:1});
+    // ★ 5) 缺口兜底：如果行数太少，加个真题卷
+    if(acts.length < 4){
+      acts.push({intensity:'med', dur:90, type:'drill', module:'试卷练习',
+        text:'⏱ 限时做 1 套真题（严格按考试 120 分钟节奏）', count:1});
     }
   }
   // 必含：晨读 + 睡前复盘
-  acts.push({intensity:'low', dur:25, type:'review', module:'常识判断', text:'📖 常识/时政 晨读 15 分钟 → APP 刷常识 10 题', count:10});
-  acts.push({intensity:'low', dur:25, type:'review', module:'错题复盘', text:'🌙 睡前复盘当日错题 15 分钟（错题本 + 速记）'});
+  acts.push({intensity:'low', dur:25, type:'review', module:'常识判断',
+    text:'📖 常识/时政 晨读 15 分钟 → APP 刷 10 题', count:10});
+  acts.push({intensity:'low', dur:25, type:'review', module:'错题复盘',
+    text:'🌙 睡前复盘当日错题 15 分钟（错题本 + 速记）'});
+
   // 分配时间
   acts.forEach(function(a){
     const idx = pickSlot(a.intensity, a.dur);
@@ -9724,7 +9833,6 @@ function buildDailyPlan(weak, anyData){
     a.end = e.label;
     a.slotIdx = idx;
   });
-  // 按时间排序
   acts.sort((a,b)=>(a.start||'99:99').localeCompare(b.start||'99:99'));
   return acts;
 }
@@ -9824,32 +9932,72 @@ function swapGenRow(btnEl){
 }
 
 function generatePlan(){
-  const weak = computeWeakModules();
-  const anyData = weak.some(function(w){return w.totalDone>0;});
+  const analysis = computeWeakModules();
+  const weak = analysis; // 兼容旧调用方
+  const anyData = analysis.anyData;
   const box = document.getElementById('genWeakBox');
+
+  // —— 渲染"薄弱项分析"三段式：标准模块 / 你练过的内容 / 最近错题 ——
+  const esc = function(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
   if(!anyData){
     box.innerHTML = '<div class="gen-weak-title">📊 薄弱项分析</div>'
-      + '<div class="gen-weak-item">暂未检测到做题与错题数据，已按「均衡打底」模板生成，记得手动调整为自己的重点～</div>';
+      + '<div class="gen-weak-item" style="padding:6px 0;color:#888">还没有学习记录——下面每日计划是"零基础入门版"，等你做点题/记次错题再来，会自动改用你的真实数据～</div>';
   } else {
-    box.innerHTML = '<div class="gen-weak-title">📊 薄弱项分析（按薄弱程度排序）</div>' + weak.map(function(w){
-      let tag='', cls='';
+    let html = '<div class="gen-weak-title">📊 薄弱项分析（基于你的 '+esc(analysis.totalDone)+' 条做题 + '+esc(analysis.errRecent.length>0?('其中错题 '+analysis.errRecent.length+' 条'):'')+' 真实数据）</div>';
+    // — 标准模块（TOPICS 6 项）—
+    html += '<div class="gen-weak-sub">▸ 标准模块（常识/言语/判断/数量/资料/时政）</div>';
+    html += analysis.standard.map(function(w){
+      let tag='未练', cls='mid';
       if(w.rate===null){ tag='未练'; cls='mid'; }
       else if(w.rate<75){ tag='薄弱'; cls='weak'; }
       else if(w.rate<88){ tag='中等'; cls='mid'; }
       else { tag='良好'; cls='good'; }
       const rateTxt = (w.rate===null?'—':w.rate+'%');
-      return '<div class="gen-weak-item"><span style="flex:0 0 76px;">'+w.name+'</span>'
+      const extraTxt = w.extraName ? (' 📚《'+esc(w.extraName)+'》'): '';
+      return '<div class="gen-weak-item"><span style="flex:0 0 76px;">'+(w.icon||'📚')+' '+esc(w.name)+'</span>'
         + '<span class="gen-weak-tag '+cls+'">'+tag+'</span>'
-        + '<span>正确率 '+rateTxt+'</span><span>· 错题 '+w.err+'</span></div>';
+        + '<span>正确率 '+rateTxt+'</span><span>· 错题 '+w.err+'</span>'
+        + (extraTxt?'<span style="font-size:11px;color:#a08bb8">'+extraTxt+'</span>':'')
+        + '</div>';
     }).join('');
+    // — 你练过的内容（custom TOP 8）—
+    if(analysis.custom.length){
+      html += '<div class="gen-weak-sub" style="margin-top:10px">▸ 你最近练过的内容（题本/课程/试卷，按薄弱分排）</div>';
+      html += analysis.custom.slice(0,8).map(function(c){
+        const srcIcon = c.src==='qbook'?'📚':(c.src==='course'?'🎓':(c.src==='manual'?'✍️':'⚙️'));
+        let tag='一般', cls='mid';
+        if(c.rate===null){ tag='未评分'; cls='mid'; }
+        else if(c.rate<70){ tag='薄弱'; cls='weak'; }
+        else if(c.rate<85){ tag='中等'; cls='mid'; }
+        else { tag='良好'; cls='good'; }
+        const rateTxt = (c.rate===null?'—':c.rate+'%');
+        return '<div class="gen-weak-item"><span style="flex:0 0 76px;">'+srcIcon+' '+esc(c.name)+'</span>'
+          + '<span class="gen-weak-tag '+cls+'">'+tag+'</span>'
+          + '<span>做题 '+c.totalDone+'</span><span>· 错 '+c.err+'</span>'
+          + '<span>· 正确率 '+rateTxt+'</span></div>';
+      }).join('');
+    }
+    // — 最近错题 TOP 5（列具体内容）—
+    if(analysis.errRecent.length){
+      html += '<div class="gen-weak-sub" style="margin-top:10px">▸ 🚨 最近 '+analysis.errRecent.length+' 条错题（先复盘这些）</div>';
+      html += analysis.errRecent.map(function(e){
+        return '<div class="gen-weak-item" style="background:rgba(248,210,220,.25);border-radius:8px;padding:6px 8px"><span style="font-size:11px;color:#a08bb8;flex:0 0 64px;">'+esc(e.date)+'</span><span style="flex:1;font-size:12px">'+esc(e.content.slice(0,42))+(e.content.length>42?'…':'')+'</span></div>';
+      }).join('');
+    }
+    box.innerHTML = html;
   }
-  // 每日计划行
+
+  // 每日计划行（沿用新算法）
   const rowsBox = document.getElementById('genDailyRows');
   rowsBox.innerHTML = '';
-  buildDailyPlan(weak, anyData).forEach(function(d){ addGenRow(d.text, d.module, d.count); });
-  // 月计划
+  buildDailyPlan(analysis, anyData).forEach(function(d){
+    addGenRow({text:d.text, module:d.module, count:d.count, start:d.start, end:d.end, intensity:d.intensity, type:d.type});
+  });
+  // 月计划（用 analysis，render 到 #genMonthContainer）
   const monthArea = document.getElementById('monthPlanArea') || document.getElementById('genMonthArea');
-  if(monthArea) monthArea.value = buildMonthPlan(weak, anyData);
+  if(typeof buildMonthPlanUI==='function') buildMonthPlanUI(analysis, anyData);
+  // 月计划 textarea 同步（兼容旧入口）
+  if(monthArea && typeof buildMonthPlanText==='function') monthArea.value = buildMonthPlanText(analysis, anyData);
   document.getElementById('genPlanModal').classList.add('show');
 }
 
@@ -9961,16 +10109,31 @@ function saveMonthPlan(){
 
 // 月计划：返回结构化 weeks[]（4 周）
 // [{weekNum, theme, course, drill, mock, milestone}]
-function buildMonthPlan(weak, anyData){
+// analysis 是 computeWeakModules 返回值 {standard, custom, errRecent, totalDone, totalWrong, anyData}
+// 4 周采用「错题为主 → 补强 → 提速 → 全真」递进逻辑；模块名优先用 standard 三大薄弱，缺则用 custom TOP2
+function buildMonthPlan(analysis, anyData){
+  analysis = analysis || computeWeakModules();
+  const _anyData = (typeof anyData === 'boolean') ? anyData : (analysis.anyData||false);
   const ms = (store.goals&&store.goals.milestones)||[];
-  // 优先取里程碑标题（去 emoji）
   const msTitle = function(m){ return (m.title||'').replace(/^[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u,'').trim() || '阶段'; };
-  const w1=weak[0], w2=weak[1]||weak[0], w3=weak[2]||weak[1]||weak[0];
-  const r = function(x){ return x.rate===null?'—':x.rate+'%'; };
+
+  // 取 3 个重点模块：先 standard[0..2]（薄弱分排序），空位用 custom[0..2] 顶
+  const std = analysis.standard || [];
+  const cus = analysis.custom || [];
+  const picks = [];
+  std.forEach(function(s){ if(picks.length<3) picks.push({name:s.name, rate:s.rate, err:s.err, src:'standard', icon:s.icon||'📚'}); });
+  cus.forEach(function(c){ if(picks.length<3) picks.push({name:c.name, rate:c.rate, err:c.err, src:c.src||'custom', icon:c.src==='qbook'?'📚':(c.src==='course'?'🎓':'✍️')}); });
+  while(picks.length<3) picks.push(picks[picks.length-1] || {name:'言语理解', rate:null, err:0, src:'standard', icon:'📚'});
+  const w1=picks[0], w2=picks[1], w3=picks[2];
+
   const c1 = MODULE_COURSE[w1.name]||'补弱网课';
   const c2 = MODULE_COURSE[w2.name]||'补弱网课';
   const c3 = MODULE_COURSE[w3.name]||'补弱网课';
-  if(!anyData){
+  const rateTxt = function(x){ return x.rate===null?'—':x.rate+'%'; };
+  const errTxt = function(x){ return x.err>0 ? '（错 '+x.err+'）' : ''; };
+  const W = function(x){ return (x.src==='standard'?'':x.src==='qbook'?'《':x.src==='course'?'《':'') + x.name + (x.src==='standard'?'':x.src==='qbook'?'》':x.src==='course'?'》':''); };
+
+  if(!_anyData){
     return [
       {weekNum:1, theme:'打基础·网课先行', course:'言语/判断/资料 各 1 节方法精讲（共约 3 小时，1.2x 倍速+笔记）', drill:'言语/判断/资料 每日各 30 题（计时）· 常识时政每日 15 分钟晨读', mock:'周末 1 套真题卷（120 分钟）', milestone: ms[0]?msTitle(ms[0]):'基础阶段'},
       {weekNum:2, theme:'补短板', course:'每周 2 节补弱网课（各约 1.5 小时）', drill:'针对薄弱题型 +20 题/日', mock:'2 套真题 + 错题二刷', milestone: ms[1]?msTitle(ms[1]):'强化阶段'},
@@ -9978,12 +10141,34 @@ function buildMonthPlan(weak, anyData){
       {weekNum:4, theme:'全真模拟', course:'回看薄弱模块重点网课题段', drill:'查漏补缺 + 错题本', mock:'3 套全真模拟（严格 120 分钟）', milestone: ms[2]?msTitle(ms[2]):'冲刺阶段'},
     ];
   }
+  // 有数据时的"针对性 4 周"
+  // 第 1 周：先重做错题 + 看最薄弱模块方法课
+  // 第 2 周：刷最薄弱 + 第二薄弱
+  // 第 3 周：提速 + 第三薄弱
+  // 第 4 周：全真模拟 + 复盘
   return [
-    {weekNum:1, theme:'夯实基础·看网课（'+w1.name+'）', course:'看【'+w1.name+'】'+c1+'（约 2.5 小时，1.2x 倍速+笔记）', drill:w1.name+' 每日 45 题 + '+w2.name+' 每日 35 题（计时）', mock:'周末 1 套真题（120 分钟）', milestone: ms[0]?msTitle(ms[0]):'基础阶段'},
-    {weekNum:2, theme:'强化突破（'+w2.name+' / '+w3.name+'）', course:'看【'+w2.name+'】'+c2+' + 【'+w3.name+'】'+c3+'（各约 1.5 小时）', drill:w2.name+' 每日 40 题 + '+w3.name+' 每日 40 题', mock:'整理【'+w1.name+'】错题本 + 重做 1 套', milestone: ms[1]?msTitle(ms[1]):'强化阶段'},
-    {weekNum:3, theme:'提速冲刺（'+w1.name+'）', course:'回看【'+w1.name+'】方法课重点段（约 1 小时）+ 资料速算技巧复盘', drill:w1.name+' 每日 50 题 + '+w3.name+' 每日 30 题', mock:'2 套真题 + 错题二刷', milestone: ms[1]?msTitle(ms[1]):'强化阶段'},
-    {weekNum:4, theme:'全真模拟（'+w1.name+' / '+w2.name+' / '+w3.name+'）', course:'回看高频陷阱网课题段', drill:'错题本 + 重点模块最后冲刺', mock:'3 套全真模拟（严格 120 分钟）+ 当天对答案', milestone: ms[2]?msTitle(ms[2]):'冲刺阶段'},
+    {weekNum:1, theme:'📌 错题重做 + '+w1.name+' 方法先行', course:'看【'+w1.name+'】'+c1+'（约 2.5 小时，1.2x 倍速+笔记）', drill:w1.name+' 每日 30 题 + 复盘近 7 天错题（'+errTxt(w1)+'）', mock:'周末 1 套真题（120 分钟）', milestone: ms[0]?msTitle(ms[0]):'基础阶段'},
+    {weekNum:2, theme:'🚀 主攻薄弱：'+w1.name+' / '+w2.name, course:'回看【'+w1.name+'】方法课重点段 + 【'+w2.name+'】'+c2+'（各约 1.5 小时）', drill:w1.name+' 每日 40 题（计时） + '+w2.name+' 每日 30 题', mock:'2 套真题 + 错题二刷（重点回看 '+W(w1)+' 模块）', milestone: ms[1]?msTitle(ms[1]):'强化阶段'},
+    {weekNum:3, theme:'⚡ 提速冲刺：'+w1.name+' / '+w3.name, course:'回看【'+w1.name+'】技巧课 + 【'+w3.name+'】'+c3+'（各约 1 小时）', drill:w1.name+' 每日 50 题（严格限时）+ '+w3.name+' 每日 25 题', mock:'2 套真题 + 错题归类（主针对 '+W(w2)+'）', milestone: ms[1]?msTitle(ms[1]):'强化阶段'},
+    {weekNum:4, theme:'🎯 全真模拟：'+w1.name+' / '+w2.name+' / '+w3.name, course:'回看高频陷阱网课题段，不再学新知识', drill:'错题本 + '+w1.name+'/'+w2.name+'/'+w3.name+' 三模块交叉重点练', mock:'3 套全真模拟（严格 120 分钟）+ 当天对答案', milestone: ms[2]?msTitle(ms[2]):'冲刺阶段'},
   ];
+}
+
+// 纯文本版（兼容 monthPlanArea textarea 入口），把上述 weeks 拼成可读文本
+function buildMonthPlanText(analysis, anyData){
+  const weeks = buildMonthPlan(analysis, anyData);
+  let txt = '🎯 本月主攻计划（基于你的真实学习数据）：\n\n';
+  const ms = (store.goals&&store.goals.milestones)||[];
+  weeks.forEach(function(w){
+    const msName = (ms[Math.min(w.weekNum-1, ms.length-1)]||{}).title || '';
+    txt += '📅 第 '+w.weekNum+' 周：'+w.theme+'\n'
+      + '· 网课：'+w.course+'\n'
+      + '· 刷题：'+w.drill+'\n'
+      + '· 套卷：'+w.mock+'\n'
+      + (msName?('· 关联：'+msName+'\n'):'')
+      + '\n';
+  });
+  return txt;
 }
 
 // 月计划同周数下"换一周"动作池（保留结构，只换 theme/course/drill/mock）
