@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -672,6 +672,9 @@ body[data-color-theme="sky"]{
 .plan-item:hover{border-color:var(--pink-highlight);}
 .plan-item.done{background:#f5f5f5;}
 .plan-item.done .plan-text{text-decoration:line-through;color:var(--text-sub);}
+.plan-tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:8px;margin-right:4px;vertical-align:middle;line-height:1.5}
+.plan-tag.qtag{background:var(--pink-softest);color:var(--pink-deep);border:1px solid var(--pink-mid)}
+.plan-tag.ctag{background:#E8F1FB;color:#3E6FA3;border:1px solid #BBD4EE}
 /* 智能生成学习计划弹窗 */
 .gen-weak-box{background:var(--pink-softest);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:14px;}
 .gen-weak-title{font-size:13px;font-weight:700;color:var(--text-main);margin-bottom:8px;}
@@ -1126,6 +1129,10 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .countdown-card .cd-days.passed{font-size:22px;}
 .countdown-card .cd-date{font-size:12px;opacity:.9;margin-top:4px;}
 .countdown-card .cd-edit{position:absolute;top:10px;right:12px;font-size:12px;opacity:.9;background:rgba(255,255,255,0.28);border-radius:10px;padding:1px 8px;}
+.countdown-card.cd-urgent{box-shadow:0 0 0 3px rgba(229,72,77,.55),0 10px 26px rgba(229,72,77,.28);animation:cdPulse 1.6s ease-in-out infinite;}
+.countdown-card.cd-urgent .cd-days.urgent{color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.25);}
+.countdown-card .cd-sprint{position:absolute;left:12px;bottom:10px;font-size:12px;font-weight:700;background:rgba(255,255,255,.92);color:#C0392B;border-radius:10px;padding:3px 10px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.15);}
+@keyframes cdPulse{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
 
 /* ========== 我的小花园 ========== */
 /* 花盆场景：花居中，状态条分居左右 */
@@ -4669,13 +4676,23 @@ function renderReport(){
   html += '<div class="wr-tabs">'
     + '<button class="wr-tab'+wkCls+'" onclick="reportSwitch(\'week\')">本周</button>'
     + '<button class="wr-tab'+moCls+'" onclick="reportSwitch(\'month\')">本月</button></div>';
+  // 题本 / 课程 进度（快照，反映全站学习全貌）
+  let qbDone=0, qbTotal=0, csDone=0, csTotal=0;
+  (store.questionBooks||[]).forEach(function(b){ const a = qbookAggregate(b); qbDone += a.done; qbTotal += a.total; });
+  const milestones = (store.goals && store.goals.milestones) || [];
+  milestones.forEach(function(m){ (m.courses||[]).forEach(function(c){ csDone += (c.done||0); csTotal += (c.total||0); }); });
+  const qbTxt = qbTotal>0 ? (qbDone+'/'+qbTotal) : '—';
+  const csTxt = csTotal>0 ? (csDone+'/'+csTotal) : '—';
   html += '<div class="wr-stats">'
     + stat('⏱️', focusH+'h', '专注总时长')
     + stat('📝', totalDone, '做题总数')
     + stat('✅', acc+'%', '正确率')
     + stat('🍅', totalTom, '完成番茄')
     + stat('📅', activeDays+'天', '活跃天数')
-    + stat('❌', totalWrong, '错题数') + '</div>';
+    + stat('❌', totalWrong, '错题数')
+    + stat('📚', qbTxt, '题本进度')
+    + stat('🎓', csTxt, '课程进度')
+    + stat('💧', checkinDays+'天', '打卡天数') + '</div>';
   if(activeDays===0 && totalFocus===0 && totalDone===0){
     html += '<div class="wr-empty">📭 这段时间还没有学习数据<br>先开一个番茄钟或做几道题吧～</div>';
   } else {
@@ -5124,6 +5141,13 @@ function deleteGoalTask(msId, tId){
 }
 // 阶段达成立即撒花
 function celebrateMilestone(m){
+  // 里程碑达成 → 花园奖励水滴（联动养成）
+  if(store.garden){
+    store.garden.drops = (store.garden.drops||0) + 30;
+    if(typeof bloomFlower==='function'){ try{ bloomFlower(store.garden); }catch(e){} }
+  }
+  if(typeof toast==='function') toast('🏆 里程碑「'+(m.title||'目标')+'」达成！花园 +30 水滴 💧');
+  if(typeof renderGarden==='function'){ const pg=document.getElementById('page-garden'); if(pg&&pg.classList.contains('active')) renderGarden(); }
   let box = document.getElementById('goalCelebrateBox');
   if(!box){
     box = document.createElement('div');
@@ -5916,9 +5940,11 @@ function commitQuestionBookStats(tdId){
   const chs = Array.isArray(b.chapters) ? b.chapters : [];
   const chapSel = document.getElementById('qbStatChap');
   const chapId = chapSel ? chapSel.value : null;
+  let chapName = '';
   if(chs.length && chapId){
     const c = chs.find(x=>x.id===chapId);
     if(c){
+      chapName = c.name||'';
       c.done = c.total ? Math.min((c.done||0)+done, c.total) : (c.done||0)+done;
       c.correct = Math.min((c.correct||0)+Math.min(correct,done), c.done);
       c.time = (c.time||0)+time;
@@ -5934,6 +5960,8 @@ function commitQuestionBookStats(tdId){
   b.updatedAt = Date.now();
   if(td) td.finished = todayKey();
   if(b.todayPlan) b._todayDone = true;
+  const wrong = Math.max(0, done - correct);
+  if(wrong>0) collectQbookErrors(b, chapName, wrong, correct, '题本');
   saveStore(); closeQbookPopup(); renderQuestionBooks(); renderTodoList(); renderPlan();
   if(typeof renderHome==='function') renderHome();
 }
@@ -5961,6 +5989,8 @@ function recordQuestionBookProgress(id){
     + '<input id="qbAddDone" type="number" min="0" inputmode="numeric" value="0" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 20">'
     + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">其中正确多少题</div>'
     + '<input id="qbAddCorrect" type="number" min="0" inputmode="numeric" value="0" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 16">'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">用时（分钟）</div>'
+    + '<input id="qbAddTime" type="number" min="0" inputmode="numeric" value="0" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 30">'
     + '<div style="display:flex;gap:10px;margin-top:14px">'
     + '<button class="btn popup-btn" style="background:#eee;color:#888;box-shadow:none" onclick="closeQbookPopup()">取消</button>'
     + '<button class="btn popup-btn" onclick="commitQuestionBookProgress(\''+id+'\')">保存</button></div>';
@@ -5970,22 +6000,33 @@ function commitQuestionBookProgress(id){
   const b = qbookById(id); if(!b){ closeQbookPopup(); return; }
   const addDone = Math.max(0, parseInt(document.getElementById('qbAddDone').value,10)||0);
   const addCorrect = Math.max(0, parseInt(document.getElementById('qbAddCorrect').value,10)||0);
-  if(addDone===0 && addCorrect===0){ closeQbookPopup(); return; }
+  const addTime = Math.max(0, parseInt(document.getElementById('qbAddTime').value,10)||0);
+  if(addDone===0 && addCorrect===0 && addTime===0){ closeQbookPopup(); return; }
   const chapSel = document.getElementById('qbAddChap');
   const chapId = chapSel ? chapSel.value : null;
   const chs = Array.isArray(b.chapters) ? b.chapters : [];
+  let chapName = '';
   if(chs.length && chapId){
     const c = chs.find(function(x){ return x.id===chapId; });
     if(c){
+      chapName = c.name||'';
       c.done = Math.min((c.done||0) + addDone, c.total||0);
       c.correct = Math.min((c.correct||0) + Math.min(addCorrect, addDone), c.done);
+      c.time = (c.time||0) + addTime;
       c.updatedAt = Date.now();
     }
+  } else {
+    b.time = (b.time||0) + addTime;
   }
   // 顶层聚合
   const agg = qbookAggregate(b);
   b.total = agg.total; b.done = agg.done; b.correct = agg.correct; b.updatedAt = Date.now();
+  const wrong = Math.max(0, addDone - addCorrect);
+  if(wrong>0) collectQbookErrors(b, chapName, wrong, addCorrect, '题本');
   saveStore(); closeQbookPopup(); renderQuestionBooks();
+  if(typeof renderTodoList==='function') renderTodoList();
+  if(typeof renderPlan==='function') renderPlan();
+  if(typeof renderHome==='function') renderHome();
 }
 function renderQuestionBooks(){
   const el = document.getElementById('page-qbook');
@@ -6487,6 +6528,7 @@ function onPageShow(page){
   if(page==='secret') renderSecretGarden();
   if(page==='tomato'){ renderTomato(); ensureDailyTodos(); renderTodoList(); }
   if(page==='idea'){ renderIdeaTabs(); renderIdeaDaily(); renderIdeaCustom(); }
+  checkDayReviewReminder();
   updateFloatingWidget();
 }
 
@@ -8672,6 +8714,26 @@ function recordDrillErrors(){
     });
   });
 }
+// 题本/课程产生的错题自动归集进「❌ 错题记录」（按 题本+章节+日期 去重，当天重复记录不叠加）
+function collectQbookErrors(b, chapName, wrong, correct, srcLabel){
+  wrong = Math.max(0, wrong||0);
+  if(!wrong) return;
+  if(!store.errors) store.errors = [];
+  const tk = todayKey();
+  const key = (b.id||'b') + '|' + (chapName||'') + '|' + tk;
+  if(store.errors.some(function(e){ return e.src==='qbook' && e.key===key; })) return;
+  store.errors.push({
+    id:'err'+Date.now()+'_'+Math.floor(Math.random()*1000),
+    module: '题本',
+    content: '《'+escapeHtml(b.name||'题本')+'》'+(chapName?(' · '+chapName):'')+' 本次错题 '+wrong+' 道（做对 '+Math.max(0,correct||0)+'）',
+    explain: '',
+    photos: [],
+    date: tk,
+    src: 'qbook',
+    key: key,
+    srcLabel: srcLabel||'题本'
+  });
+}
 
 function closeQuiz(){
   document.getElementById('quizOverlay').classList.remove('show');
@@ -9466,30 +9528,40 @@ function renderPlan(){
   document.getElementById('planDateLabel').textContent =
     `${d.getMonth()+1}月${d.getDate()}日 周${weekDays[d.getDay()]}`;
 
+  // 今日计划 = 每日计划 + 今日题本 + 今日课程 三源整合（与首页、今日待办一致）
   const plans = store.plans[today]||[];
-  const doneCount = plans.filter(p=>p.done).length;
-  const pct = plans.length>0 ? Math.round(doneCount/plans.length*100) : 0;
+  const qbookTodos = (store.todos||[]).filter(function(td){ return td.src==='qbook' && td.date===today; });
+  const courseTodos = (store.todos||[]).filter(function(td){ return td.src==='course' && td.date===today; });
+  const allItems = [];
+  plans.forEach(function(p){ allItems.push({ type:'plan', id:p.id, text:p.text, meta:p.module+(p.count?' · '+p.count+'题':''), done:p.done, start:p.start, end:p.end }); });
+  qbookTodos.forEach(function(td){ allItems.push({ type:'qbook', id:td.id, text:td.text, meta:'题本', done:td.done }); });
+  courseTodos.forEach(function(td){ allItems.push({ type:'course', id:td.id, text:td.text, meta:'课程', done:td.done }); });
+  const doneCount = allItems.filter(function(x){ return x.done; }).length;
+  const pct = allItems.length>0 ? Math.round(doneCount/allItems.length*100) : 0;
   document.getElementById('planProgressBar').style.width = pct+'%';
 
-  // 计划完成 / 完成进度：支持手动覆盖（点数字修改），否则用勾选计划派生
+  // 计划完成 / 完成进度：支持手动覆盖（点数字修改），否则用三源勾选派生
   const planOv = (store.dayPlanStat && store.dayPlanStat[today]) || null;
   const dispDone = planOv ? planOv.done : doneCount;
-  const dispTotal = planOv ? planOv.total : plans.length;
+  const dispTotal = planOv ? planOv.total : allItems.length;
   const dispPct = dispTotal>0 ? Math.round(dispDone/dispTotal*100) : 0;
 
   const list = document.getElementById('planList');
-  if(plans.length===0){
+  if(allItems.length===0){
     list.innerHTML = '<div class="empty-state"><span class="emoji">📋</span>今日还没有计划，快去添加吧~</div>';
   } else {
-    list.innerHTML = plans.map(p=>{
-      const t = (p.start||p.end) ? '<span class="plan-time">⏰ '+escapeHtml((p.start||'--'))+'–'+escapeHtml((p.end||'--'))+'</span>' : '';
+    list.innerHTML = allItems.map(function(it){
+      const t = (it.type==='plan' && (it.start||it.end)) ? '<span class="plan-time">⏰ '+escapeHtml((it.start||'--'))+'–'+escapeHtml((it.end||'--'))+'</span>' : '';
+      const tag = it.type==='qbook' ? '<span class="plan-tag qtag">📚题本</span>' : (it.type==='course' ? '<span class="plan-tag ctag">🎓课程</span>' : '');
+      const checkFn = it.type==='plan' ? "togglePlan('"+it.id+"')" : "toggleTodayItem('"+it.type+"','"+it.id+"')";
+      const delFn = it.type==='plan' ? "deletePlan('"+it.id+"')" : "delTodo('"+it.id+"')";
       return `
-      <div class="plan-item ${p.done?'done':''}">
-        <div class="plan-check ${p.done?'checked':''}" onclick="togglePlan('${p.id}')"></div>
-        ${t}
-        <span class="plan-text">${p.text}</span>
-        <span class="plan-meta">${p.module}${p.count?' · '+p.count+'题':''}</span>
-        <span class="plan-del" onclick="deletePlan('${p.id}')">✕</span>
+      <div class="plan-item ${it.done?'done':''}">
+        <div class="plan-check ${it.done?'checked':''}" onclick="${checkFn}"></div>
+        ${t}${tag}
+        <span class="plan-text">${escapeHtml(it.text)}</span>
+        <span class="plan-meta">${it.meta||''}</span>
+        <span class="plan-del" onclick="${delFn}">✕</span>
       </div>
       `;
     }).join('');
@@ -9554,7 +9626,26 @@ function renderPlan(){
     ]},
     options:{responsive:true,plugins:{legend:{position:'bottom',labels:{font:{size:11}}}},scales:{y:{beginAtZero:true,grid:{color:'#f5f5f5'}}}}
   });
+  checkDayReviewReminder();
   updateFloatingWidget();
+}
+// 当日「每日计划 + 今日题本 + 今日课程」全部完成后，提醒写今日复盘（每天只提醒一次）
+function checkDayReviewReminder(){
+  const today = todayKey();
+  if(store.reviewRemindedDate === today) return;
+  const plans = store.plans[today]||[];
+  const qt = (store.todos||[]).filter(function(t){ return t.src==='qbook' && t.date===today; });
+  const ct = (store.todos||[]).filter(function(t){ return t.src==='course' && t.date===today; });
+  const all = [];
+  plans.forEach(function(p){ all.push(p); });
+  qt.forEach(function(t){ all.push(t); });
+  ct.forEach(function(t){ all.push(t); });
+  if(all.length===0) return;
+  if(all.every(function(x){ return x.done; })){
+    store.reviewRemindedDate = today;
+    saveStore();
+    if(typeof toast==='function') toast('📝 今日计划全部完成，记得写「今日复盘」巩固一下哦~');
+  }
 }
 
 function quickRecord(){
@@ -13344,24 +13435,45 @@ function renderCountdowns(){
   ];
   let html = list.map(function(ex, i){
     const parts = (ex.date || '').split('-');
-    let daysTxt = '--', passed = false;
+    let daysTxt = '--', passed = false, urgent = false;
     if(parts.length === 3){
       const t = new Date(+parts[0], +parts[1]-1, +parts[2]).getTime();
       const days = Math.round((t - todayMid) / 86400000);
-      if(days > 0){ daysTxt = days; }
-      else if(days === 0){ daysTxt = '今天'; }
+      if(days > 0){ daysTxt = days; urgent = days <= 7; }
+      else if(days === 0){ daysTxt = '今天'; urgent = true; }
       else { daysTxt = '已开考'; passed = true; }
     }
-    return '<div class="countdown-card" style="background:'+palette[i % palette.length]+'" onclick="editExamDate(\''+ex.id+'\')" title="点击修改目标日期">'
+    const cls = 'countdown-card' + (passed?' passed':'') + (urgent?' cd-urgent':'');
+    const sprint = urgent ? '<div class="cd-sprint" onclick="event.stopPropagation();genSprintPlan(\''+ex.id+'\')">⚡ 生成冲刺计划</div>' : '';
+    return '<div class="'+cls+'" style="background:'+palette[i % palette.length]+'" onclick="editExamDate(\''+ex.id+'\')" title="点击修改目标日期">'
       + '<div class="cd-edit">✎ 改</div>'
       + '<div class="cd-title">'+ex.emoji+' 距离 '+escHtml(ex.name)+' 笔试</div>'
-      + '<div class="cd-days'+(passed?' passed':'')+'"><span>'+daysTxt+'</span><small>天</small></div>'
+      + '<div class="cd-days'+(passed?' passed':'')+(urgent?' urgent':'')+'"><span>'+daysTxt+'</span><small>天</small></div>'
       + '<div class="cd-date">📆 '+(ex.date || '未设置日期')+'</div>'
+      + sprint
       + '</div>';
   }).join('');
   // 末尾附「管理考试」入口卡片
   html += '<div class="countdown-card countdown-add" onclick="openExamMgr()">＋<br><span style="font-size:13px">管理考试</span></div>';
   wrap.innerHTML = html;
+}
+// 距考试 ≤7 天 → 一键生成今日冲刺计划（联动「每日计划」）
+function genSprintPlan(exId){
+  const ex = (store.examList||[]).find(function(x){ return x.id===exId; });
+  const today = todayKey();
+  if(!store.plans[today]) store.plans[today] = [];
+  const items = ['⏱ 限时做真题 1 套（卡时间找手感）','🔁 复盘近 7 天错题本','📌 背时政热点 + 默写高频公式'];
+  let added = 0;
+  items.forEach(function(txt, idx){
+    if(store.plans[today].some(function(p){ return p.text===txt; })) return;
+    store.plans[today].push({ id:'sp'+Date.now()+'_'+idx, text:txt, module:'冲刺', count:0, done:false });
+    added++;
+  });
+  saveStore();
+  if(typeof renderPlan==='function') renderPlan();
+  if(typeof renderTodoList==='function') renderTodoList();
+  if(typeof renderHome==='function') renderHome();
+  if(typeof toast==='function') toast('⚡ 已为「'+(ex?ex.name:'考试')+'」生成 '+added+' 条冲刺计划，去「每日计划」查看~');
 }
 
 // ---------- 清空做题与错题数据 ----------
@@ -15941,6 +16053,38 @@ function addFocus(minutes, modOverride, opts){
       if(td && td.done && td.planId && store.plans[t]){
         const p = store.plans[t].find(x=>x.id===td.planId);
         if(p && !p.done){ p.done = true; }
+      }
+      // 联动：番茄完成 → 题本 / 课程进度自动 +1
+      if(td && td.src==='qbook' && td.qbookId){
+        ensureQuestionBooks();
+        const b = qbookById(td.qbookId);
+        if(b){
+          const chs = Array.isArray(b.chapters) ? b.chapters : [];
+          if(chs.length){
+            const target = chs.find(function(c){ return (c.done||0) < (c.total||0); }) || chs[0];
+            if(target){
+              target.done = target.total ? Math.min((target.done||0)+1, target.total) : (target.done||0)+1;
+              target.time = (target.time||0)+minutes;
+              target.updatedAt = Date.now();
+            }
+          } else {
+            b.done = (b.done||0)+1; b.time = (b.time||0)+minutes;
+          }
+          b.updatedAt = Date.now();
+          if(b.todayPlan) b._todayDone = true;
+          setTimeout(function(){ if(typeof toast==='function') toast('📚 题本进度 +1'); }, 320);
+        }
+      }
+      if(td && td.src==='course' && td.courseId && store.goals && store.goals.milestones){
+        for(const m of store.goals.milestones){
+          const c = (m.courses||[]).find(function(x){ return x.id===td.courseId; });
+          if(c){
+            if(!((c.done||0) >= (c.total||0)) || !(c.total>0)) c.done = (c.done||0)+1;
+            c._todayDone = !!c.todayPlan;
+            setTimeout(function(){ if(typeof toast==='function') toast('🎓 课程进度 +1'); }, 320);
+            break;
+          }
+        }
       }
     }
   }
