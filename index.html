@@ -3722,30 +3722,8 @@ body.drawer-open .nav-cloud{display:none;}
 const STORE_KEY = 'xckq_workbench_v1';
 let store = loadStore();
 
-// 跨日清理：昨日勾选的「今日计划」过期 → 每天启动只清一次
-// （题本/课程里 todayPlan=true 不会自动消失，需手动 rollover）
-(function rolloverTodayPlans(){
-  const d = new Date();
-  if(d.getHours() < 8) d.setDate(d.getDate() - 1);
-  const today = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-  if(store._lastPlanDate === today) return;
-  if(store._lastPlanDate){
-    // 1) 题本：清掉今日计划标记 + 今日打卡
-    (store.questionBooks||[]).forEach(function(b){ b.todayPlan = false; b._todayDone = false; });
-    // 2) 课程：清掉今日计划标记 + 今日打卡
-    if(store.goals && Array.isArray(store.goals.milestones)){
-      store.goals.milestones.forEach(function(m){
-        (m.courses||[]).forEach(function(c){ c.todayPlan = false; c._todayDone = false; });
-      });
-    }
-    // 3) todos：清掉「今日计划」产生的题本/课程待办（src=qbook/course）
-    if(Array.isArray(store.todos)){
-      store.todos = store.todos.filter(function(td){ return td.src!=='qbook' && td.src!=='course'; });
-    }
-  }
-  store._lastPlanDate = today;
-  saveStore();
-})();
+// 「今日计划」改用日期（todayPlanDate）判断：勾选时写当天，渲染只显示 todayPlanDate===今天。
+// 跨日自动隐身（数据留痕），无需启动清理逻辑。
 
 function defaultStore(){
   return {
@@ -3822,7 +3800,7 @@ function defaultStore(){
         { id:'ms_sprint', title:'冲刺阶段', emoji:'🚀', deadline:'', note:'密集模考 + 错题复盘', done:false, celebrated:false, tasks:[] }
       ]
     },
-    questionBooks: [], // [{id,name,subject,total,done,correct,deadline,notes,todayPlan,createdAt,updatedAt}]
+    questionBooks: [], // [{id,name,subject,total,done,correct,deadline,notes,todayPlanDate,createdAt,updatedAt}]
   };
 }
 function loadStore(){
@@ -5990,7 +5968,7 @@ function renderCourses(){
     return;
   }
   // 今日网课计划（独立卡片块）
-  const todays = allCourses.filter(function(o){ return o.c.todayPlan; });
+  const todays = allCourses.filter(function(o){ return (o.c.todayPlanDate||'')===todayKey(); });
   if(todays.length){
     html += '<div style="background:#fff;border-radius:14px;padding:14px;margin-top:14px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="display:flex;align-items:center;gap:8px">'
@@ -6021,7 +5999,7 @@ function renderCourses(){
     const cAcc = c.linked?moduleAccByKey(c.linked):null;
     const cShort = c.linked&&TOPICS[c.linked]?TOPICS[c.linked].name.slice(0,2):'';
     const cSubj = c.linked&&TOPICS[c.linked]?TOPICS[c.linked].name:'';
-    const isToday = !!c.todayPlan;
+    const isToday = (c.todayPlanDate||'')===todayKey();
     let cWarn='';
     if(c.deadline && cp<100){
       const dl=goalDaysLeft(c.deadline);
@@ -6095,10 +6073,10 @@ function toggleCourseToday(msId, cId){
   const c = (m.courses||[]).find(function(x){ return x.id===cId; });
   if(!c) return;
   const today = todayKey();
-  c.todayPlan = !c.todayPlan;
+  c.todayPlanDate = (c.todayPlanDate===today) ? '' : today;
   if(!store.todos) store.todos = [];
   const exist = store.todos.find(function(td){ return td.src==='course' && td.courseId===cId; });
-  if(c.todayPlan){
+  if(c.todayPlanDate===today){
     if(!exist) store.todos.unshift({ id:'td'+Date.now()+Math.floor(Math.random()*1000), mod:m.title||'课程', text:'🎓 '+c.name, done:false, created:today, finished:'', date:today, src:'course', courseId:cId });
   } else {
     store.todos = store.todos.filter(function(td){ return !(td.src==='course' && td.courseId===cId); });
@@ -6238,7 +6216,7 @@ function saveQuestionBook(id){
     const b = qbookById(id);
     if(b){ b.name=name; b.subject=subject; b.total=total; b.done=done; b.correct=correct; b.time=time; b.deadline=deadline; b.notes=notes; b.chapters=chapters; b.updatedAt=Date.now(); }
   } else {
-    store.questionBooks.push({ id:'qb_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, subject:subject, total:total, done:done, correct:correct, time:time, deadline:deadline, notes:notes, chapters:chapters, todayPlan:false, createdAt:Date.now(), updatedAt:Date.now() });
+    store.questionBooks.push({ id:'qb_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, subject:subject, total:total, done:done, correct:correct, time:time, deadline:deadline, notes:notes, chapters:chapters, todayPlanDate:'', createdAt:Date.now(), updatedAt:Date.now() });
   }
   saveStore(); closeQbookPopup(); renderQuestionBooks();
 }
@@ -6324,10 +6302,10 @@ function toggleQuestionBookToday(id){
   ensureQuestionBooks();
   const b = qbookById(id); if(!b) return;
   const today = todayKey();
-  b.todayPlan = !b.todayPlan; b.updatedAt = Date.now();
+  b.todayPlanDate = (b.todayPlanDate===today) ? '' : today; b.updatedAt = Date.now();
   if(!store.todos) store.todos = [];
   const exist = store.todos.find(function(td){ return td.src==='qbook' && td.qbookId===id; });
-  if(b.todayPlan){
+  if(b.todayPlanDate===today){
     if(!exist) store.todos.unshift({ id:'td'+Date.now()+Math.floor(Math.random()*1000), mod:'题本', text:'📚 '+b.name, done:false, created:today, finished:'', date:today, src:'qbook', qbookId:id });
   } else {
     store.todos = store.todos.filter(function(td){ return !(td.src==='qbook' && td.qbookId===id); });
@@ -6402,7 +6380,7 @@ function commitQuestionBookStats(tdId){
   }
   b.updatedAt = Date.now();
   if(td) td.finished = todayKey();
-  if(b.todayPlan) b._todayDone = true;
+  if(b.todayPlanDate===todayKey()) b._todayDone = true;
   const wrong = Math.max(0, done - correct);
   if(wrong>0) collectQbookErrors(b, chapName, wrong, correct, '题本');
   if(done>0){
@@ -6523,7 +6501,7 @@ function renderQuestionBooks(){
     return;
   }
   // 今日题本计划（仿截图6 右下角独立卡片）
-  const todays = list.filter(function(b){ return b.todayPlan; });
+  const todays = list.filter(function(b){ return b.todayPlanDate===todayKey(); });
   if(todays.length){
     html += '<div style="background:#fff;border-radius:14px;padding:14px;margin-top:14px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="display:flex;align-items:center;gap:8px">'
@@ -6554,7 +6532,7 @@ function renderQuestionBooks(){
     const bColor = bPct>=100?'#7FB069':(bPct>=60?'#A86BC4':'#e8a13a');
     const bSubj = qbookSubjectLabel(b.subject);
     const linkedAcc = b.subject && TOPICS[b.subject] ? moduleAccByKey(b.subject) : null;
-    const isToday = !!b.todayPlan;
+    const isToday = b.todayPlanDate===todayKey();
     const overdue = b.deadline && bPct<100 && goalDaysLeft(b.deadline)<0;
     const chs = Array.isArray(b.chapters) ? b.chapters : [];
     const chapOpen = !!b._chapOpen;
@@ -16883,7 +16861,7 @@ function addFocus(minutes, modOverride, opts){
             b.done = (b.done||0)+1; b.time = (b.time||0)+minutes;
           }
           b.updatedAt = Date.now();
-          if(b.todayPlan) b._todayDone = true;
+          if(b.todayPlanDate===t) b._todayDone = true;
           setTimeout(function(){ if(typeof toast==='function') toast('📚 题本进度 +1'); }, 320);
           // 联动：番茄完成 → 自动弹「记录本次」并预填番茄分钟数
           setTimeout(function(){ try{ autoOpenPostFocusPopup('qbook', td.qbookId, minutes); }catch(e){} }, 900);
@@ -16894,7 +16872,7 @@ function addFocus(minutes, modOverride, opts){
           const c = (m.courses||[]).find(function(x){ return x.id===td.courseId; });
           if(c){
             if(!((c.done||0) >= (c.total||0)) || !(c.total>0)) c.done = (c.done||0)+1;
-            c._todayDone = !!c.todayPlan;
+            c._todayDone = (c.todayPlanDate||'')===t;
             setTimeout(function(){ if(typeof toast==='function') toast('🎓 课程进度 +1'); }, 320);
             // 联动：番茄完成 → 自动弹「做1节」并预填番茄分钟数
             setTimeout(function(){ try{ autoOpenPostFocusPopup('course', {msId:m.id, cId:c.id}, minutes); }catch(e){} }, 900);
