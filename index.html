@@ -6083,6 +6083,7 @@ function toggleCourseToday(msId, cId){
     c._todayDone = false;
   }
   saveStore(); renderCourses(); renderTodoList(); renderHome();
+  if(RT_CURRENT_PAGE==='tomato'){ renderTomatoTodoPick(); autoPickTodayTodo(); }
 }
 function toggleTodayItem(type, id){
   if(type==='plan'){ togglePlan(id); }
@@ -6306,12 +6307,13 @@ function toggleQuestionBookToday(id){
   if(!store.todos) store.todos = [];
   const exist = store.todos.find(function(td){ return td.src==='qbook' && td.qbookId===id; });
   if(b.todayPlanDate===today){
-    if(!exist) store.todos.unshift({ id:'td'+Date.now()+Math.floor(Math.random()*1000), mod:'题本', text:'📚 '+b.name, done:false, created:today, finished:'', date:today, src:'qbook', qbookId:id });
+    if(!exist) store.todos.unshift({ id:'td'+Date.now()+Math.floor(Math.random()*1000), mod:b.subject||'题本', text:'📚 '+b.name, done:false, created:today, finished:'', date:today, src:'qbook', qbookId:id });
   } else {
     store.todos = store.todos.filter(function(td){ return !(td.src==='qbook' && td.qbookId===id); });
     b._todayDone = false;
   }
   saveStore(); renderQuestionBooks(); renderTodoList();
+  if(RT_CURRENT_PAGE==='tomato'){ renderTomatoTodoPick(); autoPickTodayTodo(); }
 }
 function openQbookStatsPopup(tdId){
   const td = (store.todos||[]).find(x=>x.id===tdId);
@@ -7049,6 +7051,7 @@ function onPageShow(page){
   if(page==='mindmap') renderMindmap();
   if(page==='diary') renderDiary();
   if(page==='garden'){ renderGarden(); maybeShowMorning(); }
+  if(page==='tomato'){ renderTomatoTodoPick(); autoPickTodayTodo(); }
   if(page==='secret') renderSecretGarden();
   if(page==='tomato'){ renderTomato(); ensureDailyTodos(); renderTodoList(); }
   if(page==='idea'){ renderIdeaTabs(); renderIdeaDaily(); renderIdeaCustom(); }
@@ -17053,13 +17056,48 @@ function pickTomatoTodo(){
       tomatoTask = td.text; tomatoTodoId = td.id;
       const inp = document.getElementById('tomatoTaskInput');
       if(inp) inp.value = td.text;
-      // 同步模块选择
+      // 同步模块选择：优先 td.mod 是标准模块中文名；否则尝试 key（verbal/reasoning…）翻译；
+      // 都不行就反查 qbookId/courseId 拿 subject
       const sel = document.getElementById('tomatoModule');
-      if(sel){ for(let i=0;i<sel.options.length;i++){ if(sel.options[i].value===td.mod){ sel.selectedIndex=i; break; } } }
+      if(sel){
+        let modName = td.mod;
+        if(modName && TOPICS[modName]) modName = TOPICS[modName].name; // key→中文名
+        if(!modName || ![].slice.call(sel.options).some(o=>o.value===modName)){
+          if(td.qbookId){
+            const b = (store.questionBooks||[]).find(x=>x.id===td.qbookId);
+            if(b && b.subject && TOPICS[b.subject]) modName = TOPICS[b.subject].name;
+          }
+          if((!modName || ![].slice.call(sel.options).some(o=>o.value===modName)) && td.courseId){
+            try{
+              const m = store.goals && store.goals.milestones && store.goals.milestones.find(x=>(x.courses||[]).some(c=>c.id===td.courseId));
+              if(m){ const c=(m.courses||[]).find(x=>x.id===td.courseId); if(c){
+                for(const k in TOPICS){ if(c.name && c.name.indexOf(TOPICS[k].name)>=0){ modName = TOPICS[k].name; break; } }
+              } }
+            }catch(e){}
+          }
+        }
+        for(let i=0;i<sel.options.length;i++){
+          if(sel.options[i].value===modName){ sel.selectedIndex=i; break; }
+        }
+      }
       return;
     }
   }
   tomatoTodoId = '';
+}
+// 进入番茄钟页面时，若尚未手动选待办，自动选今日第一个题本/课程待办并同步模块
+function autoPickTodayTodo(){
+  const pick = document.getElementById('tomatoTodoPick');
+  if(!pick || pick.value) return; // 已有选择就别抢
+  const today = todayKey();
+  const todos = store.todos || [];
+  const qb = todos.find(function(td){ return !td.done && td.date===today && td.src==='qbook'; });
+  const cs = todos.find(function(td){ return !td.done && td.date===today && td.src==='course'; });
+  const td = qb || cs;
+  if(!td) return;
+  if(![].slice.call(pick.options).some(function(o){ return o.value===td.id; })) return;
+  pick.value = td.id;
+  pickTomatoTodo();
 }
 function onTomatoTaskInput(){
   const inp = document.getElementById('tomatoTaskInput');
