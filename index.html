@@ -3722,6 +3722,31 @@ body.drawer-open .nav-cloud{display:none;}
 const STORE_KEY = 'xckq_workbench_v1';
 let store = loadStore();
 
+// 跨日清理：昨日勾选的「今日计划」过期 → 每天启动只清一次
+// （题本/课程里 todayPlan=true 不会自动消失，需手动 rollover）
+(function rolloverTodayPlans(){
+  const d = new Date();
+  if(d.getHours() < 8) d.setDate(d.getDate() - 1);
+  const today = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  if(store._lastPlanDate === today) return;
+  if(store._lastPlanDate){
+    // 1) 题本：清掉今日计划标记 + 今日打卡
+    (store.questionBooks||[]).forEach(function(b){ b.todayPlan = false; b._todayDone = false; });
+    // 2) 课程：清掉今日计划标记 + 今日打卡
+    if(store.goals && Array.isArray(store.goals.milestones)){
+      store.goals.milestones.forEach(function(m){
+        (m.courses||[]).forEach(function(c){ c.todayPlan = false; c._todayDone = false; });
+      });
+    }
+    // 3) todos：清掉「今日计划」产生的题本/课程待办（src=qbook/course）
+    if(Array.isArray(store.todos)){
+      store.todos = store.todos.filter(function(td){ return td.src!=='qbook' && td.src!=='course'; });
+    }
+  }
+  store._lastPlanDate = today;
+  saveStore();
+})();
+
 function defaultStore(){
   return {
     plans: {},        // {date: [{id,text,module,count,done}]}
