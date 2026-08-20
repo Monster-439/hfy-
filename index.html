@@ -487,9 +487,9 @@ body[data-color-theme="sky"]{
 .btn-danger{background:#fff0f0;color:#e88; border:2px solid #fcc;box-shadow:none;}
 .btn-danger:hover{background:#fee;}
 
-/* 添加试卷记录按钮 + 成绩趋势分析标签：亮粉底白字（与番茄钟一致） */
-#examAddBtn{background:#EFAAC3;color:#fff;border-color:transparent;text-shadow:0 1px 2px rgba(150,90,110,0.3);}
-#examAddBtn:hover{background:#F1B3C9;}
+/* 添加试卷记录按钮 + 成绩趋势分析标签：跟随主题主色（与番茄钟一致） */
+#examAddBtn{background:var(--pink-btn);color:#fff;border-color:transparent;text-shadow:0 1px 2px var(--pink-text-shadow-softest);}
+#examAddBtn:hover{background:var(--pink-btn-hover);}
 .chart-tab:not(.active):hover{background:var(--pink-soft);color:var(--text-main);}
 
 /* ========== 题型入口卡 ========== */
@@ -4750,7 +4750,7 @@ function renderFlashLib(modCount, total){
   h += '<div style="margin-bottom:10px;"><select id="fcModule" style="'+fcInpStyle()+'">' + Object.keys(TOPICS).map(k=>'<option value="'+TOPICS[k].name+'">'+TOPICS[k].name+'</option>').join('') + '</select></div>';
   h += fcFieldRow('fcFront', '正面：知识点 / 问题（如：行政处罚的种类有哪些？）');
   h += fcFieldRow('fcBack', '背面：答案 / 解析');
-  h += '<button class="btn" style="background:#F8C8D0;color:#fff;border:none;width:100%;" onclick="addFlashcard()">保存闪卡</button>';
+  h += '<button class="btn" style="width:100%;" onclick="addFlashcard()">保存闪卡</button>';
   h += '</div>';
 
   h += '<div style="padding:0 12px;display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">';
