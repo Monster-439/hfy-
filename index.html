@@ -8372,7 +8372,7 @@ function getQuestions(module, type){
   // 合并「我的题库」中同模块的题目（手动录入 + PDF 题库），自动同步到对应板块刷题池
   (store.bankManual||[]).forEach(function(it){
     if(it.module === module){
-      extra.push({q: it.q, options: it.options, answer: it.answer, explain: it.explain||''});
+      extra.push({q: it.q, options: it.options, answer: it.answer, explain: it.explain||'', explainStruct: it.explainStruct || null});
     }
   });
   (store.bankPdf||[]).forEach(function(e){
@@ -14423,7 +14423,7 @@ function bankAllQuestions(){
   const all = [];
   store.bankPdf.forEach(function(e){ (e.questions||[]).forEach(function(q){ all.push(q); }); });
   store.bankManual.forEach(function(it){
-    all.push({ q: it.q, options: it.options, answer: it.answer, explain: it.explain || '' });
+    all.push({ q: it.q, options: it.options, answer: it.answer, explain: it.explain || '', explainStruct: it.explainStruct || null });
   });
   return all;
 }
