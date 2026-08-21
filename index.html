@@ -1021,6 +1021,11 @@ body[data-color-theme="sky"]{
 .quiz-explain .et{font-weight:700;color:var(--pink-btn);margin-bottom:4px;}
 .quiz-explain .qe-body{white-space:pre-wrap;word-break:break-word;color:var(--text);}
 .quiz-explain .qe-body .qe-label{color:var(--pink-btn);font-weight:700;margin-right:2px;}
+.quiz-explain .qe-summary{margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed var(--pink-pill-border);white-space:pre-wrap;word-break:break-word;color:var(--text-sub);}
+.quiz-explain .qe-part{display:flex;gap:6px;margin-top:7px;line-height:1.65;}
+.quiz-explain .qe-part .qe-label{flex:0 0 auto;color:var(--pink-btn);font-weight:700;white-space:nowrap;}
+.quiz-explain .qe-part .qe-ptext{flex:1 1 auto;white-space:pre-wrap;word-break:break-word;color:var(--text);}
+.quiz-explain .qe-part.qe-correct .qe-label{color:#fff;background:var(--pink-btn);border-radius:6px;padding:0 5px;}
 .quiz-result{padding:30px 24px;text-align:center;}
 .quiz-result .big-emoji{font-size:56px;margin-bottom:12px;}
 .quiz-result .score{font-size:42px;font-weight:700;color:var(--pink-btn);margin-bottom:6px;}
@@ -1080,6 +1085,12 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .manual-row{display:flex;gap:10px;}
 .manual-sel{flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff;color:var(--text);}
 .manual-area{width:100%;min-height:44px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;resize:vertical;font-family:inherit;box-sizing:border-box;}
+.manual-explain-block{margin:10px 0;padding:10px;border:1px dashed var(--border);border-radius:10px;background:var(--bg-soft,#faf7fb);}
+.meb-title{font-size:12px;color:var(--text-sub,#888);margin-bottom:6px;font-weight:600;}
+.meb-row{display:flex;gap:8px;align-items:flex-start;margin-bottom:6px;}
+.meb-k{flex:0 0 20px;width:20px;height:20px;margin-top:10px;border-radius:50%;background:var(--pink-mid,#fbe3ec);color:var(--pink-btn,#d36c9a);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.meb-row-sum .meb-k{background:#eee;color:#888;}
+.meb-in{flex:1;min-height:36px;font-size:12px;}
 .manual-opts{display:flex;flex-direction:column;gap:8px;}
 .manual-opt{display:flex;align-items:center;gap:8px;}
 .manual-opt-k{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--pink-main);color:var(--pink-btn);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;}
@@ -3277,7 +3288,14 @@ body.drawer-open .nav-cloud{display:none;}
         <div class="manual-opt"><span class="manual-opt-k">C</span><input id="manOptC" class="manual-opt-in" placeholder="选项 C"></div>
         <div class="manual-opt"><span class="manual-opt-k">D</span><input id="manOptD" class="manual-opt-in" placeholder="选项 D（可留空）"></div>
       </div>
-      <textarea id="manExplain" class="manual-area" style="min-height:60px;" placeholder="解析（选填），练习时可查看"></textarea>
+      <div class="manual-explain-block">
+        <div class="meb-title">📋 解析（按选项填，乱序后自动跟选项走，永不错位）</div>
+        <div class="meb-row"><span class="meb-k" id="manEk0">A</span><textarea id="manExplain0" class="manual-area meb-in" placeholder="为什么 A 对/错（选填）"></textarea></div>
+        <div class="meb-row"><span class="meb-k" id="manEk1">B</span><textarea id="manExplain1" class="manual-area meb-in" placeholder="为什么 B 对/错（选填）"></textarea></div>
+        <div class="meb-row"><span class="meb-k" id="manEk2">C</span><textarea id="manExplain2" class="manual-area meb-in" placeholder="为什么 C 对/错（选填）"></textarea></div>
+        <div class="meb-row"><span class="meb-k" id="manEk3">D</span><textarea id="manExplain3" class="manual-area meb-in" placeholder="为什么 D 对/错（选填）"></textarea></div>
+        <div class="meb-row meb-row-sum"><span class="meb-k">总</span><textarea id="manExplainSummary" class="manual-area meb-in" placeholder="总论/题干梳理（选填）"></textarea></div>
+      </div>
       <button class="btn" id="manSaveBtn" onclick="addManualQuestion()">💾 保存到题库</button>
       <button class="btn btn-ghost" id="manCancelEdit" style="display:none;" onclick="cancelManualEdit()">取消编辑</button>
     </div>
@@ -3785,6 +3803,7 @@ body.drawer-open .nav-cloud{display:none;}
 // ====================================================
 const STORE_KEY = 'xckq_workbench_v1';
 let store = loadStore();
+migrateExplainStruct(); // 兼容旧版单框 explain，自动转结构化解析
 
 // 「今日计划」改用日期（todayPlanDate）判断：勾选时写当天，渲染只显示 todayPlanDate===今天。
 // 跨日自动隐身（数据留痕），无需启动清理逻辑。
@@ -3879,6 +3898,44 @@ function loadStore(){
     }
   }catch(e){}
   return defaultStore();
+}
+// 老数据迁移：把旧版单框 explain 文本自动转成 explainStruct（按原始选项字母分块；无法结构化则整段作总论兜底）
+function migrateExplainStruct(){
+  if(!store.bankManual || !store.bankManual.length) return;
+  let changed = false;
+  for(const it of store.bankManual){
+    if(it.explainStruct || !it.explain) continue; // 已迁移或无老解析
+    const explain = String(it.explain);
+    const n = (it.options && it.options.length) || 4;
+    const lastLab = String.fromCharCode(64 + Math.max(n, 4)); // 至少到 D
+    const re = new RegExp('(^|\\n)\\s*((?:选项分析|选项拆解|选项讲解|选项解读)\\s*)?([✅✓✔]?\\s*)([A-' + lastLab + '])\\s*[:：]', 'g');
+    const points = [];
+    let m;
+    while((m = re.exec(explain)) !== null){ points.push({ idx: m.index + m[1].length, label: m[4].toUpperCase() }); }
+    const parts = [null,null,null,null,null,null];
+    let summary = null;
+    if(points.length >= 1){
+      const header = explain.substring(0, points[0].idx).trim();
+      if(header) summary = header;
+      for(let i=0;i<points.length;i++){
+        const oi = points[i].label.charCodeAt(0) - 65;
+        if(oi < 0 || oi > 5) continue;
+        const start = points[i].idx;
+        const end = (i+1 < points.length) ? points[i+1].idx : explain.length;
+        const ci = explain.indexOf(':', start);
+        const cj = explain.indexOf('：', start);
+        let colon = -1;
+        if(ci === -1) colon = cj; else if(cj === -1) colon = ci; else colon = Math.min(ci, cj);
+        const body = (colon >= 0 ? explain.substring(colon+1, end) : explain.substring(start, end)).trim() || null;
+        parts[oi] = body;
+      }
+    } else {
+      summary = explain.trim(); // 无法结构化：整段作总论，parts 全空（不丢内容）
+    }
+    it.explainStruct = { parts: parts.slice(0, Math.max(n, 4)), summary: summary };
+    changed = true;
+  }
+  if(changed) saveStore();
 }
 function saveStore(){ localStorage.setItem(STORE_KEY, JSON.stringify(store)); ghOnLocalChange(); }
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -9262,6 +9319,43 @@ function reorderExplainByOptions(explain, n, labelMap){
   return out;
 }
 
+// 按 explainStruct 原始索引对齐渲染解析：乱序后各选项解析自动跟到"当前位置"
+// explainStruct: { parts:[orig0..origN], summary } —— parts[i] 对应原始第 i 个选项（录入时的位置）
+function buildExplainStructHtml(q){
+  const st = q.explainStruct;
+  if(!st) return null;
+  const parts = Array.isArray(st.parts) ? st.parts : [];
+  const summary = st.summary ? String(st.summary).trim() : '';
+  const origOpts = (Array.isArray(q._origOpts) && q._origOpts.length === q.options.length) ? q._origOpts : q.options;
+  const blocks = [];
+  for(let pos=0; pos<q.options.length; pos++){
+    const origIdx = origOpts.indexOf(q.options[pos]);
+    const text = (origIdx>=0 && parts[origIdx]) ? String(parts[origIdx]).trim() : '';
+    if(text){
+      const label = String.fromCharCode(65+pos);
+      const isCorrect = (pos === q.answer);
+      blocks.push({ label:label, text:text, correct:isCorrect });
+    }
+  }
+  if(blocks.length === 0 && !summary) return null; // 无结构化内容，回退老 explain 文本
+  let html = '';
+  if(summary){
+    html += '<div class="qe-summary">'+escHtml(summary)+'</div>';
+  }
+  // 正确答案解析置顶，其余按 A→D 顺序，阅读更顺
+  blocks.sort(function(a,b){
+    if(a.correct !== b.correct) return a.correct ? -1 : 1;
+    return a.label < b.label ? -1 : 1;
+  });
+  for(let i=0;i<blocks.length;i++){
+    const b = blocks[i];
+    html += '<div class="qe-part'+(b.correct?' qe-correct':'')+'">'
+          + '<span class="qe-label">'+(b.correct?'✅ '+b.label:b.label)+'</span>'
+          + '<span class="qe-ptext">'+escHtml(b.text)+'</span></div>';
+  }
+  return html;
+}
+
 function renderQuestion(){
   const q = quizState.questions[quizState.currentIdx];
   const total = quizState.questions.length;
@@ -9286,10 +9380,17 @@ function renderQuestion(){
       if(newIdx >= 0) labelMap[oldLab] = String.fromCharCode(65+newIdx);
     }
   }
-  const explainText = reorderExplainByOptions(explainRaw, q.options.length, labelMap);
-  const explainHtml = explainText
-    ? escHtml(explainText).replace(/(选项分析\s*[A-Z]\s*[:：])/g, '<span class="qe-label">$1</span>')
-    : '（真题暂无解析，请自行核对答案）';
+  // 优先结构化解析（按原始索引对齐，乱序后自动跟到当前位置）；否则兜底老文本
+  const structHtml = buildExplainStructHtml(q);
+  let explainHtml;
+  if(structHtml){
+    explainHtml = structHtml;
+  } else {
+    const explainText = reorderExplainByOptions(explainRaw, q.options.length, labelMap);
+    explainHtml = explainText
+      ? escHtml(explainText).replace(/(选项分析\s*[A-Z]\s*[:：])/g, '<span class="qe-label">$1</span>')
+      : '（真题暂无解析，请自行核对答案）';
+  }
 
   document.getElementById('quizBody').innerHTML = `
     <div class="quiz-q"><span class="q-tag">${quizState.type}</span>${q.q}</div>
@@ -14086,6 +14187,14 @@ function addManualQuestion(){
   if(validOpts.length < 2){ toast('至少需要填写 2 个有效选项~'); return; }
   const answer = parseInt(document.getElementById('manAnswer').value, 10);
   if(answer >= validOpts.length){ toast('正确答案序号超出了有效选项数量~'); return; }
+  // 结构化解析：parts[i] 对应原始第 i 个选项，乱序后按原索引自动对齐
+  const parts = [0,1,2,3].map(function(i){
+    const t = (document.getElementById('manExplain'+i) || {}).value;
+    return (t ? t.trim() : '') || null;
+  });
+  const summary = (document.getElementById('manExplainSummary') || {}).value;
+  const summaryText = summary ? summary.trim() : '';
+  const explainStruct = { parts: parts, summary: summaryText || null };
   const editingId = store._editingManualId;
   if(editingId){
     const it = store.bankManual.find(function(x){ return x.id === editingId; });
@@ -14094,7 +14203,7 @@ function addManualQuestion(){
       it.q = q;
       it.options = validOpts;
       it.answer = answer;
-      it.explain = document.getElementById('manExplain').value.trim();
+      it.explainStruct = explainStruct;
     }
   } else {
     const item = {
@@ -14103,7 +14212,7 @@ function addManualQuestion(){
       q: q,
       options: validOpts,
       answer: answer,            // -1 表示无答案（自测）
-      explain: document.getElementById('manExplain').value.trim()
+      explainStruct: explainStruct
     };
     store.bankManual.push(item);
   }
@@ -14113,7 +14222,8 @@ function addManualQuestion(){
   document.getElementById('manOptB').value = '';
   document.getElementById('manOptC').value = '';
   document.getElementById('manOptD').value = '';
-  document.getElementById('manExplain').value = '';
+  for(let i=0;i<4;i++){ const e = document.getElementById('manExplain'+i); if(e) e.value = ''; }
+  const es = document.getElementById('manExplainSummary'); if(es) es.value = '';
   document.getElementById('manAnswer').value = '-1';
   if(editingId){ store._editingManualId = ''; }
   resetManualEditUI();
@@ -14135,7 +14245,10 @@ function editManual(id){
   document.getElementById('manOptB').value = o[1] || '';
   document.getElementById('manOptC').value = o[2] || '';
   document.getElementById('manOptD').value = o[3] || '';
-  document.getElementById('manExplain').value = it.explain || '';
+  const struct = it.explainStruct || {};
+  const parts = struct.parts || [];
+  for(let i=0;i<4;i++){ const e = document.getElementById('manExplain'+i); if(e) e.value = parts[i] || ''; }
+  const es = document.getElementById('manExplainSummary'); if(es) es.value = struct.summary || '';
   document.getElementById('manAnswer').value = (typeof it.answer === 'number') ? String(it.answer) : '-1';
   const saveBtn = document.getElementById('manSaveBtn');
   if(saveBtn) saveBtn.textContent = '✏️ 更新题目';
@@ -14153,7 +14266,8 @@ function cancelManualEdit(){
   document.getElementById('manOptB').value = '';
   document.getElementById('manOptC').value = '';
   document.getElementById('manOptD').value = '';
-  document.getElementById('manExplain').value = '';
+  for(let i=0;i<4;i++){ const e = document.getElementById('manExplain'+i); if(e) e.value = ''; }
+  const es = document.getElementById('manExplainSummary'); if(es) es.value = '';
   document.getElementById('manAnswer').value = '-1';
   toast('已取消编辑');
 }
@@ -17475,10 +17589,25 @@ function startTodoFocus(id){
   const td = (store.todos||[]).find(x=>x.id===id);
   if(!td) return;
   const sel = document.getElementById('tomatoModule');
-  if(sel){ for(let i=0;i<sel.options.length;i++){ if(sel.options[i].value===td.mod){ sel.selectedIndex=i; break; } } }
+  if(sel){
+    // 1) 优先按 td.mod 精确匹配
+    let matched = -1;
+    for(let i=0;i<sel.options.length;i++){ if(sel.options[i].value===td.mod){ matched=i; break; } }
+    // 2) 匹配不到则从待办文本里扫 TOPICS 关键字（如「判断推理」「言语理解」）
+    if(matched<0){
+      const text = (td.text||'') + ' ' + (td.mod||'');
+      for(let i=0;i<sel.options.length;i++){
+        const v = sel.options[i].value;
+        if(v && text.indexOf(v)>=0){ matched=i; break; }
+      }
+    }
+    if(matched>=0) sel.selectedIndex = matched;
+  }
   tomatoTask = td.text; tomatoTodoId = td.id;
+  // 同步"具体在做什么"下拉，触发 pickTomatoTodo() 走完整模块同步
   const pick = document.getElementById('tomatoTodoPick');
-  if(pick){ pick.value = td.id; }
+  if(pick){ pick.value = td.id; pickTomatoTodo(); }
+  else if(typeof pickTomatoTodo==='function') pickTomatoTodo();
   const inp = document.getElementById('tomatoTaskInput');
   if(inp){ inp.value = td.text; }
   showPage('tomato');
@@ -17593,6 +17722,57 @@ function fwRecallIfHidden(){
   if(!fwHidden()) return '';
   return '<div class="fw-recall" onclick="fwSetHidden(false);updateFloatingWidget();">📌 浮窗已关 · 点此显示</div>';
 }
+// 拖动 + 位置持久化（localStorage: fw_pos = "left,top"）
+function fwApplyPos(){
+  const el = document.getElementById('floatWidget');
+  if(!el) return;
+  try{
+    const p = JSON.parse(localStorage.getItem('fw_pos')||'null');
+    if(p && typeof p.left==='number' && typeof p.top==='number'){
+      el.style.left = p.left+'px'; el.style.top = p.top+'px';
+      el.style.right = 'auto'; el.style.bottom = 'auto';
+    }
+  }catch(e){}
+}
+function initFwDrag(){
+  const el = document.getElementById('floatWidget');
+  if(!el || el._fwDragBound) return;
+  el._fwDragBound = true;
+  let dragging = false, sx=0, sy=0, ox=0, oy=0;
+  el.addEventListener('pointerdown', function(e){
+    const handle = e.target.closest('.fw-handle');
+    if(!handle) return; // 只有拖把区能拖动，避免误触按钮/点击
+    e.preventDefault();
+    dragging = true;
+    el.classList.add('fw-dragging');
+    const rect = el.getBoundingClientRect();
+    ox = rect.left; oy = rect.top;
+    sx = e.clientX; sy = e.clientY;
+    try{ el.setPointerCapture(e.pointerId); }catch(_){}
+  });
+  el.addEventListener('pointermove', function(e){
+    if(!dragging) return;
+    const nx = ox + (e.clientX - sx);
+    const ny = oy + (e.clientY - sy);
+    const maxX = window.innerWidth - el.offsetWidth - 4;
+    const maxY = window.innerHeight - el.offsetHeight - 4;
+    const left = Math.max(4, Math.min(maxX, nx));
+    const top = Math.max(4, Math.min(maxY, ny));
+    el.style.left = left+'px'; el.style.top = top+'px';
+    el.style.right = 'auto'; el.style.bottom = 'auto';
+  });
+  function endDrag(e){
+    if(!dragging) return;
+    dragging = false;
+    el.classList.remove('fw-dragging');
+    try{
+      const rect = el.getBoundingClientRect();
+      localStorage.setItem('fw_pos', JSON.stringify({left:Math.round(rect.left), top:Math.round(rect.top)}));
+    }catch(_){}
+  }
+  el.addEventListener('pointerup', endDrag);
+  el.addEventListener('pointercancel', endDrag);
+}
 
 // 取「下一件」：优先今日计划中未完成且最早开始时间的，其次今日待办
 function fwNextText(){
@@ -17631,6 +17811,7 @@ function updateFloatingWidget(){
     const pauseBtn = tomatoRunning ? '⏸' : '▶';
     el.innerHTML =
       '<div class="fw-card fw-tomato">'
+      + '<span class="fw-handle" title="拖动浮窗">⠿</span>'
       + '<div class="fw-main" onclick="fwJump()">'
       + '<div class="fw-line"><span class="fw-time">'+time+'</span><span class="fw-tag">'+(tomatoRunning?'专注中':'已暂停')+'</span></div>'
       + '<div class="fw-task">🎯 '+escapeHtml(task)+'</div>'
@@ -17651,9 +17832,10 @@ function updateFloatingWidget(){
   const totalN = todos.length;
   const countTxt = totalN ? (done+'/'+totalN) : (plans.length ? ('0/'+plans.length) : '0/0');
   const next = fwNextText();
-  el.innerHTML =
-    '<div class="fw-card fw-todo">'
-    + '<div class="fw-main" onclick="fwJump()">'
+    el.innerHTML =
+      '<div class="fw-card fw-todo">'
+      + '<span class="fw-handle" title="拖动浮窗">⠿</span>'
+      + '<div class="fw-main" onclick="fwJump()">'
     + '<div class="fw-line"><span class="fw-tag">📋 今日 '+countTxt+'</span></div>'
     + '<div class="fw-task">'+(next ? escapeHtml(next) : '<span style="color:#bbb">今日计划已完成 🎉</span>')+'</div>'
     + '</div>'
@@ -17661,6 +17843,7 @@ function updateFloatingWidget(){
     + '<button class="fw-btn" onclick="fwCollapse()">—</button>'
     + '<button class="fw-btn" title="收起浮窗（点此显示可重新唤回）" onclick="fwClose()">✕</button>'
     + '</div></div>';
+  fwApplyPos(); initFwDrag();
 }
 
 // ---- 灵感库 ----
@@ -18794,8 +18977,12 @@ function renderQuizComplete(){
 :root[data-theme="dark"] .pd-tags span{background:rgba(120,220,160,.18);color:#8fe0b0}
 
 /* ========== 右下角浮窗 ========== */
-#floatWidget{position:fixed;right:14px;bottom:88px;z-index:1300;max-width:78vw;}
-.fw-card{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.97);border:2px solid var(--border-deep);border-radius:16px;padding:8px 8px 8px 14px;box-shadow:0 6px 18px var(--pink-shadow-soft);backdrop-filter:blur(6px);}
+#floatWidget{position:fixed;right:14px;bottom:88px;z-index:1300;max-width:78vw;opacity:.55;transition:opacity .18s ease;}
+#floatWidget.fw-dragging{opacity:.92;transition:none;cursor:grabbing;}
+#floatWidget:hover{opacity:1;}
+.fw-handle{position:absolute;left:6px;top:50%;transform:translateY(-50%);width:14px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#C0A8B5;cursor:grab;user-select:none;opacity:.7;}
+.fw-handle:active{cursor:grabbing;}
+.fw-card{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.97);border:2px solid var(--border-deep);border-radius:16px;padding:8px 22px 8px 26px;box-shadow:0 6px 18px var(--pink-shadow-soft);backdrop-filter:blur(6px);position:relative;}
 .fw-tomato{border-color:#B9A4E0;background:rgba(48,38,66,.94);box-shadow:0 6px 20px rgba(90,60,140,.35);}
 .fw-main{flex:1;min-width:0;cursor:pointer;}
 .fw-line{display:flex;align-items:center;gap:8px;font-size:12px;}
