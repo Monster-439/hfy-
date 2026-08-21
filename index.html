@@ -3509,6 +3509,11 @@ body.drawer-open .nav-cloud{display:none;}
     <div id="achievementWall"></div>
   </div>
   <div class="card">
+    <div class="card-title"><span class="dot"></span>🏅 成就勋章（叠加玩法）</div>
+    <p class="import-empty" style="text-align:left;margin-bottom:12px;">打卡 / 专注 / 做题 三条轨道各自累计，解锁 🥉铜 → 🥈银 → 🥇金 → 💎钻 四档勋章，越高越闪，勋章可叠加收集 💪</p>
+    <div id="medalWall"></div>
+  </div>
+  <div class="card">
     <div class="card-title"><span class="dot"></span>🎰 扭蛋养花</div>
     <p class="import-empty" style="text-align:left;margin-bottom:12px;">完成番茄钟专注会掉落 🎰 扭蛋币，抽卡收集各种小花，集齐图鉴看谁最欧！</p>
     <div id="gachaWall"></div>
@@ -7109,7 +7114,7 @@ function onPageShow(page){
   if(page==='qbook') renderQuestionBooks();
   if(page==='mindmap') renderMindmap();
   if(page==='diary') renderDiary();
-  if(page==='garden'){ renderGarden(); maybeShowMorning(); }
+  if(page==='garden'){ renderGarden(); maybeShowMorning(); renderMedals(); }
   if(page==='tomato'){ renderTomatoTodoPick(); autoPickTodayTodo(); }
   if(page==='secret') renderSecretGarden();
   if(page==='tomato'){ renderTomato(); ensureDailyTodos(); renderTodoList(); }
@@ -15436,8 +15441,68 @@ function getFlowerSVG(type, phase, prog){
   return s;
 }
 
-function renderGarden(){
-  ensureGarden();
+// 成就勋章（叠加玩法）：打卡 / 专注 / 做题 三条轨道各自累计，解锁 铜→银→金→钻 四档
+const MEDAL_TIERS = [
+  {key:'bronze',  name:'铜牌', emoji:'🥉', need:3},
+  {key:'silver',  name:'银牌', emoji:'🥈', need:7},
+  {key:'gold',    name:'金牌', emoji:'🥇', need:21},
+  {key:'diamond', name:'钻石', emoji:'💎', need:100},
+];
+const MEDAL_TRACKS = [
+  {key:'checkin', name:'📅 打卡', unit:'天',  get:function(){ return getCheckinDays(); }},
+  {key:'focus',   name:'🍅 专注', unit:'小时', get:function(){ return Math.round(getFocusMin()/60); }},
+  {key:'done',    name:'📝 做题', unit:'道',  get:function(){ return getCumuDone(); }},
+];
+function getCheckinDays(){
+  const c = store.checkins || {};
+  let n = 0;
+  for(const k in c){ if(c[k] > 0) n++; }
+  return n;
+}
+function getFocusMin(){
+  return (store.focusLog || []).reduce(function(s, x){ return s + (x.min || 0); }, 0);
+}
+function getCumuDone(){
+  let t = 0;
+  for(const key in TOPICS){ t += moduleCumuDone(TOPICS[key].name); }
+  return t;
+}
+function renderMedals(){
+  const el = document.getElementById('medalWall');
+  if(!el) return;
+  let html = '<div style="display:flex;flex-direction:column;gap:14px">';
+  MEDAL_TRACKS.forEach(function(tr){
+    const val = tr.get();
+    let row = '<div style="background:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 2px 8px rgba(0,0,0,.04)">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
+      + '<span style="font-size:15px;font-weight:700;color:#555">' + tr.name + '</span>'
+      + '<span style="font-size:12px;color:#999;margin-left:auto">当前 ' + val + tr.unit + '</span>'
+      + '</div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+    MEDAL_TIERS.forEach(function(tier){
+      const unlocked = val >= tier.need;
+      const rest = tier.need - val;
+      const badge = unlocked
+        ? '<div style="flex:1;min-width:64px;text-align:center;background:linear-gradient(135deg,#fff7ec,#fde8e8);border:1px solid #f3d28a;border-radius:12px;padding:10px 6px;box-shadow:0 2px 8px rgba(232,160,190,.18)">'
+          + '<div style="font-size:26px">' + tier.emoji + '</div>'
+          + '<div style="font-size:12px;font-weight:700;color:#b07a2e">' + tier.name + '</div>'
+          + '<div style="font-size:10px;color:#bbb">已达 ' + tier.need + tr.unit + '</div>'
+        + '</div>'
+        : '<div style="flex:1;min-width:64px;text-align:center;background:#f6f4f6;border:1px dashed #e3dde0;border-radius:12px;padding:10px 6px;opacity:.7">'
+          + '<div style="font-size:26px;filter:grayscale(1)">' + tier.emoji + '</div>'
+          + '<div style="font-size:12px;font-weight:700;color:#bbb">' + tier.name + '</div>'
+          + '<div style="font-size:10px;color:#bbb">还差 ' + rest + tr.unit + '</div>'
+        + '</div>';
+      row += badge;
+    });
+    row += '</div></div>';
+    html += row;
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function renderGarden(){  ensureGarden();
   refreshWeather();
   const g = store.garden;
   const ft = FLOWER_TYPES.find(f=>f.id===g.active)||FLOWER_TYPES[0];
@@ -17512,7 +17577,22 @@ function fwEnd(){
 }
 function fwCollapse(){ floatCollapsed = true; updateFloatingWidget(); }
 function fwExpand(){ floatCollapsed = false; updateFloatingWidget(); }
-function fwClose(){ fwSetHidden(true); }
+function fwClose(){ fwSetHidden(true); toast('浮窗已关 · 头部开关可重新显示'); }
+// 长按 0.5s 才真正隐藏当天（防误触 ✕）
+let _fwLP_t = null;
+function fwLongPressStart(e){
+  if(e && e.preventDefault) e.preventDefault();
+  clearTimeout(_fwLP_t);
+  _fwLP_t = setTimeout(function(){ _fwLP_t = null; fwClose(); }, 500);
+}
+function fwLongPressEnd(){
+  if(_fwLP_t){ clearTimeout(_fwLP_t); _fwLP_t = null; }
+}
+// 唤回：浮窗被隐藏当天时显示「📌 浮窗已关 · 点此显示」小条
+function fwRecallIfHidden(){
+  if(!fwHidden()) return '';
+  return '<div class="fw-recall" onclick="fwSetHidden(false);updateFloatingWidget();">📌 浮窗已关 · 点此显示</div>';
+}
 
 // 取「下一件」：优先今日计划中未完成且最早开始时间的，其次今日待办
 function fwNextText(){
@@ -17532,8 +17612,10 @@ function fwNextText(){
 function updateFloatingWidget(){
   const el = document.getElementById('floatWidget');
   if(!el) return;
-  if(fwHidden()){ el.style.display = 'none'; return; }
   el.style.display = 'block';
+  // 真正隐藏当天：不再整块消失，而是渲染一个可一键唤回的小条（避免找不到入口）
+  if(fwHidden()){ el.innerHTML = fwRecallIfHidden(); return; }
+
   const inTomato = tomatoRunning || focusSessionActive;
   // 收起态：小圆点
   if(floatCollapsed){
@@ -17557,7 +17639,7 @@ function updateFloatingWidget(){
       + '<button class="fw-btn" onclick="fwPause()">'+pauseBtn+'</button>'
       + '<button class="fw-btn" onclick="fwEnd()">⏹</button>'
       + '<button class="fw-btn" onclick="fwCollapse()">—</button>'
-      + '<button class="fw-btn" onclick="fwClose()">✕</button>'
+      + '<button class="fw-btn" title="收起浮窗（点此显示可重新唤回）" onclick="fwClose()">✕</button>'
       + '</div></div>';
     return;
   }
@@ -17577,7 +17659,7 @@ function updateFloatingWidget(){
     + '</div>'
     + '<div class="fw-acts">'
     + '<button class="fw-btn" onclick="fwCollapse()">—</button>'
-    + '<button class="fw-btn" onclick="fwClose()">✕</button>'
+    + '<button class="fw-btn" title="收起浮窗（点此显示可重新唤回）" onclick="fwClose()">✕</button>'
     + '</div></div>';
 }
 
@@ -18728,6 +18810,9 @@ function renderQuizComplete(){
 .fw-btn:active{transform:scale(.9);}
 .fw-dot{width:52px;height:52px;border-radius:50%;background:#fff;border:2px solid var(--border-deep);box-shadow:0 6px 18px var(--pink-shadow-soft);display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;}
 .fw-dot:active{transform:scale(.92);}
+.fw-recall{background:rgba(255,255,255,.97);border:2px dashed #E0A6BC;border-radius:14px;padding:10px 18px;box-shadow:0 6px 18px var(--pink-shadow-soft);backdrop-filter:blur(6px);font-size:13px;font-weight:700;color:#C9718E;cursor:pointer;white-space:nowrap;}
+.fw-recall:active{transform:scale(.96);}
+:root[data-theme="dark"] .fw-recall{background:rgba(48,42,56,.96);border-color:#7a5a78;color:#e0c9da;}
 :root[data-theme="dark"] .fw-card:not(.fw-tomato){background:rgba(48,42,56,.96);border-color:#5a4a66;}
 :root[data-theme="dark"] .fw-todo .fw-time{color:#F3E9F6;}
 :root[data-theme="dark"] .fw-todo .fw-task{color:#CBBCCF;}
