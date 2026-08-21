@@ -1210,19 +1210,6 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .countdown-card.cd-gk{background:linear-gradient(135deg,var(--pink-soft) 0%,var(--pink-btn) 100%);}
 .countdown-card.cd-jx{background:linear-gradient(135deg,var(--pink-soft) 0%,var(--pink-btn) 100%);}
 
-/* 首页「快捷入口」单块：沿用首页倒计时的粉系渐变视觉 */
-.quick-tile{padding:18px 20px;border-radius:var(--radius);color:#fff;position:relative;overflow:hidden;box-shadow:var(--shadow);cursor:pointer;transition:transform .12s ease;text-shadow:0 1px 3px rgba(0,0,0,.18);}
-.quick-tile:active{transform:scale(.98);}
-.quick-tile::after{content:'';position:absolute;right:-20px;bottom:-20px;width:84px;height:84px;border-radius:50%;background:rgba(255,255,255,.18);}
-.quick-tile.qt-1{background:linear-gradient(135deg,var(--pink-soft) 0%,var(--pink-btn) 100%);}
-.quick-tile .quick-ic{font-size:34px;line-height:1;position:relative;z-index:1;}
-.quick-tile .quick-lbl{font-size:18px;font-weight:700;position:relative;z-index:1;}
-.quick-tile .quick-sub{font-size:12px;opacity:.92;margin-top:4px;position:relative;z-index:1;}
-.quick-tile.quick-solo{display:flex;align-items:center;gap:16px;margin:0 0 16px;}
-.quick-tile.quick-solo .quick-ic{margin-bottom:0;flex-shrink:0;}
-.quick-tile.quick-solo .quick-ic{font-size:40px;}
-[data-theme="dark"] .quick-tile{color:var(--text-main);background:linear-gradient(135deg,var(--bg-page),var(--bg-page-mid));}
-[data-theme="dark"] .quick-tile::after{background:var(--pink-overlay);}
 .countdown-card::after{content:'';position:absolute;right:-20px;bottom:-20px;width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,0.18);}
 .countdown-card .cd-title{font-size:14px;font-weight:700;opacity:.95;margin-bottom:6px;}
 .countdown-card .cd-days{font-size:40px;font-weight:800;line-height:1.1;display:flex;align-items:baseline;gap:6px;}
@@ -2591,10 +2578,10 @@ body.drawer-open .nav-cloud{display:none;}
 
   <div class="countdown-row" id="countdownWrap"></div>
 
-  <div class="quick-tile qt-1 quick-solo" onclick="startBankDrill()">
-    <div class="quick-ic">📝</div>
-    <div class="quick-lbl">题库演练</div>
-    <div class="quick-sub">合并 PDF · 手动录入的题目，随时开练</div>
+  <div class="card">
+    <div class="card-title"><span class="dot"></span>📝 题库演练</div>
+    <p class="import-empty" style="text-align:left;margin-bottom:10px;">合并「PDF 题库」与「手动录入」的题目，随时开练。</p>
+    <button class="btn" id="bankDrillBtnHome" onclick="startBankDrill()">开始全部演练（0 题）</button>
   </div>
 
   <div class="card">
@@ -14449,10 +14436,12 @@ function bankAllQuestions(){
 }
 
 function updateBankDrillBtn(){
-  const btn = document.getElementById('bankDrillBtn');
-  if(!btn) return;
   const n = bankAllQuestions().length;
-  btn.textContent = '开始全部演练（' + n + ' 题）';
+  const txt = '开始全部演练（' + n + ' 题）';
+  const a = document.getElementById('bankDrillBtn');
+  const b = document.getElementById('bankDrillBtnHome');
+  if(a) a.textContent = txt;
+  if(b) b.textContent = txt;
 }
 
 // 打乱题目顺序 + 选项顺序（同步修正答案下标），Fisher-Yates 保证均匀
