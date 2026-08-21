@@ -1146,6 +1146,10 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .bank-mod-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:13px;color:var(--text-sub);}
 .bank-mod-bar .bank-mod-label{font-weight:600;color:var(--text);}
 .bank-mod-bar .bank-mod-tip{font-size:12px;}
+.bm-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px;}
+.bm-chip{font-size:12px;padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:var(--bg-card);color:var(--text-sub);cursor:pointer;transition:all .12s ease;}
+.bm-chip:hover{border-color:var(--pink-btn);color:var(--pink-btn);}
+.bm-chip.active{background:var(--pink-btn);color:#fff;border-color:var(--pink-btn);box-shadow:0 2px 6px rgba(236,100,142,.25);}
 .bank-mod-sel{margin-left:6px;font-size:12px;padding:3px 6px;}
 .stat-num.clickable{cursor:pointer;position:relative;transition:transform .12s, color .12s;}
 .stat-num.clickable:hover{color:var(--pink-btn);transform:scale(1.06);}
@@ -3253,7 +3257,16 @@ body.drawer-open .nav-cloud{display:none;}
   <!-- 题库演练（置顶） -->
   <div class="card">
     <div class="card-title"><span class="dot"></span>📝 题库演练</div>
-    <p class="import-empty" style="margin-bottom:10px;">合并「PDF 题库」与「手动录入」的题目，随时开练。</p>
+    <p class="import-empty" style="margin-bottom:10px;">合并「PDF 题库」与「手动录入」的题目，按模块开练。</p>
+    <div class="bm-chips" id="bankModChips">
+      <button class="bm-chip active" data-m="__all" onclick="pickBankMod('__all', this)">全部</button>
+      <button class="bm-chip" data-m="常识判断" onclick="pickBankMod('常识判断', this)">常识判断</button>
+      <button class="bm-chip" data-m="时政热点" onclick="pickBankMod('时政热点', this)">时政热点</button>
+      <button class="bm-chip" data-m="言语理解" onclick="pickBankMod('言语理解', this)">言语理解</button>
+      <button class="bm-chip" data-m="判断推理" onclick="pickBankMod('判断推理', this)">判断推理</button>
+      <button class="bm-chip" data-m="数量关系" onclick="pickBankMod('数量关系', this)">数量关系</button>
+      <button class="bm-chip" data-m="资料分析" onclick="pickBankMod('资料分析', this)">资料分析</button>
+    </div>
     <button class="btn" id="bankDrillBtn" onclick="startBankDrill()">开始全部演练（0 题）</button>
   </div>
 
@@ -9506,33 +9519,46 @@ function showQuizResult(){
     </div>
   `;
 
-  // 写入刷题统计：无论是否有标准答案都记录（避免无答案题完全不统计）；
-  // 有标准答案时用 graded/correct，无答案时用 total/0，正确率单独再算。
+  // 写入刷题统计：按每题所属模块分别归账（支持「全部演练」跨模块、也支持单模块演练）。
+  // 这样错题记录与累计做题总数都会落到正确的模块下。
   const today = todayKey();
   if(!store.records[today]) store.records[today] = [];
-  const writeDone = graded > 0 ? graded : total;
-  store.records[today].push({
-    module:quizState.module, done:writeDone, right:graded>0?correct:0, time:Date.now()
-  });
-  addReviewSchedule(today, quizState.module, writeDone);
   const keyMap = {'常识判断':'common','时政热点':'politics','言语理解':'verbal','判断推理':'reasoning','数量关系':'quantity','资料分析':'data','申论':'shenlun'};
-  const k = keyMap[quizState.module];
-  if(k) store.stats[k] = (store.stats[k]||0) + writeDone;
-  // 站内刷题答错的题自动记入「错题记录」（仅记录有标准答案的错题；无答案的题不计入错题）
-  if(graded > 0) recordDrillErrors();
+  const byMod = {};
+  quizState.questions.forEach(function(q, i){
+    const hasAnswer = (typeof q.answer === 'number' && q.answer >= 0);
+    const m = q.module || quizState.module || '我的题库';
+    if(!byMod[m]) byMod[m] = {done:0, graded:0, correct:0};
+    byMod[m].done += 1;
+    if(hasAnswer){
+      byMod[m].graded += 1;
+      const picked = quizState.userAnswers[i];
+      if(picked === q.answer) byMod[m].correct += 1;
+    }
+  });
+  Object.keys(byMod).forEach(function(m){
+    const s = byMod[m];
+    const writeDone = s.graded > 0 ? s.graded : s.done;
+    store.records[today].push({ module:m, done:writeDone, right:s.graded>0?s.correct:0, time:Date.now() });
+    addReviewSchedule(today, m, writeDone);
+    const k = keyMap[m];
+    if(k) store.stats[k] = (store.stats[k]||0) + writeDone;
+  });
+  // 站内刷题答错的题自动记入「错题记录」（按每题模块归类；无答案题不计入错题）
+  recordDrillErrors();
   saveStore();
 }
 
 // 将本次站内刷题答错的题写入错题本（按 模块+题干 去重，避免重复计入）
 function recordDrillErrors(){
   if(!store.errors) store.errors = [];
-  const mod = quizState.module;
   quizState.questions.forEach((q, i)=>{
     const hasAnswer = (typeof q.answer === 'number' && q.answer >= 0);
     if(!hasAnswer) return;                 // 无标准答案的题不计入错题
     const picked = quizState.userAnswers[i];
     if(picked === undefined || picked === -1) return; // 跳过/未作答不计入错题（只统计真正答错）
     if(picked === q.answer) return;        // 答对的题不计入
+    const mod = q.module || quizState.module || '我的题库';
     const dup = store.errors.some(e=> e.src==='drill' && e.module===mod && e.content===q.q);
     if(dup) return;
     store.errors.push({
@@ -14437,19 +14463,23 @@ function removeManual(id){
 
 function bankAllQuestions(){
   const all = [];
-  store.bankPdf.forEach(function(e){ (e.questions||[]).forEach(function(q){ all.push(q); }); });
+  store.bankPdf.forEach(function(e){ (e.questions||[]).forEach(function(q){ all.push(Object.assign({}, q, { module: e.module || '未分类' })); }); });
   store.bankManual.forEach(function(it){
-    all.push({ q: it.q, options: it.options, answer: it.answer, explain: it.explain || '', explainStruct: it.explainStruct || null });
+    all.push({ q: it.q, options: it.options, answer: it.answer, explain: it.explain || '', explainStruct: it.explainStruct || null, module: it.module || '未分类' });
   });
   return all;
 }
 
 function updateBankDrillBtn(){
-  const n = bankAllQuestions().length;
+  const all = bankAllQuestions();
+  const mod = (typeof gBankDrillMod !== 'undefined') ? gBankDrillMod : '__all';
+  const n = (mod === '__all') ? all.length : all.filter(function(x){ return x.module === mod; }).length;
   const a = document.getElementById('bankDrillBtn');
-  if(a) a.textContent = '开始全部演练（' + n + ' 题）';
+  if(a) a.textContent = (mod === '__all' ? '开始全部演练' : ('开始「' + mod + '」演练')) + '（' + n + ' 题）';
   const b = document.getElementById('homeBankTotal');
-  if(b) b.textContent = n;
+  if(b) b.textContent = all.length;
+  const chips = document.getElementById('bankModChips');
+  if(chips) chips.querySelectorAll('.bm-chip').forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-m') === mod); });
 }
 
 // 打乱题目顺序 + 选项顺序（同步修正答案下标），Fisher-Yates 保证均匀
@@ -14475,25 +14505,36 @@ function shuffleQuizQuestions(list){
   });
 }
 
+var gBankDrillMod = '__all';  // '__all' 表示全部模块，否则为具体模块名
+
+function pickBankMod(m, el){
+  gBankDrillMod = m;
+  document.querySelectorAll('#bankModChips .bm-chip').forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-m') === m); });
+  updateBankDrillBtn();
+}
+
 function startBankDrill(){
+  const mod = (typeof gBankDrillMod !== 'undefined') ? gBankDrillMod : '__all';
   const all = bankAllQuestions();
-  if(all.length === 0){ toast('题库里还没有题目，先导入或录入吧~'); return; }
-  quizState.questions = shuffleQuizQuestions(all);
+  let pool = all;
+  if(mod !== '__all'){ pool = all.filter(function(x){ return x.module === mod; }); }
+  if(pool.length === 0){ toast((mod==='__all'?'题库里':'该模块下') + '还没有题目，先导入或录入吧~'); return; }
+  quizState.questions = shuffleQuizQuestions(pool);
   quizState.currentIdx = 0;
   quizState.selected = -1;
   quizState.answered = false;
   quizState.correctCount = 0;
   quizState.fromImport = true;
-  quizState.module = '我的题库';
+  quizState.module = (mod === '__all') ? '' : mod;   // 空串=全部（按每题模块分别归账）
   quizState.type = '题库演练';
-  document.getElementById('quizTitle').textContent = '我的题库 · 题库演练';
+  document.getElementById('quizTitle').textContent = '我的题库 · 题库演练' + (mod!=='__all' ? (' · ' + mod) : '');
   document.getElementById('quizOverlay').classList.add('show');
   renderQuestion();
 }
 
 function startBankPdfDrill(){
   const all = [];
-  store.bankPdf.forEach(function(e){ (e.questions||[]).forEach(function(q){ all.push(q); }); });
+  store.bankPdf.forEach(function(e){ (e.questions||[]).forEach(function(q){ all.push(Object.assign({}, q, { module: e.module || '未分类' })); }); });
   if(all.length === 0){ toast('PDF 题库里还没有可演练的题目~'); return; }
   quizState.questions = shuffleQuizQuestions(all);
   quizState.currentIdx = 0;
@@ -14501,7 +14542,7 @@ function startBankPdfDrill(){
   quizState.answered = false;
   quizState.correctCount = 0;
   quizState.fromImport = true;
-  quizState.module = '我的题库';
+  quizState.module = '';   // 按每题所属模块分别归账到错题/累计
   quizState.type = '题库演练';
   document.getElementById('quizTitle').textContent = '我的题库 · PDF 题库演练';
   document.getElementById('quizOverlay').classList.add('show');
