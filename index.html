@@ -11259,6 +11259,7 @@ function addManualFocus(){
   g.drops += Math.floor(min/5);
   store.checkins[t] = (store.checkins[t]||0) + min/60;
   g.lastCare = t;
+  g.lastCalCheckin = t;   // 番茄钟/手动专注也算「来陪过花」，顺带刷新相思病判定（治愈需连续打卡日历 3 天见 awayCureProgress）
   if(wasNewDay){
     g.checkinTotal += 1;
     if(g.lastSunDay !== t){ g.lastSunDay = t; g.sunlight = Math.min(100,(g.sunlight||0)+8); setTimeout(()=>toast('☀️ 专注学习，晒太阳回阳光 +8'),400); }
