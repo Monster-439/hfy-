@@ -1210,21 +1210,18 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .countdown-card.cd-gk{background:linear-gradient(135deg,var(--pink-soft) 0%,var(--pink-btn) 100%);}
 .countdown-card.cd-jx{background:linear-gradient(135deg,var(--pink-soft) 0%,var(--pink-btn) 100%);}
 
-/* 首页「快捷入口」三宫格：沿用首页倒计时的渐变 + 大字视觉 */
-.quick-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:0 0 16px;}
-.quick-tile{padding:18px 14px;border-radius:var(--radius);color:#fff;position:relative;overflow:hidden;box-shadow:var(--shadow);cursor:pointer;transition:transform .12s ease;text-shadow:0 1px 3px rgba(0,0,0,.18);}
-.quick-tile:active{transform:scale(.97);}
+/* 首页「快捷入口」单块：沿用首页倒计时的粉系渐变视觉 */
+.quick-tile{padding:18px 20px;border-radius:var(--radius);color:#fff;position:relative;overflow:hidden;box-shadow:var(--shadow);cursor:pointer;transition:transform .12s ease;text-shadow:0 1px 3px rgba(0,0,0,.18);}
+.quick-tile:active{transform:scale(.98);}
 .quick-tile::after{content:'';position:absolute;right:-20px;bottom:-20px;width:84px;height:84px;border-radius:50%;background:rgba(255,255,255,.18);}
 .quick-tile.qt-1{background:linear-gradient(135deg,var(--pink-soft) 0%,var(--pink-btn) 100%);}
-.quick-tile.qt-2{background:linear-gradient(135deg,#F2A6B6 0%,#E5708B 100%);}
-.quick-tile.qt-3{background:linear-gradient(135deg,#FFB6B0 0%,#FF8A7A 100%);}
-.quick-tile .quick-ic{font-size:32px;line-height:1;margin-bottom:8px;position:relative;z-index:1;}
-.quick-tile .quick-lbl{font-size:16px;font-weight:700;position:relative;z-index:1;}
-.quick-tile .quick-sub{font-size:11px;opacity:.92;margin-top:4px;position:relative;z-index:1;}
-@media(max-width:768px){.quick-grid{grid-template-columns:1fr;}}
+.quick-tile .quick-ic{font-size:34px;line-height:1;position:relative;z-index:1;}
+.quick-tile .quick-lbl{font-size:18px;font-weight:700;position:relative;z-index:1;}
+.quick-tile .quick-sub{font-size:12px;opacity:.92;margin-top:4px;position:relative;z-index:1;}
+.quick-tile.quick-solo{display:flex;align-items:center;gap:16px;margin:0 0 16px;}
+.quick-tile.quick-solo .quick-ic{margin-bottom:0;flex-shrink:0;}
+.quick-tile.quick-solo .quick-ic{font-size:40px;}
 [data-theme="dark"] .quick-tile{color:var(--text-main);background:linear-gradient(135deg,var(--bg-page),var(--bg-page-mid));}
-[data-theme="dark"] .quick-tile.qt-2{background:linear-gradient(135deg,var(--bg-page),var(--bg-page-mid));}
-[data-theme="dark"] .quick-tile.qt-3{background:linear-gradient(135deg,var(--bg-page),var(--bg-page-mid));}
 [data-theme="dark"] .quick-tile::after{background:var(--pink-overlay);}
 .countdown-card::after{content:'';position:absolute;right:-20px;bottom:-20px;width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,0.18);}
 .countdown-card .cd-title{font-size:14px;font-weight:700;opacity:.95;margin-bottom:6px;}
@@ -2594,22 +2591,10 @@ body.drawer-open .nav-cloud{display:none;}
 
   <div class="countdown-row" id="countdownWrap"></div>
 
-  <div class="quick-grid">
-    <div class="quick-tile qt-1" onclick="startBankDrill()">
-      <div class="quick-ic">📝</div>
-      <div class="quick-lbl">题库演练</div>
-      <div class="quick-sub">合并 PDF · 手动录入</div>
-    </div>
-    <div class="quick-tile qt-2" onclick="showPage('error')">
-      <div class="quick-ic">❌</div>
-      <div class="quick-lbl">错题记录</div>
-      <div class="quick-sub">回顾薄弱点</div>
-    </div>
-    <div class="quick-tile qt-3" onclick="showPage('checkin')">
-      <div class="quick-ic">📅</div>
-      <div class="quick-lbl">今日打卡</div>
-      <div class="quick-sub">保持连胜节奏</div>
-    </div>
+  <div class="quick-tile qt-1 quick-solo" onclick="startBankDrill()">
+    <div class="quick-ic">📝</div>
+    <div class="quick-lbl">题库演练</div>
+    <div class="quick-sub">合并 PDF · 手动录入的题目，随时开练</div>
   </div>
 
   <div class="card">
