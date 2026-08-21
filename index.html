@@ -2577,6 +2577,12 @@ body.drawer-open .nav-cloud{display:none;}
 
   <div class="countdown-row" id="countdownWrap"></div>
 
+  <div class="card home-quick-card">
+    <div class="card-title"><span class="dot"></span>🚀 快捷入口</div>
+    <p class="import-empty" style="text-align:left;margin-bottom:10px;">随时开练「我的题库」里导入或录入的题目。</p>
+    <button class="btn" onclick="startBankDrill()">📝 题库演练（合并 PDF 与手动录入）</button>
+  </div>
+
   <div class="card">
     <div class="card-title"><span class="dot"></span>六大模块概览</div>
     <div class="topic-grid" id="overviewTopics"></div>
@@ -3234,6 +3240,13 @@ body.drawer-open .nav-cloud{display:none;}
 <div class="page" id="page-bank">
   <h2 class="page-head">🗂️ 我的题库 <small>导入或录入真题，集中刷题</small></h2>
 
+  <!-- 题库演练（置顶） -->
+  <div class="card">
+    <div class="card-title"><span class="dot"></span>📝 题库演练</div>
+    <p class="import-empty" style="margin-bottom:10px;">合并「PDF 题库」与「手动录入」的题目，随时开练。</p>
+    <button class="btn" id="bankDrillBtn" onclick="startBankDrill()">开始全部演练（0 题）</button>
+  </div>
+
   <!-- 导入 PDF 题库 -->
   <div class="card import-card">
     <div class="card-title"><span class="dot"></span>📥 导入 PDF 题库</div>
@@ -3300,13 +3313,6 @@ body.drawer-open .nav-cloud{display:none;}
       <button class="btn btn-ghost" id="manCancelEdit" style="display:none;" onclick="cancelManualEdit()">取消编辑</button>
     </div>
     <ul class="manual-list" id="manualList"></ul>
-  </div>
-
-  <!-- 题库演练 -->
-  <div class="card">
-    <div class="card-title"><span class="dot"></span>📝 题库演练</div>
-    <p class="import-empty" style="margin-bottom:10px;">合并「PDF 题库」与「手动录入」的题目，随时开练。</p>
-    <button class="btn" id="bankDrillBtn" onclick="startBankDrill()">开始全部演练（0 题）</button>
   </div>
 </div>
 
