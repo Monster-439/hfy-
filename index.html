@@ -971,6 +971,23 @@ body[data-color-theme="sky"]{
   animation:quizPop .3s ease;
 }
 @keyframes quizPop{from{transform:scale(0.9);opacity:0;}to{transform:scale(1);opacity:1;}}
+/* 手机刷题弹窗适配：高度按 dvh 算，让题干不被压出可视区 */
+@media (max-width:600px){
+  .quiz-overlay{align-items:flex-start;padding:0;}
+  .quiz-modal{max-width:100%;width:100%;height:auto;max-height:none;border-radius:16px 16px 0 0;
+              margin-top:calc(env(safe-area-inset-top, 0px) + 8px);
+              height:calc(100dvh - env(safe-area-inset-top, 0px) - 8px);
+              display:flex;flex-direction:column;}
+  .quiz-header{padding:12px 16px;flex-shrink:0;}
+  .quiz-header .qh-title{font-size:15px;}
+  .quiz-progress{padding:8px 16px 0;flex-shrink:0;}
+  .quiz-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;}
+  .quiz-q{font-size:14px;line-height:1.7;margin-bottom:14px;}
+  .quiz-option{padding:10px 12px;font-size:13px;}
+  .quiz-explain{font-size:12px;padding:10px;}
+  .quiz-footer{padding:10px 14px;flex-shrink:0;padding-bottom:calc(8px + env(safe-area-inset-bottom, 0px));}
+  .quiz-footer .quiz-tip{font-size:11px;}
+}
 .quiz-header{
   padding:18px 24px;background:linear-gradient(135deg,var(--pink-highlight),var(--pink-btn));
   display:flex;align-items:center;gap:10px;color:#4A3B40;
@@ -1002,6 +1019,8 @@ body[data-color-theme="sky"]{
 .quiz-explain{margin-top:14px;padding:14px;background:var(--pink-pill-border);border-radius:12px;border-left:4px solid var(--pink-btn);font-size:13px;line-height:1.7;display:none;}
 .quiz-explain.show{display:block;}
 .quiz-explain .et{font-weight:700;color:var(--pink-btn);margin-bottom:4px;}
+.quiz-explain .qe-body{white-space:pre-wrap;word-break:break-word;color:var(--text);}
+.quiz-explain .qe-body .qe-label{color:var(--pink-btn);font-weight:700;margin-right:2px;}
 .quiz-result{padding:30px 24px;text-align:center;}
 .quiz-result .big-emoji{font-size:56px;margin-bottom:12px;}
 .quiz-result .score{font-size:42px;font-weight:700;color:var(--pink-btn);margin-bottom:6px;}
@@ -1066,11 +1085,31 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .manual-opt-k{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--pink-main);color:var(--pink-btn);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;}
 .manual-opt-in{flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;box-sizing:border-box;background:#fff;color:var(--text-main);}
 .manual-list{list-style:none;display:flex;flex-direction:column;gap:8px;padding:0;margin:0;}
-.manual-item{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:var(--pink-softest);border:1px solid var(--border);border-radius:10px;}
+.manual-item{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:var(--pink-softest);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;}
+.manual-item>details{width:100%;}
+.manual-item summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;outline:none;user-select:none;}
+.manual-item summary::-webkit-details-marker{display:none;}
+.manual-item summary::-moz-list-bullet{list-style:none;}
 .manual-item .mi-mod{font-size:11px;color:var(--pink-btn);background:var(--pink-soft);padding:2px 8px;border-radius:8px;flex-shrink:0;font-weight:600;}
-.manual-item .mi-q{flex:1;font-size:13px;color:var(--text);line-height:1.5;word-break:break-word;}
-.manual-item .mi-a{font-size:11px;color:var(--text-sub);margin-top:4px;}
-.manual-item .mi-acts{flex-shrink:0;}
+.manual-item .mi-q-short{flex:1;font-size:13px;color:var(--text);line-height:1.5;word-break:break-word;overflow:hidden;}
+.manual-item .mi-acts-summary{flex-shrink:0;display:flex;gap:4px;}
+.manual-item .mi-act-view{font-size:11px;padding:4px 10px;}
+.manual-item details[open] .mi-act-view{display:none;}
+.manual-item .mi-detail{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);}
+.manual-item .mi-q-full{font-size:13px;color:var(--text);line-height:1.6;margin-bottom:8px;word-break:break-word;}
+.manual-item .mi-opts{margin:0 0 10px 0;padding:0;list-style:none;}
+.manual-item .mi-opts li{display:flex;align-items:flex-start;gap:6px;padding:5px 0;font-size:13px;line-height:1.55;color:var(--text);border-bottom:1px dashed var(--border);}
+.manual-item .mi-opts li:last-child{border-bottom:none;}
+.manual-item .mi-opt-letter{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--pink-main);color:var(--pink-btn);font-weight:700;font-size:12px;}
+.manual-item .mi-opt-ans{background:#f0fff4;border-radius:6px;padding:5px 8px;}
+.manual-item .mi-opt-ans .mi-opt-letter{background:#7BC99E;color:#fff;}
+.manual-item .mi-opt-tag{margin-left:6px;font-size:11px;color:#5a7;background:#eaf7ee;padding:1px 6px;border-radius:6px;flex-shrink:0;}
+.manual-item .mi-a{font-size:12px;color:var(--pink-btn);margin-bottom:8px;}
+.manual-item .mi-x{background:var(--pink-pill-border);padding:8px 10px;border-radius:8px;border-left:3px solid var(--pink-btn);font-size:12px;line-height:1.6;color:var(--text);margin-bottom:8px;}
+.manual-item .mi-x-tag{font-weight:700;color:var(--pink-btn);display:inline-block;margin-right:4px;}
+.manual-item .mi-x-body{white-space:pre-wrap;word-break:break-word;}
+.manual-item .mi-acts-detail{display:flex;gap:6px;justify-content:flex-end;}
+.manual-item .btn-edit{font-size:12px;padding:4px 10px;}
 .bank-mod-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:13px;color:var(--text-sub);}
 .bank-mod-bar .bank-mod-label{font-weight:600;color:var(--text);}
 .bank-mod-bar .bank-mod-tip{font-size:12px;}
@@ -9093,6 +9132,51 @@ let quizState = {
   correctCount:0, module:'', type:'', userAnswers:[]
 };
 
+// 解析重组：识别 "选项分析A:" "选项分析B:" ... "选项分析X:" 结构化段，
+// 按当前 q.options 顺序重新编排；其余内容保留在解析头部（用户的"题干梳理/论据/结论"等章节）。
+// 没有结构段时原样返回；空白时返回 ''。
+function reorderExplainByOptions(explain, n){
+  if(!explain) return '';
+  const labels = ['A','B','C','D','E','F'].slice(0, n);
+  if(labels.length === 0) return explain;
+  // 切分点模式：允许大小写、可有空格/全角冒号，前后用 \n 或行首来锚定，避免文本里的"选项分析A"假阳性
+  const re = new RegExp('(^|\\n)\\s*选项分析\\s*([A-' + labels[labels.length-1] + '])\\s*[:：]', 'g');
+  const points = [];
+  let m;
+  while((m = re.exec(explain)) !== null){
+    points.push({ idx: m.index + m[1].length, label: m[2].toUpperCase(), headLen: m[0].length - m[1].length });
+  }
+  if(points.length < 2) return explain;
+  const segs = {}; // 只取每个标签首次出现段
+  for(let i=0;i<points.length;i++){
+    const p = points[i];
+    if(segs[p.label] !== undefined) continue;
+    const start = p.idx + p.headLen;
+    const end = i+1 < points.length ? points[i+1].idx : explain.length;
+    segs[p.label] = explain.substring(start, end);
+  }
+  // 头部：第一个切分点之前的原文（用户的总论/梳理）
+  const header = explain.substring(0, points[0].idx).trim();
+  // 按当前顺序拼
+  let out = '';
+  if(header) out += header + '\n';
+  const taken = new Set();
+  for(let i=0;i<labels.length;i++){
+    const lab = labels[i];
+    if(segs[lab] !== undefined && !taken.has(lab)){
+      out += '选项分析' + lab + ':' + segs[lab] + (i < labels.length-1 ? '\n' : '');
+      taken.add(lab);
+    }
+  }
+  // 没被当前顺序覆盖的标签（如用户多写了 5 个、但只有 4 个选项）追加在尾部
+  for(const lab in segs){
+    if(!taken.has(lab)){
+      out += '\n选项分析' + lab + ':' + segs[lab];
+    }
+  }
+  return out;
+}
+
 function renderQuestion(){
   const q = quizState.questions[quizState.currentIdx];
   const total = quizState.questions.length;
@@ -9103,6 +9187,13 @@ function renderQuestion(){
   document.getElementById('quizProgressFill').style.width = `${(quizState.currentIdx+1)/total*100}%`;
   document.getElementById('quizTip').textContent = '选择答案后点击「确认」';
   document.getElementById('quizSubmitBtn').textContent = '确认';
+
+  // 重组解析：识别"选项分析X:"结构、按当前顺序重排；其余原样
+  const explainRaw = q.explain || '';
+  const explainText = reorderExplainByOptions(explainRaw, q.options.length);
+  const explainHtml = explainText
+    ? escHtml(explainText).replace(/(选项分析\s*[A-Z]\s*[:：])/g, '<span class="qe-label">$1</span>')
+    : '（真题暂无解析，请自行核对答案）';
 
   document.getElementById('quizBody').innerHTML = `
     <div class="quiz-q"><span class="q-tag">${quizState.type}</span>${q.q}</div>
@@ -9116,7 +9207,7 @@ function renderQuestion(){
     </div>
     <div class="quiz-explain" id="quizExplain">
       <div class="et">📋 解析</div>
-      ${q.explain ? escHtml(q.explain) : '（真题暂无解析，请自行核对答案）'}
+      <div class="qe-body">${explainHtml}</div>
     </div>
   `;
   quizState.selected = -1;
@@ -13976,16 +14067,49 @@ function renderManualList(){
     return;
   }
   el.innerHTML = list.map(function(it){
-    const ansTxt = (typeof it.answer === 'number' && it.answer >= 0)
-      ? ('答案：' + String.fromCharCode(65 + it.answer))
-      : '自测（无答案）';
-    return '<li class="manual-item">'
-      + '<span class="mi-mod">' + escHtml(it.module) + '</span>'
-      + '<span class="mi-q">' + escHtml(it.q)
-      + '<div class="mi-a">' + ansTxt + (it.explain ? (' ｜ 含解析') : '') + '</div>'
-      + '</span>'
-      + '<span class="mi-acts"><button class="btn btn-sm" onclick="editManual(\'' + it.id + '\')">编辑</button>'
-      + '<button class="btn btn-sm btn-danger" onclick="removeManual(\'' + it.id + '\')">删除</button></span>'
+    const hasAns = (typeof it.answer === 'number' && it.answer >= 0);
+    const ansLetter = hasAns ? String.fromCharCode(65 + it.answer) : null;
+    // 题干摘要（最多 38 字）
+    const qSummary = (it.q || '').replace(/\s+/g,' ').trim();
+    const qShort = qSummary.length > 38 ? (qSummary.substring(0,38) + '…') : qSummary;
+    // 选项正误高亮
+    let optsHtml = '';
+    if(Array.isArray(it.options) && it.options.length){
+      optsHtml = '<ol class="mi-opts">' + it.options.map(function(o,idx){
+        const isAns = hasAns && idx === it.answer;
+        return '<li class="' + (isAns?'mi-opt-ans':'') + '">'
+          + '<span class="mi-opt-letter">' + String.fromCharCode(65+idx) + '</span>'
+          + '<span>' + escHtml(o) + '</span>'
+          + (isAns?'<span class="mi-opt-tag">✅ 正确</span>':'')
+          + '</li>';
+      }).join('') + '</ol>';
+    }
+    const ansLine = hasAns
+      ? '<div class="mi-a">✅ 答案：<b>' + ansLetter + '</b></div>'
+      : '<div class="mi-a" style="color:var(--text-sub);">📌 自测题（无固定答案）</div>';
+    const explainBlock = it.explain
+      ? '<div class="mi-x"><span class="mi-x-tag">📋 解析</span><div class="mi-x-body">' + escHtml(it.explain) + '</div></div>'
+      : '';
+    return '<li class="manual-item" data-id="' + it.id + '">'
+      +   '<details>'
+      +     '<summary class="mi-summary">'
+      +       '<span class="mi-mod">' + escHtml(it.module) + '</span>'
+      +       '<span class="mi-q-short">' + escHtml(qShort) + '</span>'
+      +       '<span class="mi-acts-summary">'
+      +         '<button type="button" class="btn btn-sm mi-act-view">👁 答案</button>'
+      +       '</span>'
+      +     '</summary>'
+      +     '<div class="mi-detail">'
+      +       '<div class="mi-q-full">' + escHtml(it.q) + '</div>'
+      +       optsHtml
+      +       ansLine
+      +       explainBlock
+      +       '<div class="mi-acts-detail">'
+      +         '<button class="btn btn-sm btn-edit" onclick="editManual(\'' + it.id + '\')">✏️ 编辑</button>'
+      +         '<button class="btn btn-sm btn-danger" onclick="removeManual(\'' + it.id + '\')">🗑 删除</button>'
+      +       '</div>'
+      +     '</div>'
+      +   '</details>'
       + '</li>';
   }).join('');
 }
