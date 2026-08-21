@@ -510,6 +510,9 @@ body[data-color-theme="sky"]{
 .topic-mini-stats{display:flex;gap:12px;margin-top:10px;font-size:11px;color:var(--text-sub);position:relative;z-index:1;}
 .topic-mini-stats b{color:var(--pink-btn);}
 
+/* 首页「题库演练」单 tile：沿用六大模块概览 tile 视觉，限制宽度避免全宽拉伸 */
+.topic-card.home-single{max-width:380px;margin:0 0 16px;}
+
 /* ========== 刷题入口 ========== */
 .drill-list{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
 .drill-meta{display:flex;justify-content:space-between;align-items:center;padding:4px 12px 10px;font-size:11px;color:var(--text-sub);}
@@ -2578,10 +2581,16 @@ body.drawer-open .nav-cloud{display:none;}
 
   <div class="countdown-row" id="countdownWrap"></div>
 
-  <div class="card">
-    <div class="card-title"><span class="dot"></span>📝 题库演练</div>
-    <p class="import-empty" style="text-align:left;margin-bottom:10px;">合并「PDF 题库」与「手动录入」的题目，随时开练。</p>
-    <button class="btn" id="bankDrillBtnHome" onclick="startBankDrill()">开始全部演练（0 题）</button>
+  <div class="topic-card home-single" onclick="startBankDrill()">
+    <div class="topic-card-head">
+      <span class="ic">📝</span>
+      <span class="nm">题库演练</span>
+      <span class="arrow">›</span>
+    </div>
+    <div class="topic-card-desc">PDF 题库 · 手动录入的题目</div>
+    <div class="topic-mini-stats">
+      <span>累计 <b id="homeBankTotal">0</b> 题</span>
+    </div>
   </div>
 
   <div class="card">
@@ -14437,11 +14446,10 @@ function bankAllQuestions(){
 
 function updateBankDrillBtn(){
   const n = bankAllQuestions().length;
-  const txt = '开始全部演练（' + n + ' 题）';
   const a = document.getElementById('bankDrillBtn');
-  const b = document.getElementById('bankDrillBtnHome');
-  if(a) a.textContent = txt;
-  if(b) b.textContent = txt;
+  if(a) a.textContent = '开始全部演练（' + n + ' 题）';
+  const b = document.getElementById('homeBankTotal');
+  if(b) b.textContent = n;
 }
 
 // 打乱题目顺序 + 选项顺序（同步修正答案下标），Fisher-Yates 保证均匀
