@@ -15040,7 +15040,10 @@ const MED_IDEAL_WEATHER = {shade:'hot', sun:'cloudy', root:'rain', warm:'snow'};
 function applyWeatherEffects(wk){
   const g = store.garden; const e = WEATHER_EFFECT[wk]; if(!e) return;
   g.moisture = Math.max(0, Math.min(100, (g.moisture||0) + e.moist));
-  g.sunlight = Math.max(0, Math.min(100, (g.sunlight||0) + e.sun));
+  // 当天用过阳光符：阴天/雪天等"缺光"天气不再扣阳光（阳光符补的光持续一整天，不被天气结算冲掉）
+  let sunDelta = e.sun;
+  if(sunDelta < 0 && g.buffs && g.buffs.sun === todayKey()){ sunDelta = 0; }
+  g.sunlight = Math.max(0, Math.min(100, (g.sunlight||0) + sunDelta));
   g.health   = Math.max(20, Math.min(100, (g.health||0) + e.health));
 }
 // 完成某一阶段、进入下一阶段时的提示（索引 = 刚完成的阶段）
@@ -15453,8 +15456,8 @@ function renderGarden(){
     // 健康连续天数：健康度>=70 才算"养得好"
     if(g.health>=70){ g.healthyStreak = (g.healthyStreak||0)+1; } else { g.healthyStreak = 0; }
     g._lastTick = todayKey();
-    // 跨天：清掉昨天的遮阳/保暖（当天用过的才保留）
-    if(g.buffs){ ['shade','warm'].forEach(k=>{ if(g.buffs[k] && g.buffs[k]!==todayKey()) g.buffs[k]=''; }); }
+    // 跨天：清掉昨天的遮阳/保暖/阳光符（当天用过的才保留）
+    if(g.buffs){ ['shade','warm','sun'].forEach(k=>{ if(g.buffs[k] && g.buffs[k]!==todayKey()) g.buffs[k]=''; }); }
     saveStore();
   }
   let statusEmoji, statusText, wilted=false, statusClass='';
@@ -15894,7 +15897,7 @@ function useBuff(medKey){
   g.meds[medKey] -= 1;
   if(medKey==='warm'){ g.health = Math.min(100,(g.health||0)+15); }
   else if(medKey==='shade'){ g.health = Math.min(100,(g.health||0)+8); }
-  else if(medKey==='sun'){ g.sunlight = Math.min(100,(g.sunlight||0)+20); }
+  else if(medKey==='sun'){ g.sunlight = Math.min(100,(g.sunlight||0)+20); g.buffs.sun = todayKey(); }
   // 遮阳/保暖记当天：花台上常驻显示，表示今天已护住
   if(medKey==='shade' || medKey==='warm'){ g.buffs[medKey] = todayKey(); }
   saveStore();
