@@ -3220,7 +3220,8 @@ body.drawer-open .nav-cloud{display:none;}
         <div class="manual-opt"><span class="manual-opt-k">D</span><input id="manOptD" class="manual-opt-in" placeholder="选项 D（可留空）"></div>
       </div>
       <textarea id="manExplain" class="manual-area" style="min-height:60px;" placeholder="解析（选填），练习时可查看"></textarea>
-      <button class="btn" onclick="addManualQuestion()">💾 保存到题库</button>
+      <button class="btn" id="manSaveBtn" onclick="addManualQuestion()">💾 保存到题库</button>
+      <button class="btn btn-ghost" id="manCancelEdit" style="display:none;" onclick="cancelManualEdit()">取消编辑</button>
     </div>
     <ul class="manual-list" id="manualList"></ul>
   </div>
@@ -13887,15 +13888,27 @@ function addManualQuestion(){
   if(validOpts.length < 2){ toast('至少需要填写 2 个有效选项~'); return; }
   const answer = parseInt(document.getElementById('manAnswer').value, 10);
   if(answer >= validOpts.length){ toast('正确答案序号超出了有效选项数量~'); return; }
-  const item = {
-    id: Date.now() + '_' + Math.random().toString(36).slice(2,7),
-    module: module,
-    q: q,
-    options: validOpts,
-    answer: answer,            // -1 表示无答案（自测）
-    explain: document.getElementById('manExplain').value.trim()
-  };
-  store.bankManual.push(item);
+  const editingId = store._editingManualId;
+  if(editingId){
+    const it = store.bankManual.find(function(x){ return x.id === editingId; });
+    if(it){
+      it.module = module;
+      it.q = q;
+      it.options = validOpts;
+      it.answer = answer;
+      it.explain = document.getElementById('manExplain').value.trim();
+    }
+  } else {
+    const item = {
+      id: Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      module: module,
+      q: q,
+      options: validOpts,
+      answer: answer,            // -1 表示无答案（自测）
+      explain: document.getElementById('manExplain').value.trim()
+    };
+    store.bankManual.push(item);
+  }
   saveStore();
   document.getElementById('manQuestion').value = '';
   document.getElementById('manOptA').value = '';
@@ -13904,9 +13917,54 @@ function addManualQuestion(){
   document.getElementById('manOptD').value = '';
   document.getElementById('manExplain').value = '';
   document.getElementById('manAnswer').value = '-1';
+  if(editingId){ store._editingManualId = ''; }
+  resetManualEditUI();
   renderManualList();
   updateBankDrillBtn();
-  toast('已保存到题库 ✅');
+  toast(editingId ? '已更新题目 ✅' : '已保存到题库 ✅');
+}
+
+function editManual(id){
+  const it = store.bankManual.find(function(x){ return x.id === id; });
+  if(!it) return;
+  store._editingManualId = id;
+  try{
+    document.getElementById('manModule').value = it.module;
+  }catch(e){}
+  const o = it.options || [];
+  document.getElementById('manQuestion').value = it.q || '';
+  document.getElementById('manOptA').value = o[0] || '';
+  document.getElementById('manOptB').value = o[1] || '';
+  document.getElementById('manOptC').value = o[2] || '';
+  document.getElementById('manOptD').value = o[3] || '';
+  document.getElementById('manExplain').value = it.explain || '';
+  document.getElementById('manAnswer').value = (typeof it.answer === 'number') ? String(it.answer) : '-1';
+  const saveBtn = document.getElementById('manSaveBtn');
+  if(saveBtn) saveBtn.textContent = '✏️ 更新题目';
+  const cancelBtn = document.getElementById('manCancelEdit');
+  if(cancelBtn) cancelBtn.style.display = '';
+  document.getElementById('manQuestion').focus();
+  toast('编辑中，改完点「更新题目」');
+}
+
+function cancelManualEdit(){
+  store._editingManualId = '';
+  resetManualEditUI();
+  document.getElementById('manQuestion').value = '';
+  document.getElementById('manOptA').value = '';
+  document.getElementById('manOptB').value = '';
+  document.getElementById('manOptC').value = '';
+  document.getElementById('manOptD').value = '';
+  document.getElementById('manExplain').value = '';
+  document.getElementById('manAnswer').value = '-1';
+  toast('已取消编辑');
+}
+
+function resetManualEditUI(){
+  const saveBtn = document.getElementById('manSaveBtn');
+  if(saveBtn) saveBtn.textContent = '💾 保存到题库';
+  const cancelBtn = document.getElementById('manCancelEdit');
+  if(cancelBtn) cancelBtn.style.display = 'none';
 }
 
 function renderManualList(){
@@ -13926,7 +13984,8 @@ function renderManualList(){
       + '<span class="mi-q">' + escHtml(it.q)
       + '<div class="mi-a">' + ansTxt + (it.explain ? (' ｜ 含解析') : '') + '</div>'
       + '</span>'
-      + '<span class="mi-acts"><button class="btn btn-sm btn-danger" onclick="removeManual(\'' + it.id + '\')">删除</button></span>'
+      + '<span class="mi-acts"><button class="btn btn-sm" onclick="editManual(\'' + it.id + '\')">编辑</button>'
+      + '<button class="btn btn-sm btn-danger" onclick="removeManual(\'' + it.id + '\')">删除</button></span>'
       + '</li>';
   }).join('');
 }
@@ -13955,11 +14014,31 @@ function updateBankDrillBtn(){
   btn.textContent = '开始全部演练（' + n + ' 题）';
 }
 
+// 打乱题目顺序 + 选项顺序（同步修正答案下标），Fisher-Yates 保证均匀
+function shuffleQuizQuestions(list){
+  const arr = list.slice();
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+  return arr.map(function(q){
+    const opts = q.options.slice();
+    for(let i=opts.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      const t = opts[i]; opts[i] = opts[j]; opts[j] = t;
+    }
+    let ans = q.answer;
+    if(typeof ans === 'number' && ans >= 0 && ans < q.options.length){
+      ans = opts.indexOf(q.options[ans]);
+    } else { ans = -1; }
+    return Object.assign({}, q, { options: opts, answer: ans });
+  });
+}
+
 function startBankDrill(){
   const all = bankAllQuestions();
   if(all.length === 0){ toast('题库里还没有题目，先导入或录入吧~'); return; }
-  const shuffled = all.slice().sort(function(){ return Math.random()-0.5; });
-  quizState.questions = shuffled;
+  quizState.questions = shuffleQuizQuestions(all);
   quizState.currentIdx = 0;
   quizState.selected = -1;
   quizState.answered = false;
@@ -13976,8 +14055,7 @@ function startBankPdfDrill(){
   const all = [];
   store.bankPdf.forEach(function(e){ (e.questions||[]).forEach(function(q){ all.push(q); }); });
   if(all.length === 0){ toast('PDF 题库里还没有可演练的题目~'); return; }
-  const shuffled = all.slice().sort(function(){ return Math.random()-0.5; });
-  quizState.questions = shuffled;
+  quizState.questions = shuffleQuizQuestions(all);
   quizState.currentIdx = 0;
   quizState.selected = -1;
   quizState.answered = false;
