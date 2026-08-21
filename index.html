@@ -1085,6 +1085,25 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .manual-opt-k{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--pink-main);color:var(--pink-btn);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;}
 .manual-opt-in{flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;box-sizing:border-box;background:#fff;color:var(--text-main);}
 .manual-list{list-style:none;display:flex;flex-direction:column;gap:8px;padding:0;margin:0;}
+.manual-tabs-wrap{padding:2px 0 6px;margin:0;background:transparent;border:none;}
+.manual-tabs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+.manual-tab{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:5px 10px;border-radius:14px;background:var(--pink-softest);border:1px solid var(--border);color:var(--text-sub);cursor:pointer;transition:all .15s;font-weight:500;}
+.manual-tab:hover{background:var(--pink-soft);}
+.manual-tab.active{background:linear-gradient(135deg,var(--pink-btn),var(--pink-deep));color:#fff;border-color:var(--pink-deep);font-weight:700;box-shadow:0 2px 6px var(--pink-shadow-soft);}
+.manual-tab.active .manual-tab-cnt{background:rgba(255,255,255,.25);color:#fff;}
+.manual-tab-cnt{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--pink-soft);color:var(--pink-deep);font-size:10px;font-weight:700;line-height:1;}
+.manual-group{list-style:none;padding:0;margin:0;}
+.manual-group-box{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.04);overflow:hidden;}
+.manual-group-sum{display:flex;align-items:center;gap:8px;padding:11px 14px;cursor:pointer;list-style:none;user-select:none;font-weight:600;font-size:13px;color:var(--text);background:linear-gradient(180deg,#fff,#fff9fb);}
+.manual-group-sum::-webkit-details-marker{display:none;}
+.manual-group-sum::-moz-list-bullet{list-style:none;}
+.manual-group-box[open] .manual-group-sum{border-bottom:1px dashed var(--border);background:linear-gradient(180deg,#fffaf0,#fff);}
+.mg-icon{font-size:16px;line-height:1;flex-shrink:0;}
+.mg-name{font-weight:700;color:var(--text);}
+.mg-stat{margin-left:auto;font-size:11px;color:var(--text-sub);background:var(--bg-soft);padding:3px 9px;border-radius:10px;}
+.mg-arrow{font-size:11px;color:var(--text-sub);transition:transform .2s;margin-left:2px;}
+.manual-group-box[open] .mg-arrow{transform:rotate(180deg);}
+.manual-group-list{list-style:none;padding:8px;margin:0;display:flex;flex-direction:column;gap:6px;background:var(--bg-softest);}
 .manual-item{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:var(--pink-softest);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;}
 .manual-item>details{width:100%;}
 .manual-item summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;outline:none;user-select:none;}
@@ -8246,7 +8265,7 @@ function startDrill(module, type){
     const opts = [...q.options];
     const correctText = opts[q.answer];
     const shuffledOpts = opts.sort(()=>Math.random()-0.5);
-    return {...q, options:shuffledOpts, answer:shuffledOpts.indexOf(correctText)};
+    return {...q, options:shuffledOpts, answer:shuffledOpts.indexOf(correctText), _origOpts: q.options.slice()};
   });
   // 兜底：如果题量异常（<5），多半是浏览器缓存了旧 JS，尝试用 raw 取题
   if(quizState.questions.length < 5){
@@ -8260,7 +8279,7 @@ function startDrill(module, type){
           const opts = [...q.options];
           const correctText = opts[q.answer];
           const shuffledOpts = opts.sort(()=>Math.random()-0.5);
-          return {...q, options:shuffledOpts, answer:shuffledOpts.indexOf(correctText)};
+          return {...q, options:shuffledOpts, answer:shuffledOpts.indexOf(correctText), _origOpts: q.options.slice()};
         });
         toast('已为你补足到 '+quizState.questions.length+' 题（建议刷新页面）');
       } else {
@@ -9135,7 +9154,9 @@ let quizState = {
 // 解析重组：识别 "选项分析A:" "选项分析B:" ... "选项分析X:" 结构化段，
 // 按当前 q.options 顺序重新编排；其余内容保留在解析头部（用户的"题干梳理/论据/结论"等章节）。
 // 没有结构段时原样返回；空白时返回 ''。
-function reorderExplainByOptions(explain, n){
+// labelMap: 可选 {老标签: 新标签} 映射，传入时会对每段正文内的"✅OLD/✓OLD/✔OLD/故选OLD/答案为OLD/正确答案是OLD"
+// 做精准替换，让"正确答案位置"的提示也跟选项乱序走。
+function reorderExplainByOptions(explain, n, labelMap){
   if(!explain) return '';
   const labels = ['A','B','C','D','E','F'].slice(0, n);
   if(labels.length === 0) return explain;
@@ -9160,18 +9181,47 @@ function reorderExplainByOptions(explain, n){
   // 按当前顺序拼
   let out = '';
   if(header) out += header + '\n';
+
+  // 段内"OLD"引用替换：把老标签写成新标签
+  // 支持的模式：✅X / ✓X / ✔X / 故选X / 答案是X / 正确答案是X / 答案就是X
+  // 注意：必须用单词边界或中文/标点锚定，避免误伤"故选AB"之类
+  function remapSegText(text){
+    if(!labelMap || typeof labelMap !== 'object') return text;
+    let s = text;
+    for(const oldLab in labelMap){
+      const newLab = labelMap[oldLab];
+      if(!newLab || oldLab === newLab) continue;
+      // 转义，避免标签里含特殊字符（虽然这里只 A-Z，但稳健）
+      const O = oldLab.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      const N = newLab.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      // ✅/✓/✔ 后跟 OLD
+      s = s.replace(new RegExp('([✅✓✔]\\s*)' + O + '(?=[\\s\\u3000\\u3002\\uff1a\\uff0c\\.\\:，。：、\\)）])', 'g'), '$1' + N);
+      // 故选 OLD（X。/X。X，/X /X）—— 用 lookahead 锚定非字母，避免故选 XYZ 误伤
+      s = s.replace(new RegExp('(故选\\s*)' + O + '(?![A-Z\\u4e00-\\u9fa5])', 'g'), '$1' + N);
+      // 正确答案是 OLD
+      s = s.replace(new RegExp('(正确答案是\\s*)' + O + '(?![A-Z\\u4e00-\\u9fa5])', 'g'), '$1' + N);
+      // 答案是 OLD
+      s = s.replace(new RegExp('(?<![正确是])(\\s答案是\\s*)' + O + '(?![A-Z\\u4e00-\\u9fa5])', 'g'), '$1' + N);
+      // 答案就是 OLD
+      s = s.replace(new RegExp('(答案就是\\s*)' + O + '(?![A-Z\\u4e00-\\u9fa5])', 'g'), '$1' + N);
+      // 段首 OLD. / OLD、 / OLD，（如 "A. 部分领域专家准。"）
+      s = s.replace(new RegExp('(^|\\n)\\s*' + O + '(?=[\\.\\u3001\\uff0c\\u3002\\s])', 'gm'), '$1' + N);
+    }
+    return s;
+  }
+
   const taken = new Set();
   for(let i=0;i<labels.length;i++){
     const lab = labels[i];
     if(segs[lab] !== undefined && !taken.has(lab)){
-      out += '选项分析' + lab + ':' + segs[lab] + (i < labels.length-1 ? '\n' : '');
+      out += '选项分析' + lab + ':' + remapSegText(segs[lab]) + (i < labels.length-1 ? '\n' : '');
       taken.add(lab);
     }
   }
   // 没被当前顺序覆盖的标签（如用户多写了 5 个、但只有 4 个选项）追加在尾部
   for(const lab in segs){
     if(!taken.has(lab)){
-      out += '\n选项分析' + lab + ':' + segs[lab];
+      out += '\n选项分析' + lab + ':' + remapSegText(segs[lab]);
     }
   }
   return out;
@@ -9190,7 +9240,18 @@ function renderQuestion(){
 
   // 重组解析：识别"选项分析X:"结构、按当前顺序重排；其余原样
   const explainRaw = q.explain || '';
-  const explainText = reorderExplainByOptions(explainRaw, q.options.length);
+  // 构造 "老标签 → 新标签" 映射：让段内的 ✅OLD/故选OLD 等也跟选项乱序走
+  const origOpts = q._origOpts;
+  let labelMap = null;
+  if(Array.isArray(origOpts) && origOpts.length === q.options.length){
+    labelMap = {};
+    for(let i=0;i<origOpts.length;i++){
+      const oldLab = String.fromCharCode(65+i);
+      const newIdx = q.options.indexOf(origOpts[i]);
+      if(newIdx >= 0) labelMap[oldLab] = String.fromCharCode(65+newIdx);
+    }
+  }
+  const explainText = reorderExplainByOptions(explainRaw, q.options.length, labelMap);
   const explainHtml = explainText
     ? escHtml(explainText).replace(/(选项分析\s*[A-Z]\s*[:：])/g, '<span class="qe-label">$1</span>')
     : '（真题暂无解析，请自行核对答案）';
@@ -12064,8 +12125,19 @@ function startImportDrill(sec){
 //  我的题库（导入 PDF 题库 + 手动录入题目）
 // ====================================================
 const BANK_MODULES = ['常识判断','时政热点','言语理解','判断推理','数量关系','资料分析'];
+const BANK_ICONS = {
+  '常识判断':'📚',
+  '时政热点':'📰',
+  '言语理解':'📖',
+  '判断推理':'🧩',
+  '数量关系':'🔢',
+  '资料分析':'📊'
+};
 if(!store.bankPdf) store.bankPdf = [];
 if(!store.bankManual) store.bankManual = [];
+
+// 我的题库「按科目归纳」的当前筛选（'all' / 科目名 / '__none' 未分类）
+let _manualFilterModule = 'all';
 
 
 // ====================================================
@@ -14058,60 +14130,136 @@ function resetManualEditUI(){
   if(cancelBtn) cancelBtn.style.display = 'none';
 }
 
+// 渲染"手动录入题目"列表 —— 按 module(科目) 聚合分组，外层 <details> 折叠
 function renderManualList(){
   const el = document.getElementById('manualList');
   if(!el) return;
-  const list = store.bankManual;
+  const list = store.bankManual || [];
   if(list.length === 0){
     el.innerHTML = '<li class="import-empty">还没有手动录入的题目，用上方表单添加 ✍️</li>';
     return;
   }
-  el.innerHTML = list.map(function(it){
-    const hasAns = (typeof it.answer === 'number' && it.answer >= 0);
-    const ansLetter = hasAns ? String.fromCharCode(65 + it.answer) : null;
-    // 题干摘要（最多 38 字）
-    const qSummary = (it.q || '').replace(/\s+/g,' ').trim();
-    const qShort = qSummary.length > 38 ? (qSummary.substring(0,38) + '…') : qSummary;
-    // 选项正误高亮
-    let optsHtml = '';
-    if(Array.isArray(it.options) && it.options.length){
-      optsHtml = '<ol class="mi-opts">' + it.options.map(function(o,idx){
-        const isAns = hasAns && idx === it.answer;
-        return '<li class="' + (isAns?'mi-opt-ans':'') + '">'
-          + '<span class="mi-opt-letter">' + String.fromCharCode(65+idx) + '</span>'
-          + '<span>' + escHtml(o) + '</span>'
-          + (isAns?'<span class="mi-opt-tag">✅ 正确</span>':'')
-          + '</li>';
-      }).join('') + '</ol>';
-    }
-    const ansLine = hasAns
-      ? '<div class="mi-a">✅ 答案：<b>' + ansLetter + '</b></div>'
-      : '<div class="mi-a" style="color:var(--text-sub);">📌 自测题（无固定答案）</div>';
-    const explainBlock = it.explain
-      ? '<div class="mi-x"><span class="mi-x-tag">📋 解析</span><div class="mi-x-body">' + escHtml(it.explain) + '</div></div>'
-      : '';
-    return '<li class="manual-item" data-id="' + it.id + '">'
-      +   '<details>'
-      +     '<summary class="mi-summary">'
-      +       '<span class="mi-mod">' + escHtml(it.module) + '</span>'
-      +       '<span class="mi-q-short">' + escHtml(qShort) + '</span>'
-      +       '<span class="mi-acts-summary">'
-      +         '<button type="button" class="btn btn-sm mi-act-view">👁 答案</button>'
-      +       '</span>'
-      +     '</summary>'
-      +     '<div class="mi-detail">'
-      +       '<div class="mi-q-full">' + escHtml(it.q) + '</div>'
-      +       optsHtml
-      +       ansLine
-      +       explainBlock
-      +       '<div class="mi-acts-detail">'
-      +         '<button class="btn btn-sm btn-edit" onclick="editManual(\'' + it.id + '\')">✏️ 编辑</button>'
-      +         '<button class="btn btn-sm btn-danger" onclick="removeManual(\'' + it.id + '\')">🗑 删除</button>'
-      +       '</div>'
-      +     '</div>'
-      +   '</details>'
+  // 当前筛选状态（'all' / 某科目 / '__none' 未分类）
+  const filterMod = _manualFilterModule || 'all';
+  const validMods = new Set(BANK_MODULES);
+  // 1) 顶部 tab 栏：全部 + 各科目（含未分类）
+  let html = '<li class="manual-tabs-wrap"><div class="manual-tabs">';
+  const allActive = filterMod === 'all';
+  html += '<button type="button" class="manual-tab' + (allActive?' active':'') + '" onclick="setManualFilter(\'all\')">'
+    + '📚 全部 <span class="manual-tab-cnt">' + list.length + '</span></button>';
+  BANK_MODULES.forEach(function(m){
+    const cnt = list.filter(function(x){ return x.module === m; }).length;
+    if(!cnt) return;
+    const icon = BANK_ICONS[m] || '📂';
+    html += '<button type="button" class="manual-tab' + (filterMod===m?' active':'') + '" onclick="setManualFilter(\'' + m + '\')">'
+      + icon + ' ' + escHtml(m) + ' <span class="manual-tab-cnt">' + cnt + '</span></button>';
+  });
+  const noneCnt = list.filter(function(x){ return !x.module || !validMods.has(x.module); }).length;
+  if(noneCnt){
+    html += '<button type="button" class="manual-tab' + (filterMod==='__none'?' active':'') + '" onclick="setManualFilter(\'__none\')">'
+      + '📦 未分类 <span class="manual-tab-cnt">' + noneCnt + '</span></button>';
+  }
+  html += '</div></li>';
+
+  // 2) 按科目分组
+  const groups = {};
+  list.forEach(function(it){
+    const m = (it.module && validMods.has(it.module)) ? it.module : '__none';
+    if(!groups[m]) groups[m] = [];
+    groups[m].push(it);
+  });
+
+  // 输出顺序
+  const order = [];
+  if(filterMod === 'all'){
+    BANK_MODULES.forEach(function(m){ if(groups[m] && groups[m].length) order.push(m); });
+    if(groups['__none'] && groups['__none'].length) order.push('__none');
+  } else {
+    if(groups[filterMod] && groups[filterMod].length) order.push(filterMod);
+  }
+
+  if(!order.length){
+    html += '<li class="import-empty">该筛选下还没有题目，换个科目试试～</li>';
+    el.innerHTML = html;
+    return;
+  }
+
+  order.forEach(function(m){
+    const items = groups[m] || [];
+    const groupName = m === '__none' ? '未分类' : m;
+    const groupIcon = (m === '__none' ? '📦' : (BANK_ICONS[m] || '📂'));
+    const hasAns = items.filter(function(x){ return typeof x.answer === 'number' && x.answer >= 0; }).length;
+    // 默认全部展开（让用户立刻看到内容），用户自己可单独折叠
+    html += '<li class="manual-group">'
+      + '<details class="manual-group-box" open>'
+      +   '<summary class="manual-group-sum">'
+      +     '<span class="mg-icon">' + groupIcon + '</span>'
+      +     '<span class="mg-name">' + escHtml(groupName) + '</span>'
+      +     '<span class="mg-stat">' + items.length + ' 题' + (hasAns? ' · ✅ ' + hasAns : '') + '</span>'
+      +     '<span class="mg-arrow">▾</span>'
+      +   '</summary>'
+      +   '<ul class="manual-group-list">';
+    items.forEach(function(it){ html += renderManualItem(it); });
+    html +=     '</ul>'
+      + '</details>'
       + '</li>';
-  }).join('');
+  });
+
+  el.innerHTML = html;
+}
+
+// 切换"我的题库"科目筛选
+function setManualFilter(m){
+  _manualFilterModule = m;
+  renderManualList();
+}
+
+// 渲染单道手动录入题目（项目内 <details> 折叠，summary 显示模块+题干+ 👁 答案按钮）
+function renderManualItem(it){
+  const hasAns = (typeof it.answer === 'number' && it.answer >= 0);
+  const ansLetter = hasAns ? String.fromCharCode(65 + it.answer) : null;
+  // 题干摘要（最多 38 字）
+  const qSummary = (it.q || '').replace(/\s+/g,' ').trim();
+  const qShort = qSummary.length > 38 ? (qSummary.substring(0,38) + '…') : qSummary;
+  // 选项正误高亮
+  let optsHtml = '';
+  if(Array.isArray(it.options) && it.options.length){
+    optsHtml = '<ol class="mi-opts">' + it.options.map(function(o,idx){
+      const isAns = hasAns && idx === it.answer;
+      return '<li class="' + (isAns?'mi-opt-ans':'') + '">'
+        + '<span class="mi-opt-letter">' + String.fromCharCode(65+idx) + '</span>'
+        + '<span>' + escHtml(o) + '</span>'
+        + (isAns?'<span class="mi-opt-tag">✅ 正确</span>':'')
+        + '</li>';
+    }).join('') + '</ol>';
+  }
+  const ansLine = hasAns
+    ? '<div class="mi-a">✅ 答案：<b>' + ansLetter + '</b></div>'
+    : '<div class="mi-a" style="color:var(--text-sub);">📌 自测题（无固定答案）</div>';
+  const explainBlock = it.explain
+    ? '<div class="mi-x"><span class="mi-x-tag">📋 解析</span><div class="mi-x-body">' + escHtml(it.explain) + '</div></div>'
+    : '';
+  return '<li class="manual-item" data-id="' + it.id + '">'
+    +   '<details>'
+    +     '<summary class="mi-summary">'
+    +       '<span class="mi-mod">' + escHtml(it.module || '未分类') + '</span>'
+    +       '<span class="mi-q-short">' + escHtml(qShort) + '</span>'
+    +       '<span class="mi-acts-summary">'
+    +         '<button type="button" class="btn btn-sm mi-act-view">👁 答案</button>'
+    +       '</span>'
+    +     '</summary>'
+    +     '<div class="mi-detail">'
+    +       '<div class="mi-q-full">' + escHtml(it.q) + '</div>'
+    +       optsHtml
+    +       ansLine
+    +       explainBlock
+    +       '<div class="mi-acts-detail">'
+    +         '<button class="btn btn-sm btn-edit" onclick="editManual(\'' + it.id + '\')">✏️ 编辑</button>'
+    +         '<button class="btn btn-sm btn-danger" onclick="removeManual(\'' + it.id + '\')">🗑 删除</button>'
+    +       '</div>'
+    +     '</div>'
+    +   '</details>'
+    + '</li>';
 }
 
 function removeManual(id){
@@ -14155,7 +14303,9 @@ function shuffleQuizQuestions(list){
     if(typeof ans === 'number' && ans >= 0 && ans < q.options.length){
       ans = opts.indexOf(q.options[ans]);
     } else { ans = -1; }
-    return Object.assign({}, q, { options: opts, answer: ans });
+    // 备份原选项顺序，让 renderQuestion 可构造"老标签→新标签"映射，
+    // 让解析里的 ✅OLD / 故选OLD 跟随选项乱序走
+    return Object.assign({}, q, { options: opts, answer: ans, _origOpts: q.options.slice() });
   });
 }
 
