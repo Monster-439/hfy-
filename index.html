@@ -1209,6 +1209,23 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .countdown-card:active{transform:scale(.98);}
 .countdown-card.cd-gk{background:linear-gradient(135deg,var(--pink-soft) 0%,var(--pink-btn) 100%);}
 .countdown-card.cd-jx{background:linear-gradient(135deg,var(--pink-soft) 0%,var(--pink-btn) 100%);}
+
+/* 首页「快捷入口」三宫格：沿用首页倒计时的渐变 + 大字视觉 */
+.quick-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:0 0 16px;}
+.quick-tile{padding:18px 14px;border-radius:var(--radius);color:#fff;position:relative;overflow:hidden;box-shadow:var(--shadow);cursor:pointer;transition:transform .12s ease;text-shadow:0 1px 3px rgba(0,0,0,.18);}
+.quick-tile:active{transform:scale(.97);}
+.quick-tile::after{content:'';position:absolute;right:-20px;bottom:-20px;width:84px;height:84px;border-radius:50%;background:rgba(255,255,255,.18);}
+.quick-tile.qt-1{background:linear-gradient(135deg,var(--pink-soft) 0%,var(--pink-btn) 100%);}
+.quick-tile.qt-2{background:linear-gradient(135deg,#F2A6B6 0%,#E5708B 100%);}
+.quick-tile.qt-3{background:linear-gradient(135deg,#FFB6B0 0%,#FF8A7A 100%);}
+.quick-tile .quick-ic{font-size:32px;line-height:1;margin-bottom:8px;position:relative;z-index:1;}
+.quick-tile .quick-lbl{font-size:16px;font-weight:700;position:relative;z-index:1;}
+.quick-tile .quick-sub{font-size:11px;opacity:.92;margin-top:4px;position:relative;z-index:1;}
+@media(max-width:768px){.quick-grid{grid-template-columns:1fr;}}
+[data-theme="dark"] .quick-tile{color:var(--text-main);background:linear-gradient(135deg,var(--bg-page),var(--bg-page-mid));}
+[data-theme="dark"] .quick-tile.qt-2{background:linear-gradient(135deg,var(--bg-page),var(--bg-page-mid));}
+[data-theme="dark"] .quick-tile.qt-3{background:linear-gradient(135deg,var(--bg-page),var(--bg-page-mid));}
+[data-theme="dark"] .quick-tile::after{background:var(--pink-overlay);}
 .countdown-card::after{content:'';position:absolute;right:-20px;bottom:-20px;width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,0.18);}
 .countdown-card .cd-title{font-size:14px;font-weight:700;opacity:.95;margin-bottom:6px;}
 .countdown-card .cd-days{font-size:40px;font-weight:800;line-height:1.1;display:flex;align-items:baseline;gap:6px;}
@@ -2577,10 +2594,22 @@ body.drawer-open .nav-cloud{display:none;}
 
   <div class="countdown-row" id="countdownWrap"></div>
 
-  <div class="card home-quick-card">
-    <div class="card-title"><span class="dot"></span>🚀 快捷入口</div>
-    <p class="import-empty" style="text-align:left;margin-bottom:10px;">随时开练「我的题库」里导入或录入的题目。</p>
-    <button class="btn" onclick="startBankDrill()">📝 题库演练（合并 PDF 与手动录入）</button>
+  <div class="quick-grid">
+    <div class="quick-tile qt-1" onclick="startBankDrill()">
+      <div class="quick-ic">📝</div>
+      <div class="quick-lbl">题库演练</div>
+      <div class="quick-sub">合并 PDF · 手动录入</div>
+    </div>
+    <div class="quick-tile qt-2" onclick="showPage('error')">
+      <div class="quick-ic">❌</div>
+      <div class="quick-lbl">错题记录</div>
+      <div class="quick-sub">回顾薄弱点</div>
+    </div>
+    <div class="quick-tile qt-3" onclick="showPage('checkin')">
+      <div class="quick-ic">📅</div>
+      <div class="quick-lbl">今日打卡</div>
+      <div class="quick-sub">保持连胜节奏</div>
+    </div>
   </div>
 
   <div class="card">
