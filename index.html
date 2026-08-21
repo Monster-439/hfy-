@@ -6088,7 +6088,7 @@ function renderCourses(){
     // 按钮行：+1节 / -1节 / 今日
     card+='<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:2px">';
     card+='<button onclick="event.stopPropagation();recordCourseLesson(\''+m.id+'\',\''+c.id+'\')" style="flex:1;background:#FCEFF2;color:var(--pink-deep);border:none;border-radius:8px;font-size:12px;padding:6px;cursor:pointer;font-weight:700" title="弹窗记时长/完成度/笔记">📖 做1节</button>';
-    card+='<button onclick="event.stopPropagation();if(((qbookStoreByKey?0:0)||0||((store.goals.milestones.find(function(x){return x.id===\''+m.id+'\;}).courses.find(function(x){return x.id===\''+c.id+'\;}).done||0))>0)decrCourseLesson(\''+m.id+'\',\''+c.id+'\')" style="background:#fff;border:1.5px solid #E8D7E0;color:#A86BC4;border-radius:8px;font-size:12px;padding:6px;cursor:pointer">−1节</button>';
+    card+='<button onclick="event.stopPropagation();decrCourseLesson(\''+m.id+'\',\''+c.id+'\')" style="background:#fff;border:1.5px solid #E8D7E0;color:#A86BC4;border-radius:8px;font-size:12px;padding:6px;cursor:pointer">−1节</button>';
     card+='<button onclick="event.stopPropagation();toggleCourseToday(\''+m.id+'\',\''+c.id+'\')" style="background:'+(isToday?'#E5484D':'#fff')+';color:'+(isToday?'#fff':'#E5484D')+';border:1.5px solid #E5484D;border-radius:8px;font-size:12px;padding:6px;cursor:pointer">'+(isToday?'✓ 今日':'📅 今日')+'</button>';
     card+='</div>';
     // 启动番茄钟
@@ -9160,21 +9160,28 @@ function reorderExplainByOptions(explain, n, labelMap){
   if(!explain) return '';
   const labels = ['A','B','C','D','E','F'].slice(0, n);
   if(labels.length === 0) return explain;
-  // 切分点模式：允许大小写、可有空格/全角冒号，前后用 \n 或行首来锚定，避免文本里的"选项分析A"假阳性
-  const re = new RegExp('(^|\\n)\\s*选项分析\\s*([A-' + labels[labels.length-1] + '])\\s*[:：]', 'g');
+  const lastLab = labels[labels.length-1];
+  // 切分点：行首 + 可选"选项分析/选项拆解/选项讲解/选项解读" + 可选 ✅/✓/✔ + 标签 + :
+  // 兼容 ①"选项分析A:" ②"选项拆解\nA:" ③"✅ C:" ④"A: 部分..." ⑤"B：…"（全角冒号）
+  const re = new RegExp(
+    '(^|\\n)\\s*((?:选项分析|选项拆解|选项讲解|选项解读)\\s*)?([✅✓✔]?\\s*)([A-' + lastLab + '])\\s*[:：]',
+    'g'
+  );
   const points = [];
   let m;
   while((m = re.exec(explain)) !== null){
-    points.push({ idx: m.index + m[1].length, label: m[2].toUpperCase(), headLen: m[0].length - m[1].length });
+    // m[1]=行首空白  m[2]=段头标识  m[3]=可选勾  m[4]=标签
+    const headText = ((m[2]||'').trim() + (m[3]||'') + m[4]).trim();
+    points.push({ idx: m.index + m[1].length, label: m[4].toUpperCase(), headLen: m[0].length - m[1].length, headText: headText });
   }
   if(points.length < 2) return explain;
-  const segs = {}; // 只取每个标签首次出现段
+  const segs = {}; // label -> {headText, body}
   for(let i=0;i<points.length;i++){
     const p = points[i];
     if(segs[p.label] !== undefined) continue;
     const start = p.idx + p.headLen;
     const end = i+1 < points.length ? points[i+1].idx : explain.length;
-    segs[p.label] = explain.substring(start, end);
+    segs[p.label] = { headText: p.headText, body: explain.substring(start, end) };
   }
   // 头部：第一个切分点之前的原文（用户的总论/梳理）
   const header = explain.substring(0, points[0].idx).trim();
@@ -9210,18 +9217,41 @@ function reorderExplainByOptions(explain, n, labelMap){
     return s;
   }
 
+  // 段头里的"OLD"标签替换：处理"✅ C" / "选项分析C" / "选项拆解C" / "C" 等段头末尾的字母
+  // 跟 labelMap 走，让"✅OLD 段头"也跟新标签走（如"✅ C: 专门知识..."切分到 D 位后变成"✅ D: 专门知识..."）
+  // 注意：必须用占位符两遍替换，避免链式错位（A→B 后又把新 B 替换成 C）
+  function remapHeadText(headText){
+    if(!labelMap || typeof labelMap !== 'object') return headText;
+    let s = headText;
+    const keys = Object.keys(labelMap);
+    // 第一遍：所有 OLD 字母都先替换为 @@OLD@@ 占位符（保留 ✅/✓/✔ 前缀）
+    for(const oldLab of keys){
+      const O = oldLab.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      s = s.replace(new RegExp('([✅✓✔]\\s*)?' + O + '(?![A-Za-z\\u4e00-\\u9fa5])', 'g'), '$1' + '@@' + oldLab + '@@');
+    }
+    // 第二遍：占位符 @@OLD@@ 统一替换为 NEW
+    for(const oldLab of keys){
+      const newLab = labelMap[oldLab];
+      if(!newLab || oldLab === newLab) continue;
+      s = s.split('@@' + oldLab + '@@').join(newLab);
+    }
+    return s;
+  }
+
   const taken = new Set();
   for(let i=0;i<labels.length;i++){
     const lab = labels[i];
     if(segs[lab] !== undefined && !taken.has(lab)){
-      out += '选项分析' + lab + ':' + remapSegText(segs[lab]) + (i < labels.length-1 ? '\n' : '');
+      const newHead = remapHeadText(segs[lab].headText);
+      out += newHead + ':' + remapSegText(segs[lab].body) + (i < labels.length-1 ? '\n' : '');
       taken.add(lab);
     }
   }
   // 没被当前顺序覆盖的标签（如用户多写了 5 个、但只有 4 个选项）追加在尾部
   for(const lab in segs){
     if(!taken.has(lab)){
-      out += '\n选项分析' + lab + ':' + remapSegText(segs[lab]);
+      const newHead = remapHeadText(segs[lab].headText);
+      out += '\n' + newHead + ':' + remapSegText(segs[lab].body);
     }
   }
   return out;
@@ -14189,9 +14219,9 @@ function renderManualList(){
     const groupName = m === '__none' ? '未分类' : m;
     const groupIcon = (m === '__none' ? '📦' : (BANK_ICONS[m] || '📂'));
     const hasAns = items.filter(function(x){ return typeof x.answer === 'number' && x.answer >= 0; }).length;
-    // 默认全部展开（让用户立刻看到内容），用户自己可单独折叠
+    // 默认折叠（避免一屏全展开看着累），组级 summary 已显科目/题数/已答数信息
     html += '<li class="manual-group">'
-      + '<details class="manual-group-box" open>'
+      + '<details class="manual-group-box">'
       +   '<summary class="manual-group-sum">'
       +     '<span class="mg-icon">' + groupIcon + '</span>'
       +     '<span class="mg-name">' + escHtml(groupName) + '</span>'
