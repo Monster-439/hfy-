@@ -3833,6 +3833,7 @@ body.drawer-open .nav-cloud{display:none;}
 const STORE_KEY = 'xckq_workbench_v1';
 let store = loadStore();
 migrateExplainStruct(); // 兼容旧版单框 explain，自动转结构化解析
+migrateCourseTodos();   // 兼容旧版课程序列，待办里历史写的 mod='综合/其他' 自动按课程名/关联重识别
 
 // 「今日计划」改用日期（todayPlanDate）判断：勾选时写当天，渲染只显示 todayPlanDate===今天。
 // 跨日自动隐身（数据留痕），无需启动清理逻辑。
@@ -3964,6 +3965,31 @@ function migrateExplainStruct(){
     it.explainStruct = { parts: parts.slice(0, Math.max(n, 4)), summary: summary };
     changed = true;
   }
+  if(changed) saveStore();
+}
+// 一次性迁移：从网课进度进番茄钟留下的 src='course' 待办，原写死 mod='综合/其他'，改用 c.linked / 课程名 重新识别
+function migrateCourseTodos(){
+  if(!ensureGoals || !store.todos) return;
+  ensureGoals();
+  let changed = false;
+  store.todos.forEach(function(td){
+    if(td.src!=='course') return;
+    // 只刷新那些还是默认值的，且能从 ref/courseId 回查到课程
+    if(td.mod && td.mod!=='综合/其他') return;
+    const msId = td.ref && td.ref.msId;
+    const cId = td.ref && td.ref.cId || td.courseId;
+    if(!cId) return;
+    const m = (store.goals.milestones||[]).find(function(x){ return x.id===msId; }) || store.goals.milestones.find(function(x){ return (x.courses||[]).some(function(c){ return c.id===cId; }); });
+    if(!m) return;
+    const c = (m.courses||[]).find(function(x){ return x.id===cId; });
+    if(!c) return;
+    const newMod = getCourseModName(c);
+    if(newMod && newMod !== td.mod){
+      td.mod = newMod;
+      if(td.ref && !td.ref.msId) td.ref.msId = m.id;
+      changed = true;
+    }
+  });
   if(changed) saveStore();
 }
 function saveStore(){ localStorage.setItem(STORE_KEY, JSON.stringify(store)); ghOnLocalChange(); }
@@ -5750,12 +5776,13 @@ function viewCourseLesson(msId, cId){
   store.checkins[today] = (store.checkins[today]||0) + mins/60;
   if(!store.todos) store.todos = [];
   const todoText = '看《'+c.name+'》网课';
+  const modName = getCourseModName(c);
   if(!store.todos.some(function(td){ return td.date===today && td.text===todoText; })){
-    store.todos.unshift({ id:'td'+Date.now()+Math.floor(Math.random()*1000), mod:'综合/其他', text:todoText, done:false, created:today, finished:'', date:today, src:'course' });
+    store.todos.unshift({ id:'td'+Date.now()+Math.floor(Math.random()*1000), mod:modName, text:todoText, done:false, created:today, finished:'', date:today, src:'course', courseId:cId });
   }
   if(!store.plans[today]) store.plans[today] = [];
   if(!store.plans[today].some(function(p){ return p.text===todoText; })){
-    const p = { id:'p'+Date.now(), text:todoText, module:'综合/其他', count:0, done:false };
+    const p = { id:'p'+Date.now(), text:todoText, module:modName, count:0, done:false, courseId:cId };
     store.plans[today].push(p);
     if(typeof ensurePlanTodo==='function') ensurePlanTodo(p, today);
   }
@@ -5874,12 +5901,70 @@ function startCourseFocus(msId, cId){
   if(!m) return;
   const c = (m.courses||[]).find(function(x){ return x.id===cId; });
   if(!c) return;
-  tomatoTask = '看《'+c.name+'》网课';
-  tomatoTodoId = '';
-  goPage('tomato');
+  const today = todayKey();
+  // ① 模块名识别：c.linked 优先 → 否则从 c.name 扫 TOPICS.name → 兜底"综合/其他"
+  const modName = getCourseModName(c);
+  // ② 这条课作为今日待办（按 src='course'+courseId 去重；mod 用识别结果，旧'综合/其他'会被刷新）
+  if(!store.todos) store.todos = [];
+  let td = store.todos.find(function(x){ return x.src==='course' && x.courseId===cId; });
+  const todoText = '🎓 看《'+c.name+'》网课';
+  if(td){
+    td.mod = modName;
+    td.text = todoText;
+    td.date = today;
+  } else {
+    td = { id:'td'+Date.now()+Math.floor(Math.random()*1000), mod:modName, text:todoText, done:false, created:today, finished:'', date:today, src:'course', courseId:cId, ref:{msId:msId, cId:cId} };
+    store.todos.unshift(td);
+  }
+  // ③ 同时写入今日计划表（首页"今日计划"也可见），并走 ensurePlanTodo 打通番茄钟关联待办
+  if(!store.plans[today]) store.plans[today] = [];
+  let p = store.plans[today].find(function(x){ return x.courseId===cId; });
+  if(p){
+    p.text = todoText;
+    p.module = modName;
+  } else {
+    p = { id:'p'+Date.now(), text:todoText, module:modName, count:0, done:false, courseId:cId };
+    store.plans[today].push(p);
+  }
+  p.todoId = td.id; // 复用已建的 src='course' 待办，避免"今日待办"里同一门课出现两条
+  if(typeof ensurePlanTodo==='function') ensurePlanTodo(p, today);
+
+  // ④ 跳转番茄钟：onPageShow('tomato') 会重渲染 pick 并 autoPickTodayTodo() 自动选我们刚建的 td
+  saveStore();
+  tomatoTask = todoText;
+  tomatoTodoId = td.id;
+  showPage('tomato');
+  // ⑤ 模块选择器：设到识别出的真实模块
+  const sel = document.getElementById('tomatoModule');
+  if(sel){
+    for(let i=0;i<sel.options.length;i++){
+      if(sel.options[i].value===modName){ sel.selectedIndex=i; break; }
+    }
+  }
+  // ⑥ 关联待办下拉：确保这条 td 渲染在 pick 里并被选中（不走 onTomatoTaskInput，避免清空 pick.value）
+  if(typeof renderTomatoTodoPick==='function') renderTomatoTodoPick();
+  const pick = document.getElementById('tomatoTodoPick');
+  if(pick){
+    if(![].slice.call(pick.options).some(function(o){ return o.value===td.id; })){
+      const opt = document.createElement('option');
+      opt.value = td.id; opt.textContent = td.text;
+      pick.appendChild(opt);
+    }
+    pick.value = td.id;
+  }
   const inp = document.getElementById('tomatoTaskInput');
-  if(inp){ inp.value = tomatoTask; if(typeof onTomatoTaskInput==='function') onTomatoTaskInput(); }
-  if(typeof toast==='function') toast('已定位到番茄钟，开始一节专注吧 🍅');
+  if(inp) inp.value = todoText;
+  if(typeof toast==='function') toast('已定位到番茄钟，模块：'+modName+' 🍅');
+}
+// 课程模块识别：① c.linked ② c.name 扫 TOPICS.name ③ 兜底"综合/其他"
+function getCourseModName(c){
+  if(c && c.linked && TOPICS[c.linked]) return TOPICS[c.linked].name;
+  if(c && c.name){
+    for(const k in TOPICS){
+      if(c.name.indexOf(TOPICS[k].name)>=0) return TOPICS[k].name;
+    }
+  }
+  return '综合/其他';
 }
 function renderGoals(){
   const el = document.getElementById('page-goals');
@@ -14480,6 +14565,8 @@ function updateBankDrillBtn(){
   if(b) b.textContent = all.length;
   const chips = document.getElementById('bankModChips');
   if(chips) chips.querySelectorAll('.bm-chip').forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-m') === mod); });
+  const chipsHome = document.getElementById('homeBankModChips');
+  if(chipsHome) chipsHome.querySelectorAll('.bm-chip').forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-m') === mod); });
 }
 
 // 打乱题目顺序 + 选项顺序（同步修正答案下标），Fisher-Yates 保证均匀
@@ -14508,8 +14595,11 @@ function shuffleQuizQuestions(list){
 var gBankDrillMod = '__all';  // '__all' 表示全部模块，否则为具体模块名
 
 function pickBankMod(m, el){
+  if(el && el.stopPropagation) el.stopPropagation();
   gBankDrillMod = m;
-  document.querySelectorAll('#bankModChips .bm-chip').forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-m') === m); });
+  ['#bankModChips','#homeBankModChips'].forEach(function(sel){
+    document.querySelectorAll(sel + ' .bm-chip').forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-m') === m); });
+  });
   updateBankDrillBtn();
 }
 
