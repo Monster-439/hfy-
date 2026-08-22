@@ -513,6 +513,14 @@ body[data-color-theme="sky"]{
 /* 首页「题库演练」单 tile：沿用六大模块概览 tile 视觉，全宽对齐 */
 .topic-card.home-single{margin:0 0 16px;}
 
+/* 首页「知识闪卡」快捷按钮行 */
+.home-fc-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;position:relative;z-index:2;}
+.home-fc-actions .home-fc-btn{padding:7px 14px;font-size:13px;border-radius:18px;flex:0 0 auto;font-weight:600;cursor:pointer;}
+.home-fc-actions .btn-pink-outline{background:#fff;color:var(--pink-btn);border:1.5px solid #F8C8D0;}
+.home-fc-actions .btn-pink-outline:hover{background:#fdecee;}
+.home-fc-actions .btn-green-solid{background:#7BC99E;color:#fff;border:1.5px solid #7BC99E;}
+.home-fc-actions .btn-green-solid:hover{background:#6ab88d;}
+
 /* ========== 刷题入口 ========== */
 .drill-list{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
 .drill-meta{display:flex;justify-content:space-between;align-items:center;padding:4px 12px 10px;font-size:11px;color:var(--text-sub);}
@@ -2594,6 +2602,22 @@ body.drawer-open .nav-cloud{display:none;}
     <div class="topic-card-desc">PDF 题库 · 手动录入的题目</div>
     <div class="topic-mini-stats">
       <span>累计 <b id="homeBankTotal">0</b> 题</span>
+    </div>
+  </div>
+
+  <div class="topic-card home-single home-fc-card" onclick="flashTab='lib';showPage('flashcard')">
+    <div class="topic-card-head">
+      <span class="ic">🃏</span>
+      <span class="nm">知识闪卡</span>
+      <span class="arrow">›</span>
+    </div>
+    <div class="topic-card-desc">把易错知识点、公式、答题技巧录成小卡片，碎片时间翻一翻，记得的标✓，不记得的排到前面，越练越熟 🌱</div>
+    <div class="topic-mini-stats">
+      <span>共 <b id="homeFlashTotal">0</b> 张</span>
+    </div>
+    <div class="home-fc-actions">
+      <button class="btn home-fc-btn btn-pink-outline" onclick="event.stopPropagation();flashTab='lib';showPage('flashcard')">📚 卡库</button>
+      <button class="btn home-fc-btn btn-green-solid" onclick="event.stopPropagation();flashStartTab();showPage('flashcard')">▶ 开始复习</button>
     </div>
   </div>
 
@@ -4980,6 +5004,7 @@ function addFlashcard(){
   fcImgTmp = { fcFront:'', fcBack:'' };
   saveStore();
   renderFlashcards();
+  updateHomeFlashTotal();
   toast('已保存 🃏');
 }
 
@@ -4988,6 +5013,7 @@ function deleteFlashcard(id){
   store.flashcards = (store.flashcards||[]).filter(c=>c.id!==id);
   saveStore();
   renderFlashcards();
+  updateHomeFlashTotal();
 }
 
 function flashStartTab(){
@@ -9782,6 +9808,10 @@ function renderHome(){
     }).join('');
   }
 
+  // 首页 tile 计数同步
+  updateHomeFlashTotal();
+  updateBankDrillBtn();
+
   // 近7日图表
   const labels = [], data = [];
   for(let i=6;i>=0;i--){
@@ -12096,6 +12126,7 @@ if((store.flashcards||[]).length===0 && !localStorage.getItem('xckq_flashcard_in
   ];
   saveStore();
   localStorage.setItem('xckq_flashcard_init','1');
+  updateHomeFlashTotal(); // 首屏示例卡已加，同步首页 tile 张数
 }
 
 // ====================================================
@@ -14567,6 +14598,13 @@ function updateBankDrillBtn(){
   if(chips) chips.querySelectorAll('.bm-chip').forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-m') === mod); });
   const chipsHome = document.getElementById('homeBankModChips');
   if(chipsHome) chipsHome.querySelectorAll('.bm-chip').forEach(function(c){ c.classList.toggle('active', c.getAttribute('data-m') === mod); });
+}
+
+// 首页「知识闪卡」tile：张数同步
+function updateHomeFlashTotal(){
+  const el = document.getElementById('homeFlashTotal');
+  if(!el) return;
+  el.textContent = (store.flashcards || []).length;
 }
 
 // 打乱题目顺序 + 选项顺序（同步修正答案下标），Fisher-Yates 保证均匀
