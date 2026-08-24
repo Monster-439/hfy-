@@ -1331,6 +1331,50 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .mr-exam b{color:var(--pink-deep,var(--pink-btn));}
 .btn-on{background:linear-gradient(135deg,var(--pink-soft),var(--pink-btn));color:#fff;border-color:transparent;text-shadow:0 1px 2px var(--pink-text-shadow-softest);}
 .btn-off{background:#eee;color:#999;border-color:#ddd;}
+/* ========== 知识导图：节点操作弹层（Action Sheet） ========== */
+.mm-actions-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:none;align-items:flex-end;justify-content:center;}
+.mm-actions-overlay.show{display:flex;animation:mmActionsIn .25s ease;}
+@keyframes mmActionsIn{from{opacity:0;}to{opacity:1;}}
+.mm-actions-sheet{background:var(--bg-card,#fff);border-radius:22px 22px 0 0;width:100%;max-width:560px;padding:10px 16px 28px;box-shadow:0 -8px 28px rgba(0,0,0,.18);animation:mmActionsUp .3s cubic-bezier(.4,.0,.2,1);position:relative;}
+@keyframes mmActionsUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
+.mm-actions-bar{width:42px;height:4px;background:#D9CDD5;border-radius:2px;margin:6px auto 12px;}
+.mm-actions-title{font-size:16px;font-weight:700;color:var(--text-main);text-align:center;}
+.mm-actions-meta{font-size:11.5px;color:var(--text-sub);text-align:center;margin:2px 0 14px;}
+.mm-actions-list{background:var(--bg-soft,#FAF6F2);border-radius:14px;overflow:hidden;margin-bottom:10px;}
+.mm-actions-item{display:flex;gap:12px;align-items:center;padding:13px 16px;border-bottom:1px solid rgba(0,0,0,.04);cursor:pointer;transition:background .12s ease;}
+.mm-actions-item:last-child{border-bottom:none;}
+.mm-actions-item:active{background:rgba(255,255,255,.85);}
+.mm-actions-ico{width:38px;height:38px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 1px 3px rgba(0,0,0,.08);}
+.mm-actions-text{flex:1;min-width:0;}
+.mm-actions-h{font-size:14px;font-weight:700;color:var(--text-main);}
+.mm-actions-d{font-size:11.5px;color:var(--text-sub);margin-top:1px;}
+.mm-actions-item.danger .mm-actions-ico{background:#FFEDED;}
+.mm-actions-item.danger .mm-actions-h{color:#D8586E;}
+.mm-actions-cancel{display:block;margin:0;background:var(--bg-card,#fff);border-radius:14px;padding:13px;text-align:center;font-size:14px;font-weight:700;color:var(--text-main);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+/* 知识导图：导入弹层（居中 modal） */
+.mm-import-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:center;justify-content:center;padding:18px;}
+.mm-import-overlay.show{display:flex;animation:mmActionsIn .25s ease;}
+.mm-import-sheet{background:var(--bg-card,#fff);border-radius:18px;width:100%;max-width:520px;max-height:88vh;overflow:auto;padding:8px 20px 22px;box-shadow:0 16px 48px rgba(0,0,0,.25);animation:mmActionsIn .25s ease;}
+.mm-import-bar{width:42px;height:4px;background:#D9CDD5;border-radius:2px;margin:6px auto 12px;}
+.mm-import-title{font-size:16px;font-weight:700;color:var(--text-main);text-align:center;margin-bottom:4px;}
+.mm-import-desc{font-size:11.5px;color:var(--text-sub);text-align:center;margin-bottom:10px;}
+.mm-import-mode{display:flex;gap:14px;font-size:13px;color:var(--text-sub);margin-bottom:8px;}
+.mm-import-mode label{display:flex;align-items:center;gap:4px;cursor:pointer;}
+.mm-import-row{font-size:13px;color:var(--text-sub);margin:10px 0 6px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
+.mm-import-row label{display:flex;align-items:center;gap:4px;cursor:pointer;}
+#mmImportText{width:100%;min-height:180px;padding:12px;border:1.5px solid var(--border-mid);border-radius:12px;font-size:13px;line-height:1.55;font-family:inherit;outline:none;background:var(--bg-soft,#FAF6F2);color:var(--text-main);box-sizing:border-box;resize:vertical;}
+#mmImportText:focus{border-color:var(--pink-btn);box-shadow:0 0 0 3px rgba(216,107,131,.12);}
+#mmImportNewName{display:block;width:100%;padding:8px 10px;border:1.5px solid var(--border-mid);border-radius:10px;margin-top:6px;outline:none;}
+.mm-import-preview{font-size:11.5px;color:var(--text-sub);background:var(--bg-soft,#FAF6F2);border-radius:10px;padding:8px 10px;margin-top:8px;min-height:18px;}
+.mm-import-btns{display:flex;gap:10px;margin-top:14px;}
+.mm-import-btns .btn{flex:1;}
+/* 深色模式兼容 */
+[data-theme="dark"] .mm-actions-sheet{background:var(--bg-card,#252120);}
+[data-theme="dark"] .mm-actions-list{background:var(--bg-soft,#2D2A28);}
+[data-theme="dark"] .mm-actions-ico{background:#3A3633;}
+[data-theme="dark"] .mm-actions-cancel{background:var(--bg-soft,#2D2A28);}
+[data-theme="dark"] .mm-import-sheet{background:var(--bg-card,#252120);}
+[data-theme="dark"] #mmImportText{background:var(--bg-soft,#2D2A28);}
 /* 养护背包弹窗 */
 .care-section{margin-top:14px;}
 .care-h{font-size:13px;font-weight:700;color:var(--text-main);margin-bottom:8px;}
@@ -7179,24 +7223,34 @@ function renderMindmap(){
     +'<div><div style="font-size:15px;font-weight:700;color:#333">知识体系思维导图</div>'
     +'<div style="font-size:11px;color:#aaa;margin-top:1px">放射状结构 · 一步步搭建自己的知识网</div></div>'
     +'</div>';
-  html +=   '<button onclick="resetMindmapSubject()" style="background:#fff;border:1.5px solid #C9A9E0;color:#A86BC4;border-radius:8px;font-size:12px;padding:6px 12px;cursor:pointer">↺ 重置当前科目</button>';
+  html +=   '<div style="display:flex;gap:6px;flex-wrap:wrap">'
+    +'<button onclick="mmShowImport()" style="background:linear-gradient(135deg,#E8919B,#D86B83);border:none;color:#fff;border-radius:10px;font-size:12px;padding:7px 12px;cursor:pointer;font-weight:700;box-shadow:0 2px 6px rgba(216,107,131,.3)">📥 导入</button>'
+    +'<button onclick="mmExportCurrent()" style="background:#fff;border:1.5px solid #4F9F73;color:#4F9F73;border-radius:10px;font-size:12px;padding:6px 12px;cursor:pointer;font-weight:700">💾 导出</button>'
+    +'<button onclick="resetMindmapSubject()" style="background:#fff;border:1.5px solid #C9A9E0;color:#A86BC4;border-radius:10px;font-size:12px;padding:6px 12px;cursor:pointer;font-weight:700">↺ 重置</button>'
+    +'</div>';
   html += '</div>';
-  // 6 个科目 tab
-  const subs = ['verbal','data','reasoning','quantity','common','shenlun'];
+  // 6 个科目 tab（含用户自定义）
+  if(!store.mindmapCustom) store.mindmapCustom = {};
+  const builtinSubs = ['verbal','data','reasoning','quantity','common','shenlun'];
   const subLabel = { verbal:'言语理解与表达', data:'资料分析', reasoning:'判断推理', quantity:'数量关系', common:'常识判断', shenlun:'申论' };
+  const customSubs = Object.keys(store.mindmapCustom).filter(function(k){ return builtinSubs.indexOf(k)<0; });
+  customSubs.forEach(function(k){ subLabel[k] = (store.mindmapCustom[k] && store.mindmapCustom[k].name) || k; });
+  const subs = builtinSubs.concat(customSubs);
   html += '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;background:#fff;border-radius:14px;padding:8px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
   subs.forEach(function(k){
     const active = (k===sub);
-    html += '<div onclick="setActiveMindmapSubject(\''+k+'\')" style="cursor:pointer;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:700;background:'+(active?'linear-gradient(135deg,var(--pink-btn),var(--pink-deep))':'#FAF6F2')+';color:'+(active?'#fff':'#888')+';box-shadow:'+(active?'0 2px 8px rgba(211,95,132,.35)':'none')+'">'+subLabel[k]+'</div>';
+    const isCustom = builtinSubs.indexOf(k)<0;
+    html += '<div onclick="setActiveMindmapSubject(\''+k+'\')" style="cursor:pointer;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:700;background:'+(active?'linear-gradient(135deg,var(--pink-btn),var(--pink-deep))':'#FAF6F2')+';color:'+(active?'#fff':(isCustom?'#A86BC4':'#888'))+';box-shadow:'+(active?'0 2px 8px rgba(211,95,132,.35)':'none')+';border:'+(isCustom && !active?'1.5px dashed #C9A9E0':'')+'">'+ (isCustom?'✨ ':'') +subLabel[k]+'</div>';
   });
   html += '</div>';
-  // 操作小提示
+  // 操作小提示（更新版）
   html += '<div style="margin-top:10px;font-size:11px;color:#bbb;display:flex;gap:12px;flex-wrap:wrap;align-items:center">'
     +'<span>▾ 折叠一级分支</span>'
-    +'<span>＋ 添加子节点</span>'
-    +'<span>✏️ 重命名</span>'
-    +'<span>🗑 删除</span>'
-    +'<span>点节点设置错题数</span>'
+    +'<span>点节点 · 看操作</span>'
+    +'<span>📚 跳题库</span>'
+    +'<span>⬆️⬇️ 上下移</span>'
+    +'<span>📊 关联错题</span>'
+    +'<span>📥 自导入</span>'
     +'</div>';
   // 思维导图本体（SVG，手机左右滑动）
   html += '<div style="margin-top:12px;background:#fff;border-radius:18px;padding:14px 18px;box-shadow:0 2px 8px rgba(0,0,0,.04);overflow-x:auto">';
@@ -7275,30 +7329,360 @@ function mmSetErr(sub, path, n){
   saveStore();
   renderMindmap();
 }
-// ----- 节点点击：弹出操作菜单（添加子节点 / 重命名 / 删除 / 设置错题数） -----
+// ----- 节点点击：弹出可识别的 Action Sheet（避免 confirm 链反人类） -----
 function onMindmapNodeClick(path, level){
+  mmShowActions(path, level);
+}
+
+// 根据 path 反查当前节点的层级（1=根的子节点，2=二级，以此类推）；根层级=-1
+function getNodeLevel(path){
+  if(!path) return -1;
+  const segs = String(path).split('.');
+  return segs.length - 1;
+}
+// 根据 path 取节点对象（用于回显名称/层级）
+function getNodeByPath(path){
+  const root = getMindmapData();
+  if(!path) return { node:root, level:-1 };
+  const segs = path.split('.');
+  let cur = root;
+  for(let i=1;i<segs.length;i++){ cur = cur.children && cur.children[parseInt(segs[i],10)]; if(!cur) break; }
+  return { node:cur, level: segs.length-1 };
+}
+// 同级上下移（按父级 children 数组索引重排）
+function moveMindmapNode(path, dir){
   const sub = getActiveMindmapSubject();
-  const opts = [];
-  if(level < 2) opts.push({ label:'＋ 添加子节点', fn:function(){ addMindmapChild(path||sub); } });
-  opts.push({ label:'✏️ 重命名', fn:function(){ editMindmapNode(path||sub); } });
-  opts.push({ label:'📊 设置错题数', fn:function(){
-    const cur = mmGetErr(sub, path);
-    const v = (typeof prompt==='function') ? prompt('设置该节点关联的错题数（0 = 不显示徽章）', cur) : '0';
-    if(v===null) return;
-    mmSetErr(sub, path, v);
-  }});
-  if(level > 0) opts.push({ label:'🗑 删除', fn:function(){ deleteMindmapNode(path); } });
-  opts.push({ label:'取消', fn:function(){} });
-  // 用 confirm 一连串询问（最简单，不需要新弹窗样式）
-  opts.forEach(function(o,i){
-    if(typeof o.fn !== 'function') return;
-    if(i === opts.length-1) return; // 跳过取消
-    if(typeof confirm === 'function'){
-      // 第一个选项自动执行，其余询问是否继续
-      if(i === 0){ o.fn(); return; }
-      if(confirm('继续：'+o.label+'？')) o.fn();
-    }
+  if(!path){ if(typeof toast==='function') toast('根节点不能移动～'); return; }
+  const root = getMindmapData();
+  const segs = path.split('.');
+  let parent = root;
+  for(let i=1;i<segs.length-1;i++){ parent = parent.children && parent.children[parseInt(segs[i],10)]; if(!parent) return; }
+  const idx = parseInt(segs[segs.length-1], 10);
+  if(!parent.children) return;
+  const j = idx + dir;
+  if(j < 0 || j >= parent.children.length){ if(typeof toast==='function') toast(dir>0?'已经是最后一个':'已经是第一个'); return; }
+  const tmp = parent.children[idx];
+  parent.children[idx] = parent.children[j];
+  parent.children[j] = tmp;
+  saveMindmapTreeToStore(root);
+  renderMindmap();
+  if(typeof toast==='function') toast(dir>0?'已下移 ⬇️':'已上移 ⬆️');
+}
+
+// Action Sheet 弹层（替代 confirm 链）
+let mmCurrentActions = null;  // {path, level}
+function mmShowActions(path, level){
+  mmCurrentActions = { path:path, level:level };
+  const { node, level:lv } = getNodeByPath(path);
+  if(!node){ if(typeof toast==='function') toast('节点不存在'); return; }
+  const sub = getActiveMindmapSubject();
+  const subName = (MINDMAP_DATA[sub] && MINDMAP_DATA[sub].name) || sub;
+  let ov = document.getElementById('mmActionsOverlay');
+  if(!ov){
+    ov = document.createElement('div');
+    ov.id = 'mmActionsOverlay';
+    ov.className = 'mm-actions-overlay';
+    ov.addEventListener('click', function(e){
+      if(e.target === ov) closeMmActions();
+    });
+    document.body.appendChild(ov);
+  }
+  const isRoot = (lv < 0);
+  const items = [];
+  if(!isRoot){
+    items.push({ ico:'＋', title:'添加子节点', desc:'为这个节点新增一个子级', fn:function(){ closeMmActions(); addMindmapChild(path||sub); } });
+    items.push({ ico:'✏️', title:'重命名', desc:'修改这个节点的名称', fn:function(){ closeMmActions(); editMindmapNode(path||sub); } });
+    items.push({ ico:'📚', title:'跳到「我的题库」刷这题点', desc:'用本节点名称筛题，立刻开始', fn:function(){ closeMmActions(); mmJumpToBank(path); } });
+    items.push({ ico:'📊', title:'设置错题数', desc:'关联错题后会显示橙色徽章', fn:function(){ closeMmActions(); mmEditErr(sub, path); } });
+    items.push({ ico:'⬆️', title:'上移', desc:'和同级节点交换位置', fn:function(){ closeMmActions(); moveMindmapNode(path, -1); } });
+    items.push({ ico:'⬇️', title:'下移', desc:'和同级节点交换位置', fn:function(){ closeMmActions(); moveMindmapNode(path,  1); } });
+    items.push({ ico:'🗑', title:'删除', desc:'删除节点及其所有子节点', danger:true, fn:function(){ closeMmActions(); deleteMindmapNode(path); } });
+  } else {
+    // 根节点
+    items.push({ ico:'＋', title:'添加一级分支', desc:'为这个科目新增一个一级节点', fn:function(){ closeMmActions(); addMindmapChild(sub); } });
+    items.push({ ico:'✏️', title:'修改科目名', desc:'修改根（科目）名称', fn:function(){ closeMmActions(); mmRenameRoot(sub); } });
+    items.push({ ico:'📚', title:'跳到「我的题库」', desc:'打开该科目对应的题库模块', fn:function(){ closeMmActions(); mmJumpToBankRoot(sub); } });
+    items.push({ ico:'📊', title:'设置错题数', desc:'关联错题后会显示橙色徽章', fn:function(){ closeMmActions(); mmEditErr(sub, ''); } });
+  }
+  let html = '<div class="mm-actions-sheet">';
+  html += '<div class="mm-actions-bar"></div>';
+  html += '<div class="mm-actions-title">'+escapeHtml(node.name||'(未命名)')+'</div>';
+  html += '<div class="mm-actions-meta">'+escapeHtml(subName)+' · 第 '+ (lv<0?'1':(lv+1)) +' 级</div>';
+  html += '<div class="mm-actions-list">';
+  items.forEach(function(it){
+    html += '<div class="mm-actions-item'+(it.danger?' danger':'')+'" data-act="'+encodeURIComponent(it.title)+'">'
+      + '<span class="mm-actions-ico">'+it.ico+'</span>'
+      + '<div class="mm-actions-text"><div class="mm-actions-h">'+escapeHtml(it.title)+'</div><div class="mm-actions-d">'+escapeHtml(it.desc||'')+'</div></div>'
+      + '</div>';
   });
+  html += '</div>';
+  html += '<div class="mm-actions-cancel" onclick="closeMmActions()">取消</div>';
+  html += '</div>';
+  ov.innerHTML = html;
+  ov.classList.add('show');
+  // 绑定事件
+  ov.querySelectorAll('.mm-actions-item').forEach(function(el){
+    el.addEventListener('click', function(){
+      const t = decodeURIComponent(el.getAttribute('data-act'));
+      const it = items.find(function(x){ return x.title===t; });
+      if(it && typeof it.fn === 'function') it.fn();
+    });
+  });
+}
+function closeMmActions(){
+  const ov = document.getElementById('mmActionsOverlay');
+  if(ov) ov.classList.remove('show');
+  mmCurrentActions = null;
+}
+
+// 修改科目名（根节点重命名）
+function mmRenameRoot(sub){
+  const cur = (MINDMAP_DATA[sub] && MINDMAP_DATA[sub].name) || sub;
+  const v = (typeof prompt==='function') ? prompt('修改科目名：', cur) : '';
+  if(!v) return;
+  // 写到 MINDMAP_DATA（默认种子不动，只影响此次会话）；同时同步自定义根
+  MINDMAP_DATA[sub].name = v.trim();
+  // 自定义版本的根
+  if(store.mindmapCustom && store.mindmapCustom[sub]){
+    store.mindmapCustom[sub].name = v.trim();
+    saveStore();
+  }
+  renderMindmap();
+  if(typeof toast==='function') toast('已改名为：'+v.trim());
+}
+
+// 编辑关联错题数（独立函数，挂在 actions 里用 prompt）
+function mmEditErr(sub, path){
+  const cur = mmGetErr(sub, path);
+  const v = (typeof prompt==='function') ? prompt('关联错题数（0 不显示徽章）：', cur) : '0';
+  if(v===null) return;
+  mmSetErr(sub, path, v);
+}
+
+// 跳题库（叶子/任意节点 → 用节点名作为筛选关键字 + showPage('bank')）
+function mmJumpToBank(path){
+  const { node } = getNodeByPath(path);
+  if(!node) return;
+  const kw = (node.name||'').trim();
+  if(!kw){ if(typeof toast==='function') toast('这个节点没有名称'); return; }
+  // 优先精确等于 TOPICS 模块名（如「言语理解」「资料分析」等）
+  const TOPIC_NAMES = ['言语理解','资料分析','判断推理','数量关系','常识判断','时政热点','申论'];
+  const matchedTopic = TOPIC_NAMES.indexOf(kw)>=0;
+  if(typeof pickBankMod === 'function'){
+    if(matchedTopic){
+      pickBankMod(kw, null);
+    } else {
+      // 走题库内的搜索：把节点名作为搜索关键词（bank 暂未实现 search，这里用切换为「全部」+ toast 提示）
+      pickBankMod('__all', null);
+    }
+  }
+  if(typeof showPage === 'function') showPage('bank');
+  if(typeof toast === 'function'){
+    if(matchedTopic){ toast('已筛模块：'+kw); }
+    else { toast('已在「全部」题库为你打开，去搜「'+kw+'」即可～'); }
+  }
+}
+// 根节点跳题库（直接用科目对应的模块名）
+function mmJumpToBankRoot(sub){
+  const sub2name = { verbal:'言语理解', data:'资料分析', reasoning:'判断推理', quantity:'数量关系', common:'常识判断', shenlun:'申论' };
+  const nm = sub2name[sub] || (MINDMAP_DATA[sub] && MINDMAP_DATA[sub].name) || sub;
+  if(typeof pickBankMod === 'function') pickBankMod(nm, null);
+  if(typeof showPage === 'function') showPage('bank');
+  if(typeof toast === 'function') toast('已切到题库：'+nm);
+}
+
+// ----- 自导入（JSON / 缩进文本大纲） -----
+function mmShowImport(){
+  let ov = document.getElementById('mmImportOverlay');
+  if(!ov){
+    ov = document.createElement('div');
+    ov.id = 'mmImportOverlay';
+    ov.className = 'mm-import-overlay';
+    ov.addEventListener('click', function(e){
+      if(e.target === ov) closeMmImport();
+    });
+    document.body.appendChild(ov);
+  }
+  const sub = getActiveMindmapSubject();
+  let html = '<div class="mm-import-sheet">';
+  html += '<div class="mm-import-bar"></div>';
+  html += '<div class="mm-import-title">📥 导入思维导图</div>';
+  html += '<div class="mm-import-desc">支持 JSON 嵌套数组 / 缩进文本大纲（用 Tab 或 4 空格表示层级）</div>';
+  html += '<div class="mm-import-mode">';
+  html += '<label><input type="radio" name="mmImportMode" value="text" checked> 缩进文本</label>';
+  html += '<label><input type="radio" name="mmImportMode" value="json"> JSON 数组</label>';
+  html += '</div>';
+  html += '<textarea id="mmImportText" placeholder="示例（缩进）：&#10;言语理解与表达&#10;    逻辑填空&#10;        逻辑分析&#10;        递进关系&#10;    片段阅读&#10;..."></textarea>';
+  html += '<div class="mm-import-row">';
+  html += '<span>导入到：</span>';
+  html += '<label><input type="radio" name="mmImportTarget" value="append" checked> 追加到当前科目</label>';
+  html += '<label><input type="radio" name="mmImportTarget" value="new"> 新建科目（输入名）：</label>';
+  html += '<input id="mmImportNewName" type="text" placeholder="科目名，例如：面试" style="display:none;margin-top:6px">';
+  html += '</div>';
+  html += '<div id="mmImportPreview" class="mm-import-preview"></div>';
+  html += '<div class="mm-import-btns">';
+  html += '<button class="btn btn-secondary" onclick="closeMmImport()">取消</button>';
+  html += '<button class="btn btn-primary" onclick="mmConfirmImport()">解析并导入</button>';
+  html += '</div>';
+  html += '</div>';
+  ov.innerHTML = html;
+  // 切换显示
+  ov.querySelectorAll('input[name="mmImportTarget"]').forEach(function(r){
+    r.addEventListener('change', function(){
+      const inp = document.getElementById('mmImportNewName');
+      if(inp) inp.style.display = (r.value==='new' && r.checked) ? 'block' : 'none';
+    });
+  });
+  ov.classList.add('show');
+}
+function closeMmImport(){
+  const ov = document.getElementById('mmImportOverlay');
+  if(ov) ov.classList.remove('show');
+}
+
+// 把缩进文本解析成树：每行前面的 Tab / 4 空格数代表深度
+function parseIndentOutline(text){
+  const lines = String(text||'').replace(/\r\n/g,'\n').split('\n').filter(function(s){ return s.replace(/\s/g,'').length>0; });
+  if(!lines.length) return null;
+  // 根：第一行（首条非空）
+  const root = { name: lines[0].trim().replace(/^[\-\*\d\.\s]+/, ''), children: [] };
+  const stack = [{ node:root, indent:-1 }];
+  for(let i=1;i<lines.length;i++){
+    const raw = lines[i];
+    // 用 raw.length - trimLeft 后字符数 = indent 级别
+    const trimmed = raw.replace(/^\s+/, '');
+    const indent = raw.length - trimmed.length;
+    const levelUnit = /^( {4}|\t)/.test(raw) ? 1 : 1; // 简化：4 空格或 \t 都算 1 级
+    const name = trimmed.replace(/^[\-\*\d\.\s]+/, '').trim();
+    if(!name) continue;
+    // 弹到合适的栈深度
+    while(stack.length>1 && indent <= stack[stack.length-1].indent) stack.pop();
+    const parent = stack[stack.length-1].node;
+    if(!parent.children) parent.children = [];
+    const node = { name:name, children: [] };
+    parent.children.push(node);
+    stack.push({ node:node, indent:indent });
+  }
+  return root;
+}
+// JSON 解析：[ 'a', [ 'b', 'c' ] ] 或 [{name, children}] 或兼容旧 keys: name/children/text/value/title
+function parseMindmapJson(text){
+  let arr;
+  try { arr = JSON.parse(text); } catch(e){ return { error:'JSON 解析失败：'+e.message }; }
+  if(!Array.isArray(arr)) return { error:'根必须是数组，例如 ["A", ["A1", "A2"]]' };
+  // 单一根
+  function conv(n){
+    if(n==null) return null;
+    if(typeof n === 'string') return { name:n, children:[] };
+    if(Array.isArray(n)){
+      // ["name", [children]] 形式
+      if(n.length>=1 && typeof n[0] === 'string'){
+        const node = { name:n[0], children:[] };
+        if(n.length>=2 && Array.isArray(n[1])) n[1].forEach(function(c){
+          const cc = conv(c); if(cc) node.children.push(cc);
+        });
+        return node;
+      }
+      // 纯字符串数组
+      if(n.every(function(x){ return typeof x==='string'; })){
+        return { name:n.join(' / '), children:[] };
+      }
+      return null;
+    }
+    if(typeof n === 'object'){
+      const name = n.name || n.title || n.text || n.value || '';
+      if(!name) return null;
+      const node = { name:String(name), children:[] };
+      const ch = n.children || n.kids || n.nodes || n.childs;
+      if(Array.isArray(ch)) ch.forEach(function(c){ const cc = conv(c); if(cc) node.children.push(cc); });
+      return node;
+    }
+    return null;
+  }
+  // 单根数组：直接用 arr[0] 作为整棵树（如果它是字符串/对象）
+  if(arr.length===1 && typeof arr[0]==='string') return { tree:{ name:arr[0], children:[] } };
+  if(arr.length===1 && (typeof arr[0]==='object')) return { tree:conv(arr[0]) };
+  // 多根：把外层每个当一级分支
+  const root = { name:'(导入的分支集)', children:[] };
+  arr.forEach(function(c){ const cc = conv(c); if(cc) root.children.push(cc); });
+  if(root.children.length===0) return { error:'未识别出任何节点' };
+  return { tree:root };
+}
+
+function mmConfirmImport(){
+  const modeEl = document.querySelector('input[name="mmImportMode"]:checked');
+  const mode = modeEl ? modeEl.value : 'text';
+  const tgtEl = document.querySelector('input[name="mmImportTarget"]:checked');
+  const target = tgtEl ? tgtEl.value : 'append';
+  const txt = document.getElementById('mmImportText').value;
+  if(!txt || !txt.trim()){ if(typeof toast==='function') toast('请粘贴内容'); return; }
+  let tree = null;
+  if(mode === 'text'){
+    tree = parseIndentOutline(txt);
+    if(!tree){ if(typeof toast==='function') toast('未能解析出节点'); return; }
+  } else {
+    const r = parseMindmapJson(txt);
+    if(r.error){ if(typeof toast==='function') toast(r.error); return; }
+    tree = r.tree;
+  }
+  // 节点数统计
+  function count(n){ if(!n) return 0; return 1 + (n.children||[]).reduce(function(s,c){ return s+count(c); }, 0); }
+  const cnt = count(tree);
+  if(cnt<=1){ if(typeof toast==='function') toast('请检查格式，至少要有 1 个根节点 + 子节点'); return; }
+  if(target === 'new'){
+    const newName = (document.getElementById('mmImportNewName').value||'').trim();
+    if(!newName){ if(typeof toast==='function') toast('请输入新科目名'); return; }
+    if(MINDMAP_DATA[newName]){
+      // 已存在同名 seed：作为追加
+      const cur = getMindmapData();
+      if(!cur.children) cur.children = [];
+      (tree.children||[]).forEach(function(c){ cur.children.push(c); });
+      saveMindmapTreeToStore(cur);
+      if(typeof toast==='function') toast('已作为分支追加到「'+newName+'」，共 '+cnt+' 个节点');
+    } else {
+      // 新建科目（写入 store.mindmapCustom[newName]，MINDMAP_DATA 不动）
+      if(!store.mindmapCustom) store.mindmapCustom = {};
+      store.mindmapCustom[newName] = { name:newName, children: tree.children||[] };
+      // 同时存到 localStorage 的 mm_active_subject 切换
+      localStorage.setItem('mm_active_subject', newName);
+      // 顶 tab subs 重建
+      if(typeof renderMindmap === 'function') renderMindmap();
+      saveStore();
+      if(typeof toast==='function') toast('已新建科目「'+newName+'」，共 '+cnt+' 个节点');
+    }
+  } else {
+    // 追加到当前科目
+    const sub = getActiveMindmapSubject();
+    const root = getMindmapData();
+    if(!root.children) root.children = [];
+    (tree.children||[]).forEach(function(c){ root.children.push(c); });
+    saveMindmapTreeToStore(root);
+    renderMindmap();
+    if(typeof toast==='function') toast('已追加 '+cnt+' 个节点到当前科目');
+  }
+  closeMmImport();
+}
+
+// ----- 导出 JSON（备份当前自定义数据） -----
+function mmExportCurrent(){
+  const sub = getActiveMindmapSubject();
+  const root = getMindmapData();
+  const data = {
+    subject: sub,
+    subjectName: (MINDMAP_DATA[sub] && MINDMAP_DATA[sub].name) || sub,
+    tree: root,
+    exportedAt: new Date().toISOString(),
+    app: '上岸花园-知识导图'
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'mindmap-' + sub + '-' + todayKey() + '.json';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  if(typeof toast==='function') toast('已导出：mindmap-'+sub+'.json');
 }
 // 错题数（直接读写 store.mindmapErr[sub][path]，由 mmGetErr / mmSetErr 包装）
 function saveMindmapNote(sub, val){
