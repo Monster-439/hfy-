@@ -1322,6 +1322,15 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .morning-row b{color:var(--text-main);font-weight:700;font-size:13px;text-align:right;}
 .morning-quote{font-size:13px;color:var(--text-main);line-height:1.6;background:#FFF7E6;border-radius:12px;padding:10px 12px;margin:6px 0 16px;position:relative;z-index:1;}
 .morning-btn{width:100%;font-size:15px;padding:12px;border-radius:14px;position:relative;z-index:1;}
+.morning-btn2{width:100%;font-size:13px;padding:9px;border-radius:12px;margin-top:8px;background:var(--pink-soft);color:var(--text-main);border:1px solid var(--border-mid);position:relative;z-index:1;}
+.morning-btn2:active{transform:scale(.98);}
+.morning-study{flex-direction:column;align-items:stretch;gap:6px;}
+.morning-study .mr-label{font-weight:700;color:var(--text-main);}
+.mr-exams{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-start;}
+.mr-exam{background:#fff;border-radius:10px;padding:5px 9px;font-size:12px;color:var(--text-sub);box-shadow:0 1px 3px rgba(155,119,199,.12);}
+.mr-exam b{color:var(--pink-deep,var(--pink-btn));}
+.btn-on{background:linear-gradient(135deg,var(--pink-soft),var(--pink-btn));color:#fff;border-color:transparent;text-shadow:0 1px 2px var(--pink-text-shadow-softest);}
+.btn-off{background:#eee;color:#999;border-color:#ddd;}
 /* 养护背包弹窗 */
 .care-section{margin-top:14px;}
 .care-h{font-size:13px;font-weight:700;color:var(--text-main);margin-bottom:8px;}
@@ -3411,6 +3420,16 @@ body.drawer-open .nav-cloud{display:none;}
   </div>
 
   <div class="card">
+    <div class="card-title"><span class="dot"></span>🔔 每日提醒</div>
+    <p class="import-empty" style="text-align:left;margin-bottom:12px;">每天第一次打开「上岸花园」时，自动弹出一个早安弹窗：看看考试倒计时、今日待办进度，给备考打打气～像小红书那样每天来一下。想静音随时关掉。</p>
+    <div class="set-row" style="align-items:center;">
+      <span>🔔 每天打开时弹窗提醒</span>
+      <button class="btn btn-sm" id="dailyRemindToggle" onclick="toggleDailyRemind()">已开启</button>
+    </div>
+    <button class="btn btn-outline btn-sm" style="margin-top:10px;" onclick="previewDailyReminder()">👀 预览今日提醒</button>
+  </div>
+
+  <div class="card">
     <div class="card-title"><span class="dot"></span>🤖 AI 热点更新</div>
     <p class="import-empty" style="text-align:left;margin-bottom:12px;">填入 API Key 后，「申论 · 素材库」的「更新热点」与「AI 批改」即可调用大模型实时联网抓取 / 智能批改。配置仅保存在本机，不会上传到其他地方。</p>
     <label class="set-row"><span>API Key</span><input id="aiKey" class="manual-opt-in" type="password" placeholder="sk-..."></label>
@@ -3889,6 +3908,7 @@ function defaultStore(){
     knowledge: { common:[], politics:[], verbal:[], reasoning:[], quantity:[], data:[] }, // 用户自定义考点（每个板块可手动添加/导入）
     examDates: { gk:'2026-11-29', jx:'2027-03-14' }, // 考试倒计时目标日期（旧字段，保留兼容）
     examList: [],      // 首页倒计时考试 [{id,name,emoji,date}]（新手引导/考试管理维护）
+    dailyRemind: true, // 每日早安/备考弹窗提醒（每天首次打开时弹一次）
     onboard: { done:false, username:'', initialFlower:'' }, // 新手引导状态
     customGreeting: '', // 主页自定义标语（留空则用默认）
     dark:false, // 是否开启深色模式
@@ -9833,6 +9853,8 @@ function renderHome(){
 
   // 考试倒计时（根据设置中的目标日期，每日自动刷新）
   renderCountdowns();
+  // 每日早安/备考弹窗：每天首次打开时弹一次（_morningShown 按天守卫，不会重复弹）
+  maybeShowMorning();
 }
 
 function goPage(page){
@@ -14864,6 +14886,7 @@ function renderSetting(){
   document.getElementById('aiBase').value = store.aiConfig.base||'https://api.openai.com/v1';
   document.getElementById('aiModel').value = store.aiConfig.model||'gpt-4o-mini';
   updateDarkToggle();
+  updateDailyRemindToggle();
   applyTheme(store.colorTheme || 'sakura');
 }
 
@@ -14874,6 +14897,23 @@ function saveAiConfig(){
   store.aiConfig.model = document.getElementById('aiModel').value.trim() || 'gpt-4o-mini';
   saveStore();
   toast('已保存 AI 配置');
+}
+
+// ---- 每日提醒开关 / 预览 ----
+function toggleDailyRemind(){
+  store.dailyRemind = (store.dailyRemind === false);
+  saveStore(); updateDailyRemindToggle();
+  toast(store.dailyRemind ? '已开启每日提醒 🔔' : '已关闭每日提醒');
+}
+function updateDailyRemindToggle(){
+  const b = document.getElementById('dailyRemindToggle');
+  if(!b) return;
+  if(store.dailyRemind === false){ b.textContent='已关闭'; b.classList.add('btn-off'); b.classList.remove('btn-on'); }
+  else { b.textContent='已开启'; b.classList.add('btn-on'); b.classList.remove('btn-off'); }
+}
+function previewDailyReminder(){
+  // 预览时忽略“今天已弹过”的限制，直接展示
+  showMorningPopup();
 }
 
 // ---- 考试倒计时 ----
@@ -16101,6 +16141,7 @@ function bindStatInteractions(){
 // ── 每日早安弹窗：每天首次打开花园时弹出一次 ──
 let pendingEventAfterMorning = false;
 function maybeShowMorning(){
+  if(store.dailyRemind === false) return; // 设置里关掉了每日提醒
   const g = store.garden;
   if(g._morningShown === todayKey()) return;
   g._morningShown = todayKey();
@@ -16135,8 +16176,10 @@ function showMorningPopup(){
     '<div class="morning-row"><span>🌤️ 今日天气</span><b>'+wtext+'</b></div>'+
     '<div class="morning-row"><span>🌷 小花状态</span><b>'+statusText+'</b></div>'+
     (BUFF_HINT[g.weather] ? '<div class="morning-row morning-care"><span>🛡️ 今日养护</span><b>'+BUFF_HINT[g.weather].tip+'</b></div>' : '')+
+    buildMorningStudyHtml()+
     '<div class="morning-quote">“'+q+'”</div>'+
-    '<button class="btn btn-primary morning-btn" onclick="closeMorningPopup()">开启今天的养护之旅吧 🌱</button>';
+    '<button class="btn btn-primary morning-btn" onclick="closeMorningPopup()">开启今天的学习 🌸</button>'+
+    '<button class="btn morning-btn2" onclick="closeMorningPopup();showPage(\'plan\')">📋 看今日计划</button>';
   ov.classList.add('show');
 }
 function closeMorningPopup(){
@@ -16147,6 +16190,45 @@ function closeMorningPopup(){
     const g = store.garden;
     if(g.gardenEvent && g.gardenEvent.type){ showGardenEventPopup(g.gardenEvent); }
   }
+}
+// 今日待办总数 / 已完成数（每日计划 + 今日题本 + 今日课程，与首页口径一致）
+function todayTodoCount(){
+  const today = todayKey();
+  const plans = (store.plans && store.plans[today]) || [];
+  const qb = (store.todos||[]).filter(function(td){ return td.src==='qbook' && td.date===today; });
+  const co = (store.todos||[]).filter(function(td){ return td.src==='course' && td.date===today; });
+  const total = plans.length + qb.length + co.length;
+  const done = plans.filter(function(p){ return p.done; }).length
+             + qb.filter(function(t){ return t.done; }).length
+             + co.filter(function(t){ return t.done; }).length;
+  return { total: total, done: done };
+}
+// 早安弹窗里的「今日备考速览」：考试倒计时 + 今日待办进度
+function buildMorningStudyHtml(){
+  let h = '';
+  const exams = (store.examList||[]).filter(function(e){ return e.date; });
+  if(exams.length){
+    const now = new Date();
+    const mid = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const chips = exams.map(function(ex){
+      const p = (ex.date||'').split('-');
+      let d = '—';
+      if(p.length===3){
+        const t = new Date(+p[0], +p[1]-1, +p[2]).getTime();
+        const days = Math.round((t-mid)/86400000);
+        d = days>0 ? days+' 天' : (days===0 ? '今天' : '已开考');
+      }
+      return '<span class="mr-exam">'+ex.emoji+' '+escHtml(ex.name)+' <b>'+d+'</b></span>';
+    }).join('');
+    h += '<div class="morning-row morning-study"><span class="mr-label">🎯 考试倒计时</span><div class="mr-exams">'+chips+'</div></div>';
+  }
+  const tc = todayTodoCount();
+  if(tc.total>0){
+    h += '<div class="morning-row"><span>📋 今日待办</span><b>'+tc.done+' / '+tc.total+' 已完成</b></div>';
+  } else {
+    h += '<div class="morning-row"><span>📋 今日待办</span><b>去「每日计划」加点料吧</b></div>';
+  }
+  return h;
 }
 
 // ── 阳光值回血：打卡/专注/每日首次打开调用 ──
