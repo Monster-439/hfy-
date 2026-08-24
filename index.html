@@ -1132,6 +1132,7 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .manual-item summary::-webkit-details-marker{display:none;}
 .manual-item summary::-moz-list-bullet{list-style:none;}
 .manual-item .mi-mod{font-size:11px;color:var(--pink-btn);background:var(--pink-soft);padding:2px 8px;border-radius:8px;flex-shrink:0;font-weight:600;}
+.manual-item .mi-kp{font-size:11px;color:#7a5bd8;background:#efe9fb;padding:2px 8px;border-radius:8px;flex-shrink:0;font-weight:600;}
 .manual-item .mi-q-short{flex:1;font-size:13px;color:var(--text);line-height:1.5;word-break:break-word;overflow:hidden;}
 .manual-item .mi-acts-summary{flex-shrink:0;display:flex;gap:4px;}
 .manual-item .mi-act-view{font-size:11px;padding:4px 10px;}
@@ -1574,6 +1575,14 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .gacha-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:10px;}
 .gacha-cell{background:#faf7fb;border:1px solid #ececf0;border-radius:12px;padding:10px 6px;text-align:center;}
 .gacha-cell.locked{opacity:.45;filter:grayscale(.7);}
+.gacha-actions{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 10px;}
+.gacha-actions .btn{flex:1;min-width:130px;}
+.btn-secondary{background:linear-gradient(135deg,#a98ad6,#8f6dc4)!important;}
+.gacha-shop{margin-top:14px;background:#fff;border-radius:12px;padding:12px;}
+.gacha-shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;}
+.gacha-shop-cell{display:flex;flex-direction:column;align-items:center;gap:6px;background:#faf7fb;border:1px solid #ececf0;border-radius:12px;padding:10px 8px;text-align:center;}
+.gacha-shop-name{font-size:13px;font-weight:600;color:#555;}
+.gacha-shop-cost{font-size:12px;color:#9B6FC9;font-weight:600;}
 .gacha-emoji{font-size:28px;}
 .gacha-r{font-size:11px;font-weight:700;margin-top:2px;}
 .popup-rarity{font-weight:700;font-size:15px;margin-top:4px;}
@@ -3344,6 +3353,11 @@ body.drawer-open .nav-cloud{display:none;}
       <button class="bm-chip" data-m="数量关系" onclick="pickBankMod('数量关系', this)">数量关系</button>
       <button class="bm-chip" data-m="资料分析" onclick="pickBankMod('资料分析', this)">资料分析</button>
     </div>
+    <div class="bank-mod-bar">
+      <span class="bank-mod-label">知识点：</span>
+      <select id="bankKpFilter" class="manual-sel" onchange="pickBankKp(this.value)"><option value="">全部知识点</option></select>
+      <button class="btn btn-ghost btn-sm" id="bankKpClear" style="display:none;" onclick="pickBankKp('')">清除</button>
+    </div>
     <button class="btn" id="bankDrillBtn" onclick="startBankDrill()">开始全部演练（0 题）</button>
   </div>
 
@@ -3393,6 +3407,10 @@ body.drawer-open .nav-cloud{display:none;}
           <option value="2">C</option>
           <option value="3">D</option>
         </select>
+      </div>
+      <div class="manual-row">
+        <select id="manKp" class="manual-sel"><option value="">（知识点 · 关联思维导图，选填）</option></select>
+        <span class="bank-mod-tip">选题后可点导图节点一键筛出本题</span>
       </div>
       <textarea id="manQuestion" class="manual-area" placeholder="输入题干，例如：下列关于……的说法正确的是？"></textarea>
       <div class="manual-opts">
@@ -3638,14 +3656,14 @@ body.drawer-open .nav-cloud{display:none;}
     </div>
   </div>
   <div class="card">
-    <div class="card-title"><span class="dot"></span>🏅 成就墙</div>
-    <p class="import-empty" style="text-align:left;margin-bottom:12px;">专注、打卡、做题、养花……每达成一个小目标就解锁一枚成就，看看你集齐了多少 💪</p>
-    <div id="achievementWall"></div>
-  </div>
-  <div class="card">
-    <div class="card-title"><span class="dot"></span>🏅 成就勋章（叠加玩法）</div>
-    <p class="import-empty" style="text-align:left;margin-bottom:12px;">打卡 / 专注 / 做题 三条轨道各自累计，解锁 🥉铜 → 🥈银 → 🥇金 → 💎钻 四档勋章，越高越闪，勋章可叠加收集 💪</p>
-    <div id="medalWall"></div>
+    <div class="card-title"><span class="dot"></span>🏅 成就 · 勋章墙</div>
+    <p class="import-empty" style="text-align:left;margin-bottom:12px;">专注、打卡、做题、养花……每达成一个小目标就解锁一枚成就；打卡 / 专注 / 做题 / 模考 / 闪卡 / 导图 / 图鉴 / 正确率 八条轨道各自累计，解锁 🥉铜 → 🥈银 → 🥇金 → 💎钻 → 👑大师 → 🌟传奇 六档勋章，越高越闪，勋章可叠加收集 💪</p>
+    <div class="wall-tabs" style="display:flex;gap:8px;margin-bottom:12px">
+      <button id="wallTabAch" class="wall-tab" onclick="switchWall('ach')" style="flex:1;padding:9px;border:1px solid #6b4fa8;border-radius:10px;background:linear-gradient(135deg,#6b4fa8,#8566c9);color:#fff;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(107,79,168,.25)">🏆 成就墙</button>
+      <button id="wallTabMedal" class="wall-tab" onclick="switchWall('medal')" style="flex:1;padding:9px;border:1px solid #e3dde0;border-radius:10px;background:#fff;color:#888;font-size:13px;font-weight:700;cursor:pointer">🎖 勋章墙</button>
+    </div>
+    <div id="achievementWall" class="wall-panel"></div>
+    <div id="medalWall" class="wall-panel" style="display:none"></div>
   </div>
   <div class="card">
     <div class="card-title"><span class="dot"></span>🎰 扭蛋养花</div>
@@ -5204,6 +5222,7 @@ function computeErrTopChapters(){
 function renderReport(){
   const el = document.getElementById('page-report');
   if(!el) return;
+  const range = reportPeriodRange();
   const days = [];
   const cur = new Date(range.start);
   while(cur <= range.end){
@@ -5320,6 +5339,13 @@ const SUBJ_TARGET = 350;     // 某科累计做题量门槛（配合天数门槛
 const SUBJ_BONUS_CAP = 25;   // 浇水加成封顶：浇水最多贡献 25% 成长
 const SUBJ_REQ_DAYS = 30;    // 该科需在不同天数学习满此值（防止几天集中爆刷就绽放）
 const SUBJ_WITHER_DAYS = 3;  // 该科连续 N 天没做题 → 花朵枯萎（成长按天衰减，最多掉 50%，做题即恢复）
+// —— 绽放之后的花阶进阶（细水长流，靠真做题推进）——
+const SUBJ_STAGE_FULL = 700;      // 满开门槛：该科累计做题量
+const SUBJ_STAGE_FULL_DAYS = 60;  // 满开门槛：该科累计学习天数
+const SUBJ_STAGE_GLORY = 1200;    // 荣耀门槛：该科累计做题量
+const SUBJ_STAGE_GLORY_DAYS = 120;// 荣耀门槛：该科累计学习天数
+const SUBJ_STAGE_NAMES = ['含苞','绽放','满开','荣耀'];
+const SUBJ_STAGE_EMOJI = ['🌱','🌸','🌼','👑'];
 
 function subjGrowth(key){
   const name = TOPICS[key].name;
@@ -5370,23 +5396,69 @@ function checkSubjBloom(){
   }
 }
 
+// 当前花阶：含苞(0)/绽放(1)/满开(2)/荣耀(3)
+function subjStageInfo(key){
+  const g = subjGrowth(key);
+  const bloomed = (store.garden.subjectBloom && store.garden.subjectBloom[key]) || (g.displayGrowth >= 100);
+  if(!bloomed) return { idx:0, name:SUBJ_STAGE_NAMES[0], emoji:SUBJ_STAGE_EMOJI[0], bloomed:false, next:null };
+  if(g.done >= SUBJ_STAGE_GLORY && g.days >= SUBJ_STAGE_GLORY_DAYS)
+    return { idx:3, name:SUBJ_STAGE_NAMES[3], emoji:SUBJ_STAGE_EMOJI[3], bloomed:true, next:null };
+  if(g.done >= SUBJ_STAGE_FULL && g.days >= SUBJ_STAGE_FULL_DAYS)
+    return { idx:2, name:SUBJ_STAGE_NAMES[2], emoji:SUBJ_STAGE_EMOJI[2], bloomed:true,
+             next:{ name:SUBJ_STAGE_NAMES[3], need:SUBJ_STAGE_GLORY, days:SUBJ_STAGE_GLORY_DAYS } };
+  return { idx:1, name:SUBJ_STAGE_NAMES[1], emoji:SUBJ_STAGE_EMOJI[1], bloomed:true,
+           next:{ name:SUBJ_STAGE_NAMES[2], need:SUBJ_STAGE_FULL, days:SUBJ_STAGE_FULL_DAYS } };
+}
+
+// 进阶发奖：满开 +15 水滴/+5 金币+专精徽章；荣耀 +30 水滴/+15 金币+荣耀勋章；全荣耀 +50 金币
+function checkSubjAdvance(){
+  ensureGarden();
+  const g = store.garden;
+  g.subjectStage = g.subjectStage || {};
+  let newly = [];
+  for(const key in TOPICS){
+    const f = SUBJECT_FLOWERS[key]; if(!f) continue;
+    const info = subjStageInfo(key);
+    const prev = g.subjectStage[key] || 0;
+    if(info.idx > prev){
+      g.subjectStage[key] = info.idx;
+      if(info.idx === 2){ g.drops=(g.drops||0)+15; g.coins=(g.coins||0)+5; newly.push('🌼「'+TOPICS[key].name+'」满开！+15 水滴、+5 金币，解锁科目专精徽章'); }
+      if(info.idx === 3){ g.drops=(g.drops||0)+30; g.coins=(g.coins||0)+15; g.subjectGlory = g.subjectGlory || {}; g.subjectGlory[key]=true; newly.push('👑「'+TOPICS[key].name+'」荣耀绽放！+30 水滴、+15 金币，解锁荣耀勋章'); }
+    }
+  }
+  if(newly.length){
+    saveStore();
+    newly.forEach(n=> toast(n));
+    let allGlory = true;
+    for(const key in TOPICS){ const f=SUBJECT_FLOWERS[key]; if(!f) continue; if(!(g.subjectStage && g.subjectStage[key] >= 3)){ allGlory=false; break; } }
+    if(allGlory && !g.subjectAllGlory){
+      g.subjectAllGlory = true; g.coins=(g.coins||0)+50; saveStore();
+      toast('🌟 六科全部荣耀！+50 金币，你已是上岸花园的传奇园丁 👑');
+    }
+  }
+}
+
 function renderSubjFlower(){
   const el = document.getElementById('page-subjflower');
   if(!el) return;
   checkSubjBloom();
+  checkSubjAdvance();
   const drops = (store.garden && store.garden.drops) || 0;
   const grid = [];
-  let bloomedCount = 0;
+  let bloomedCount = 0, fullCount = 0, gloryCount = 0;
   for(const key in TOPICS){
     const f = SUBJECT_FLOWERS[key]; if(!f) continue;
     const g = subjGrowth(key);
     const disp = g.displayGrowth;
-    const bloomed = (store.garden.subjectBloom && store.garden.subjectBloom[key]) || (disp>=100);
-    if(bloomed) bloomedCount++;
+    const info = subjStageInfo(key);
+    const bloomed = info.bloomed;
+    if(info.idx>=1) bloomedCount++;
+    if(info.idx>=2) fullCount++;
+    if(info.idx>=3) gloryCount++;
     const eSize = 38 + Math.round(disp/100*34); // 字号随成长 38~72
     const ring = disp;
     const card = '<div style="background:#fff;border-radius:16px;padding:16px 12px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.05);position:relative">'
-      + (bloomed ? '<div style="position:absolute;top:8px;right:10px;font-size:12px;color:#E5484D">🌸 已绽放</div>' : '')
+      + (info.idx>=1 ? '<div style="position:absolute;top:8px;right:10px;font-size:12px;font-weight:700;color:'+ (info.idx>=3?'#C9A227':(info.idx>=2?'#B5678F':'#E5484D')) +'">'+info.emoji+' '+info.name+'</div>' : '')
       + (g.withered ? '<div style="position:absolute;top:8px;left:10px;font-size:12px;color:#b5894e">🥀 蔫了</div>' : '')
       + '<div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:118px;">'
       +   '<div style="font-size:'+eSize+'px;line-height:1;filter:'+((disp<30||g.withered)?'grayscale(0.6)':'none')+'">'+f.emoji+'</div>'
@@ -5401,6 +5473,13 @@ function renderSubjFlower(){
       + '<div style="font-size:10px;color:#bbb;margin-bottom:4px">题量 '+g.volG+'%（满 '+SUBJ_TARGET+' 道）</div>'
       + '<div style="height:6px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:2px"><div style="height:100%;width:'+g.daysG+'%;background:#7FB069;border-radius:6px"></div></div>'
       + '<div style="font-size:10px;color:#bbb;margin-bottom:6px">天数 '+g.daysG+'%（满 '+SUBJ_REQ_DAYS+' 天）</div>'
+      + (info.next
+          ? '<div style="font-size:11px;color:#9B6FC9;font-weight:600;margin:0 0 4px">'+info.emoji+' '+info.name+' → 距'+info.next.name+'</div>'
+            + '<div style="height:6px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:2px"><div style="height:100%;width:'+Math.min(100,Math.round(g.done/info.next.need*100))+'%;background:#9B6FC9;border-radius:6px"></div></div>'
+            + '<div style="font-size:10px;color:#bbb;margin-bottom:2px">题量 '+Math.min(100,Math.round(g.done/info.next.need*100))+'%（满 '+info.next.need+' 道）</div>'
+            + '<div style="height:6px;background:#f0ece8;border-radius:6px;overflow:hidden;margin-bottom:2px"><div style="height:100%;width:'+Math.min(100,Math.round(g.days/info.next.days*100))+'%;background:#7FB069;border-radius:6px"></div></div>'
+            + '<div style="font-size:10px;color:#bbb;margin-bottom:6px">天数 '+Math.min(100,Math.round(g.days/info.next.days*100))+'%（满 '+info.next.days+' 天）</div>'
+          : '<div style="font-size:12px;color:#C9A227;font-weight:700;margin:0 0 6px">🏆 已达最高花阶</div>')
       + '<div style="font-size:11px;color:#aaa;margin:2px 0 8px">已做 '+g.done+' 道 · 学习 '+g.days+'/'+SUBJ_REQ_DAYS+' 天</div>'
       + (g.withered ? '<div style="font-size:11px;color:#c08a3e;margin:0 0 8px">🥀 已 '+g.witherDays+' 天没刷题，花朵枯萎中——来做题即可恢复精神</div>' : '')
       + '<div style="font-size:11px;color:#bbb;line-height:1.5;min-height:30px">'+f.language+'</div>'
@@ -5411,12 +5490,28 @@ function renderSubjFlower(){
   let html = '<div style="padding:18px 18px 40px">';
   html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><h2 style="margin:0;font-size:20px">🌺 科目花园</h2>'
     + '<span style="font-size:12px;color:#999">六科各有一朵稀有专属花，做题越多长得越旺（商店买不到）</span></div>';
-  html += '<div style="font-size:12px;color:#E5484D;margin:4px 0 14px">💧 当前水滴：<b>'+drops+'</b> · 已绽放 '+bloomedCount+'/6 科'
-    + (bloomedCount>=6 ? ' 🎉 全科绽放！' : '') + '</div>';
+  html += '<div style="font-size:12px;color:#E5484D;margin:4px 0 14px">💧 当前水滴：<b>'+drops+'</b> · 已绽放 '+bloomedCount+'/6 · 满开 '+fullCount+' · 荣耀 '+gloryCount
+    + (gloryCount>=6 ? ' 👑 全科荣耀！' : (bloomedCount>=6 ? ' 🎉 全科绽放！' : '')) + '</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">'+grid.join('')+'</div>';
   html += '<div style="margin-top:16px;font-size:12px;color:#aaa;line-height:1.7;background:#fff;border-radius:12px;padding:12px">'
     + '🌱 成长 = 双门槛取低：①题量（满 '+SUBJ_TARGET+' 道即 100%）+ 浇水加成（单次 +3、封顶 25%）；②该科在 <b>'+SUBJ_REQ_DAYS+' 个不同天数</b>学习（防止几天集中爆刷）。两者都满才绽放——想快也快不了，得细水长流。⚠️ 连续 <b>'+SUBJ_WITHER_DAYS+' 天没刷题</b>，花朵会枯萎（成长按天掉、最多掉一半），来做题即恢复精神，浇水解不了枯萎。每朵花都对应一句陪你备考的花语。'
     + '</div>';
+  // —— 六科花语收集册 ——
+  html += '<div style="margin-top:16px;background:#fff;border-radius:12px;padding:14px">'
+    + '<div style="font-weight:700;font-size:14px;margin-bottom:8px">🌸 六科花语收集册'+(bloomedCount>=6?' · 已全部点亮 🎉':'')+'</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">';
+  for(const key in TOPICS){
+    const f = SUBJECT_FLOWERS[key]; if(!f) continue;
+    const info = subjStageInfo(key);
+    const locked = info.idx < 1;
+    html += '<div style="border:1px solid '+(locked?'#eee':'#f3d9e6')+';border-radius:12px;padding:10px;opacity:'+(locked?0.55:1)+'">'
+      + '<div style="font-size:22px">'+(locked?'🌑':f.emoji)+'</div>'
+      + '<div style="font-weight:600;font-size:13px;color:#555">'+TOPICS[key].name+'</div>'
+      + '<div style="font-size:11px;color:#bbb;margin:2px 0 4px">'+(locked?'？？？（未绽放）':f.name+' · '+info.emoji+info.name)+'</div>'
+      + '<div style="font-size:11px;color:#aaa;line-height:1.5">'+f.language+'</div>'
+      + '</div>';
+  }
+  html += '</div></div>';
   html += '</div>';
   el.innerHTML = html;
 }
@@ -5983,6 +6078,7 @@ function commitCourseLesson(msId, cId){
   if(typeof renderPlan==='function') renderPlan();
   if(typeof renderTodoList==='function') renderTodoList();
   if(typeof renderErrors==='function') renderErrors();
+  if(typeof renderCourses==='function') renderCourses();
   if(typeof toast==='function') toast((fin==='done'?'📖 完成 1 节《':'⚠️ 标记 '+(fin==='partial'?'部分':'跳过')+' · 已入错题本《') + (c.name||'课程')+'》'+mins+'分');
 }
 function startCourseFocus(msId, cId){
@@ -6017,6 +6113,7 @@ function startCourseFocus(msId, cId){
     store.plans[today].push(p);
   }
   p.todoId = td.id; // 复用已建的 src='course' 待办，避免"今日待办"里同一门课出现两条
+  td.planId = p.id; // 反向关联：番茄钟专注完成(opts.todoId=td.id)时 addFocus 据此自动勾选对应计划
   if(typeof ensurePlanTodo==='function') ensurePlanTodo(p, today);
 
   // ④ 跳转番茄钟：onPageShow('tomato') 会重渲染 pick 并 autoPickTodayTodo() 自动选我们刚建的 td
@@ -7068,6 +7165,84 @@ function getMindmapData(){
   attachPath(root, sub);
   return root;
 }
+
+// ===== 知识点（kp）联动：录入题目时关联思维导图节点，点节点可一键筛题 =====
+function getMindmapRootForSubject(sub){
+  const base = MINDMAP_DATA[sub] || MINDMAP_DATA.verbal;
+  const custom = (store.mindmapCustom && store.mindmapCustom[sub]) ? store.mindmapCustom[sub] : null;
+  return JSON.parse(JSON.stringify(custom || base));
+}
+// 收集所有思维导图节点的平铺去重名列表（保留兼容；新代码请用 collectMindmapGroupedNames）
+function collectMindmapNodeNames(){
+  const groups = collectMindmapGroupedNames();
+  const all = [];
+  groups.forEach(function(g){ g.names.forEach(function(nm){ all.push(nm); }); });
+  return all;
+}
+// 按科目分组收集思维导图节点名（用于"知识点"下拉菜单分类展示）
+function collectMindmapGroupedNames(){
+  const builtinOrder = ['verbal','data','reasoning','quantity','common','shenlun'];
+  const known = new Set(builtinOrder);
+  const seen = {}; // 全局去重，命中则跳过
+  const groups = [];
+  function pushGroup(sub){
+    const meta = (typeof MINDMAP_DATA !== 'undefined') ? MINDMAP_DATA[sub] : null;
+    if(!meta) return;
+    const root = getMindmapRootForSubject(sub);
+    const rootName = (''+(meta.name||'')).trim();
+    const names = [];
+    (function walk(n){
+      if(n && n.name){
+        const nm = (''+n.name).trim();
+        if(nm && nm !== rootName && !seen[nm]){ seen[nm] = 1; names.push(nm); }
+      }
+      if(n && n.children) n.children.forEach(walk);
+    })(root);
+    if(names.length === 0) return;
+    groups.push({
+      sub: sub,
+      label: meta.name || sub,
+      icon: meta.icon || '📘',
+      names: names
+    });
+  }
+  builtinOrder.forEach(pushGroup);
+  if(typeof MINDMAP_DATA === 'object'){
+    Object.keys(MINDMAP_DATA).forEach(function(sub){ if(!known.has(sub)) pushGroup(sub); });
+  }
+  return groups;
+}
+function _escAttrKp(s){ return (''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function populateKpDropdown(){
+  const groups = collectMindmapGroupedNames();
+  ['manKp','bankKpFilter'].forEach(function(id){
+    const sel = document.getElementById(id);
+    if(!sel) return;
+    const cur = sel.value;
+    let html = (id === 'bankKpFilter') ? '<option value="">全部知识点</option>' : '<option value="">（知识点 · 关联思维导图，选填）</option>';
+    if(groups.length === 0){
+      html += '<option value="" disabled>暂无知识点，请先在思维导图里添加节点</option>';
+    } else {
+      groups.forEach(function(g){
+        html += '<optgroup label="' + _escAttrKp((g.icon||'📘') + ' ' + g.label) + '">';
+        g.names.forEach(function(nm){
+          html += '<option value="' + _escAttrKp(nm) + '">' + escHtml(nm) + '</option>';
+        });
+        html += '</optgroup>';
+      });
+    }
+    sel.innerHTML = html;
+    if(cur) sel.value = cur;
+  });
+}
+var gBankKp = '';
+function pickBankKp(v){
+  gBankKp = v || '';
+  populateKpDropdown();
+  const clearBtn = document.getElementById('bankKpClear');
+  if(clearBtn) clearBtn.style.display = gBankKp ? '' : 'none';
+  updateBankDrillBtn();
+}
 function toggleMindmapNode(path){
   if(!store.mindmapOpen) store.mindmapOpen = {};
   store.mindmapOpen[path] = !(store.mindmapOpen[path] !== false);
@@ -7078,9 +7253,18 @@ function addMindmapChild(parentPath){
   const name = (typeof prompt==='function') ? (prompt('子节点名称：','')||'').trim() : '';
   if(!name) return;
   const root = getMindmapData();
+  // 根节点：直接追加一级分支
+  if(!parentPath){
+    if(!root.children) root.children = [];
+    root.children.push({ name:name, children:[] });
+    saveMindmapTreeToStore(root);
+    renderMindmap();
+    if(typeof toast==='function') toast('已添加子节点：'+name);
+    return;
+  }
   const segs = parentPath.split('.');
   let cur = root;
-  for(let i=1;i<segs.length;i++){ cur = cur.children[parseInt(segs[i],10)]; if(!cur) return; }
+  for(let i=0;i<segs.length;i++){ cur = cur.children && cur.children[parseInt(segs[i],10)]; if(!cur) return; }
   if(!cur.children) cur.children = [];
   cur.children.push({ name:name, children:[] });
   saveMindmapTreeToStore(root);
@@ -7091,7 +7275,7 @@ function editMindmapNode(path){
   const root = getMindmapData();
   const segs = path.split('.');
   let cur = root;
-  for(let i=1;i<segs.length;i++){ cur = cur.children[parseInt(segs[i],10)]; if(!cur) return; }
+  for(let i=0;i<segs.length;i++){ cur = cur.children && cur.children[parseInt(segs[i],10)]; if(!cur) return; }
   const newName = (typeof prompt==='function') ? (prompt('重命名节点：', cur.name||'')||'').trim() : '';
   if(!newName) return;
   cur.name = newName;
@@ -7100,10 +7284,10 @@ function editMindmapNode(path){
 }
 function deleteMindmapNode(path){
   const root = getMindmapData();
-  if(path.indexOf('.') < 0){ if(typeof toast==='function') toast('根节点不能删除～'); return; }
+  if(!path){ if(typeof toast==='function') toast('根节点不能删除～'); return; }
   const segs = path.split('.');
   let parent = root;
-  for(let i=1;i<segs.length-1;i++){ parent = parent.children[parseInt(segs[i],10)]; if(!parent) return; }
+  for(let i=0;i<segs.length-1;i++){ parent = parent.children && parent.children[parseInt(segs[i],10)]; if(!parent) return; }
   const idx = parseInt(segs[segs.length-1], 10);
   if(typeof confirm==='function' && !confirm('删除「'+parent.children[idx].name+'」及其所有子节点？')) return;
   parent.children.splice(idx, 1);
@@ -7153,25 +7337,11 @@ function renderMindmap(){
   const svgW = layout.width, svgH = layout.height;
   // ----- SVG 元素拼接 -----
   let svg = '';
-  // 路径连线
-  layout.l1Nodes.forEach(function(l1){
-    const x1 = layout.rootNode.x + W_ROOT/2;
-    const y1 = layout.rootNode.y;
-    const x2 = l1.x - W_L1/2;
-    const y2 = l1.y;
-    svg += '<path d="'+svgCurve(x1,y1,x2,y2)+'" stroke="'+COL_CURVE+'" stroke-width="1.5" fill="none" opacity="0.7"/>';
+  // 连线（任意层级，仅当父级展开时画）
+  layout.edges.forEach(function(e){
+    svg += '<path d="'+svgCurve(e.x1,e.y1,e.x2,e.y2)+'" stroke="'+COL_CURVE+'" stroke-width="1.5" fill="none" opacity="0.7"/>';
   });
-  // 一级 → 二级连线（仅当该一级分支是展开的）
-  layout.leaves.forEach(function(leaf){
-    const l1 = layout.l1Nodes[leaf.l1Idx];
-    if(!isOpen(l1.path)) return;
-    const x1 = l1.x + W_L1/2;
-    const y1 = l1.y;
-    const x2 = leaf.x - W_L2/2;
-    const y2 = leaf.y;
-    svg += '<path d="'+svgCurve(x1,y1,x2,y2)+'" stroke="'+COL_CURVE+'" stroke-width="1.5" fill="none" opacity="0.7"/>';
-  });
-  // 节点（g 容器 + rect + text + badge）
+  // 通用绘制函数
   function svgRect(x, y, w, h, fill, stroke){
     return '<rect x="'+(x-w/2)+'" y="'+(y-h/2)+'" width="'+w+'" height="'+h+'" rx="'+RX+'" ry="'+RX+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="1.5"/>';
   }
@@ -7184,35 +7354,25 @@ function renderMindmap(){
     return '<circle cx="'+cx+'" cy="'+cy+'" r="9" fill="#e8a13a" stroke="#fff" stroke-width="1.5"/>'
       + '<text x="'+cx+'" y="'+(cy+3)+'" text-anchor="middle" font-size="10" font-weight="800" fill="#fff" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif">'+n+'</text>';
   }
-  // 根节点
-  const r = layout.rootNode;
-  svg += '<g data-mm-path="'+escapeAttr(r.path)+'" style="cursor:pointer" onclick="onMindmapNodeClick(\'\',0)">'
-    + svgRect(r.x, r.y, W_ROOT, H_ROOT, COL_ROOT_FILL, COL_ROOT_STROKE)
-    + svgText(r.x, r.y, root.name || data.name, COL_ROOT_TEXT, 14, 800)
-    + svgErrBadge(r.x, r.y, mmGetErr(sub, r.path), W_ROOT)
-    + '</g>';
-  // 一级节点
-  layout.l1Nodes.forEach(function(l1){
-    const l1Open = isOpen(l1.path);
-    const n = l1.node;
-    svg += '<g data-mm-path="'+escapeAttr(l1.path)+'" style="cursor:pointer" onclick="onMindmapNodeClick(\''+escapeAttr(l1.path)+'\',1)">'
-      + svgRect(l1.x, l1.y, W_L1, H_L1, COL_L1_FILL, COL_L1_STROKE)
-      // 折叠箭头（在节点文字前）
-      + '<text x="'+(l1.x - W_L1/2 + 10)+'" y="'+(l1.y+4)+'" text-anchor="middle" font-size="13" font-weight="800" fill="'+COL_L1_TEXT+'" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif" style="cursor:pointer" onclick="event.stopPropagation();toggleMindmapNode(\''+escapeAttr(l1.path)+'\')">'+(l1Open?'▾':'▸')+'</text>'
-      + svgText(l1.x + 6, l1.y, n.name||'(未命名)', COL_L1_TEXT, 13, 700)
-      + svgErrBadge(l1.x, l1.y, mmGetErr(sub, l1.path), W_L1)
+  // 节点（按层级着色；任意有子节点且层级>=1 的节点都可折叠）
+  layout.nodes.forEach(function(nd){
+    const n = nd.node, lvl = nd.level;
+    let fill, stroke, textColor, tSize, tWeight;
+    if(lvl===0){ fill=COL_ROOT_FILL; stroke=COL_ROOT_STROKE; textColor=COL_ROOT_TEXT; tSize=14; tWeight=800; }
+    else if(lvl===1){ fill=COL_L1_FILL; stroke=COL_L1_STROKE; textColor=COL_L1_TEXT; tSize=13; tWeight=700; }
+    else { fill=COL_L2_FILL; stroke=COL_L2_STROKE; textColor=COL_L2_TEXT; tSize=12; tWeight=600; }
+    const canFold = nd.hasKids && lvl>=1;
+    const foldSym = nd.open ? '▾' : '▸';
+    const textDx = canFold ? 8 : 0;
+    let g = '<g data-mm-path="'+escapeAttr(nd.path)+'" style="cursor:pointer" onclick="onMindmapNodeClick(\''+escapeAttr(nd.path)+'\','+lvl+')">'
+      + svgRect(nd.x, nd.y, nd.w, nd.h, fill, stroke);
+    if(canFold){
+      g += '<text x="'+(nd.x - nd.w/2 + 11)+'" y="'+(nd.y+4)+'" text-anchor="middle" font-size="13" font-weight="800" fill="'+(lvl===1?COL_L1_TEXT:COL_L2_TEXT)+'" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif" style="cursor:pointer" onclick="event.stopPropagation();toggleMindmapNode(\''+escapeAttr(nd.path)+'\')">'+foldSym+'</text>';
+    }
+    g += svgText(nd.x + textDx, nd.y, n.name||(lvl===0?data.name:'(未命名)'), textColor, tSize, tWeight)
+      + svgErrBadge(nd.x, nd.y, mmGetErr(sub, nd.path), nd.w)
       + '</g>';
-  });
-  // 二级叶子（仅一级展开时画）
-  layout.leaves.forEach(function(leaf){
-    const l1 = layout.l1Nodes[leaf.l1Idx];
-    if(!isOpen(l1.path)) return;
-    const n = leaf.node;
-    svg += '<g data-mm-path="'+escapeAttr(leaf.path)+'" style="cursor:pointer" onclick="onMindmapNodeClick(\''+escapeAttr(leaf.path)+'\',2)">'
-      + svgRect(leaf.x, leaf.y, W_L2, H_L2, COL_L2_FILL, COL_L2_STROKE)
-      + svgText(leaf.x, leaf.y, n.name||'(未命名)', COL_L2_TEXT, 12, 600)
-      + svgErrBadge(leaf.x, leaf.y, mmGetErr(sub, leaf.path), W_L2)
-      + '</g>';
+    svg += g;
   });
   // ----- 外壳 HTML -----
   let html = '<div style="padding:14px 14px 40px;background:#F7F7F8;min-height:100vh">';
@@ -7245,7 +7405,7 @@ function renderMindmap(){
   html += '</div>';
   // 操作小提示（更新版）
   html += '<div style="margin-top:10px;font-size:11px;color:#bbb;display:flex;gap:12px;flex-wrap:wrap;align-items:center">'
-    +'<span>▾ 折叠一级分支</span>'
+    +'<span>▾ 折叠分支（任意层级）</span>'
     +'<span>点节点 · 看操作</span>'
     +'<span>📚 跳题库</span>'
     +'<span>⬆️⬇️ 上下移</span>'
@@ -7270,51 +7430,54 @@ function svgCurve(x1,y1,x2,y2){
   const R = Math.min(80, Math.max(40, Math.abs(x2-x1)/2));
   return 'M '+x1+' '+y1+' C '+(x1+R)+' '+y1+' '+(x2-R)+' '+y2+' '+x2+' '+y2;
 }
-// ----- SVG 布局算法：自底向上算叶子位置 → 一级节点 y → 根节点 y -----
+// ----- SVG 布局算法（递归，支持任意层级；根居左，逐级向右延展） -----
 function layoutRadialMindmap(root){
-  const L1_X = 280, L2_X = 530;
-  const L2_H = 32, L2_GAP = 14, L1_GAP = 26, TOP_PAD = 20, BOT_PAD = 20;
-  const leaves = []; let cursor = TOP_PAD;
+  const ROOT_X = 120, COL_STEP = 235;
+  const NODE_W = function(level){ return level===0?140:(level===1?110:92); };
+  const NODE_H = function(level){ return level===0?44:(level===1?36:30); };
+  const ROW_GAP = 12, BRANCH_GAP = 24, TOP_PAD = 20, BOT_PAD = 20;
   const openMap = (store && store.mindmapOpen) ? store.mindmapOpen : (store.mindmapOpen = {});
-  const isOpen = function(path){ return !(path in openMap) || !!openMap[path]; };
-  (root.children||[]).forEach(function(l1, i1){
-    if(!isOpen(''+i1)) return;
-    (l1.children||[]).forEach(function(l2, i2){
-      leaves.push({ type:'leaf', node:l2, l1Idx:i1, l2Idx:i2, path:i1+'.'+i2, x:L2_X, y: cursor + L2_H/2 });
-      cursor += L2_H + L2_GAP;
-    });
-    cursor += L1_GAP;
-  });
-  // 一级节点 y = 其二级叶子 y 的中点（如果该分支被折叠，y 落在当前 cursor）
-  const l1Nodes = (root.children||[]).map(function(l1, i1){
-    const path = ''+i1;
-    const myLeaves = leaves.filter(function(n){ return n.l1Idx===i1; });
+  const isOpen = function(p){ return !(p in openMap) || !!openMap[p]; };
+  const nodes = [], edges = [];
+  let cursor = TOP_PAD;
+  function colX(level){ return ROOT_X + level*COL_STEP; }
+  // 递归布局：先计算子节点位置，再让父节点居中于子节点
+  function layout(node, path, level){
+    const x = colX(level);
+    const w = NODE_W(level), h = NODE_H(level);
+    const hasKids = !!(node.children && node.children.length>0);
+    const open = hasKids && isOpen(path);
     let y;
-    if(myLeaves.length){
-      const ys = myLeaves.map(function(l){ return l.y; });
+    if(hasKids && open){
+      const ys = [];
+      (node.children||[]).forEach(function(c, i){
+        const cp = path ? (path+'.'+i) : (''+i);
+        ys.push(layout(c, cp, level+1));
+      });
       y = (Math.min.apply(null,ys) + Math.max.apply(null,ys))/2;
+      cursor += BRANCH_GAP;
     } else {
-      // 折叠态或无叶子：放到 cursor 位置
-      y = cursor;
-      cursor += L2_H + L2_GAP;
+      y = cursor + h/2;
+      cursor += h + ROW_GAP;
     }
-    return { type:'l1', node:l1, idx:i1, path:path, x:L1_X, y:y };
-  });
-  // 根节点 y = 一级节点 y 的中点
-  let rootY;
-  if(l1Nodes.length){
-    const ys = l1Nodes.map(function(n){ return n.y; });
-    rootY = (Math.min.apply(null,ys) + Math.max.apply(null,ys))/2;
-  } else {
-    rootY = (TOP_PAD + cursor)/2;
+    nodes.push({ node:node, path:path, level:level, x:x, y:y, w:w, h:h, hasKids:hasKids, open:open });
+    return y;
   }
-  return {
-    rootNode: { node:root, path:'', x:90, y:rootY },
-    l1Nodes: l1Nodes,
-    leaves: leaves,
-    height: Math.max(cursor + BOT_PAD, 200),
-    width: 660
-  };
+  layout(root, '', 0);
+  // 连线：每个非根节点连到其父节点（父级展开时才画）
+  nodes.forEach(function(nd){
+    if(!nd.path) return;
+    const segs = nd.path.split('.');
+    const parentPath = segs.slice(0, segs.length-1).join('.');
+    const parent = nodes.find(function(n){ return n.path===parentPath; });
+    if(parent && parent.open){
+      edges.push({ x1: parent.x + parent.w/2, y1: parent.y, x2: nd.x - nd.w/2, y2: nd.y });
+    }
+  });
+  const maxLevel = nodes.reduce(function(m,n){ return Math.max(m,n.level); }, 0);
+  const width = ROOT_X + (maxLevel+1)*COL_STEP + 60;
+  const height = Math.max(cursor + BOT_PAD, 220);
+  return { nodes: nodes, edges: edges, width: width, height: height, rootNode: nodes[0] };
 }
 // ----- 错题数 -----
 function mmGetErr(sub, path){
@@ -7346,7 +7509,7 @@ function getNodeByPath(path){
   if(!path) return { node:root, level:-1 };
   const segs = path.split('.');
   let cur = root;
-  for(let i=1;i<segs.length;i++){ cur = cur.children && cur.children[parseInt(segs[i],10)]; if(!cur) break; }
+  for(let i=0;i<segs.length;i++){ cur = cur.children && cur.children[parseInt(segs[i],10)]; if(!cur) break; }
   return { node:cur, level: segs.length-1 };
 }
 // 同级上下移（按父级 children 数组索引重排）
@@ -7356,7 +7519,7 @@ function moveMindmapNode(path, dir){
   const root = getMindmapData();
   const segs = path.split('.');
   let parent = root;
-  for(let i=1;i<segs.length-1;i++){ parent = parent.children && parent.children[parseInt(segs[i],10)]; if(!parent) return; }
+  for(let i=0;i<segs.length-1;i++){ parent = parent.children && parent.children[parseInt(segs[i],10)]; if(!parent) return; }
   const idx = parseInt(segs[segs.length-1], 10);
   if(!parent.children) return;
   const j = idx + dir;
@@ -7399,7 +7562,7 @@ function mmShowActions(path, level){
     items.push({ ico:'🗑', title:'删除', desc:'删除节点及其所有子节点', danger:true, fn:function(){ closeMmActions(); deleteMindmapNode(path); } });
   } else {
     // 根节点
-    items.push({ ico:'＋', title:'添加一级分支', desc:'为这个科目新增一个一级节点', fn:function(){ closeMmActions(); addMindmapChild(sub); } });
+    items.push({ ico:'＋', title:'添加一级分支', desc:'为这个科目新增一个一级节点', fn:function(){ closeMmActions(); addMindmapChild(''); } });
     items.push({ ico:'✏️', title:'修改科目名', desc:'修改根（科目）名称', fn:function(){ closeMmActions(); mmRenameRoot(sub); } });
     items.push({ ico:'📚', title:'跳到「我的题库」', desc:'打开该科目对应的题库模块', fn:function(){ closeMmActions(); mmJumpToBankRoot(sub); } });
     items.push({ ico:'📊', title:'设置错题数', desc:'关联错题后会显示橙色徽章', fn:function(){ closeMmActions(); mmEditErr(sub, ''); } });
@@ -7407,7 +7570,7 @@ function mmShowActions(path, level){
   let html = '<div class="mm-actions-sheet">';
   html += '<div class="mm-actions-bar"></div>';
   html += '<div class="mm-actions-title">'+escapeHtml(node.name||'(未命名)')+'</div>';
-  html += '<div class="mm-actions-meta">'+escapeHtml(subName)+' · 第 '+ (lv<0?'1':(lv+1)) +' 级</div>';
+  html += '<div class="mm-actions-meta">'+escapeHtml(subName)+' · 第 '+ (lv<0?'1':(lv+2)) +' 级</div>';
   html += '<div class="mm-actions-list">';
   items.forEach(function(it){
     html += '<div class="mm-actions-item'+(it.danger?' danger':'')+'" data-act="'+encodeURIComponent(it.title)+'">'
@@ -7465,21 +7628,20 @@ function mmJumpToBank(path){
   if(!node) return;
   const kw = (node.name||'').trim();
   if(!kw){ if(typeof toast==='function') toast('这个节点没有名称'); return; }
-  // 优先精确等于 TOPICS 模块名（如「言语理解」「资料分析」等）
+  // 精确等于 TOPICS 模块名 → 按模块筛；否则按知识点（kp）精确筛
   const TOPIC_NAMES = ['言语理解','资料分析','判断推理','数量关系','常识判断','时政热点','申论'];
   const matchedTopic = TOPIC_NAMES.indexOf(kw)>=0;
-  if(typeof pickBankMod === 'function'){
-    if(matchedTopic){
-      pickBankMod(kw, null);
-    } else {
-      // 走题库内的搜索：把节点名作为搜索关键词（bank 暂未实现 search，这里用切换为「全部」+ toast 提示）
-      pickBankMod('__all', null);
-    }
+  if(matchedTopic){
+    if(typeof pickBankMod === 'function') pickBankMod(kw, null);
+    if(typeof gBankKp !== 'undefined') gBankKp = '';
+  } else {
+    if(typeof pickBankMod === 'function') pickBankMod('__all', null);
+    if(typeof pickBankKp === 'function') pickBankKp(kw);
   }
   if(typeof showPage === 'function') showPage('bank');
   if(typeof toast === 'function'){
     if(matchedTopic){ toast('已筛模块：'+kw); }
-    else { toast('已在「全部」题库为你打开，去搜「'+kw+'」即可～'); }
+    else { toast('已按知识点「'+kw+'」筛题～'); }
   }
 }
 // 根节点跳题库（直接用科目对应的模块名）
@@ -9937,18 +10099,18 @@ function renderQuestion(){
   }
 
   document.getElementById('quizBody').innerHTML = `
-    <div class="quiz-q"><span class="q-tag">${quizState.type}</span>${q.q}</div>
+    <div class="quiz-q" style="white-space:pre-line"><span class="q-tag">${quizState.type}</span>${q.q}</div>
     <div class="quiz-options">
       ${q.options.map((opt,i)=>`
         <div class="quiz-option" onclick="selectOption(${i})" data-idx="${i}">
           <span class="opt-label">${String.fromCharCode(65+i)}</span>
-          <span>${opt}</span>
+          <span style="white-space:pre-line">${opt}</span>
         </div>
       `).join('')}
     </div>
     <div class="quiz-explain" id="quizExplain">
       <div class="et">📋 解析</div>
-      <div class="qe-body">${explainHtml}</div>
+      <div class="qe-body" style="white-space:pre-line">${explainHtml}</div>
     </div>
   `;
   quizState.selected = -1;
@@ -10189,8 +10351,10 @@ function renderHome(){
 
   // 今日计划：每日计划 + 今日题本 + 今日课程 三源整合，统一勾选、状态互通
   const plans = store.plans[today]||[];
+  const planCourseIds = {};
+  plans.forEach(function(p){ if(p.courseId) planCourseIds[p.courseId] = true; });
   const qbookTodos = (store.todos||[]).filter(function(td){ return td.src==='qbook' && td.date===today; });
-  const courseTodos = (store.todos||[]).filter(function(td){ return td.src==='course' && td.date===today; });
+  const courseTodos = (store.todos||[]).filter(function(td){ return td.src==='course' && td.date===today && !(td.planId || planCourseIds[td.courseId]); });
   const todayItems = [];
   plans.forEach(function(p){ todayItems.push({ type:'plan', id:p.id, text:p.text, meta:p.module+(p.count?' · '+p.count+'题':''), done:p.done }); });
   qbookTodos.forEach(function(td){ todayItems.push({ type:'qbook', id:td.id, text:td.text, meta:'题本', done:td.done }); });
@@ -11096,8 +11260,10 @@ function renderPlan(){
 
   // 今日计划 = 每日计划 + 今日题本 + 今日课程 三源整合（与首页、今日待办一致）
   const plans = store.plans[today]||[];
+  const planCourseIds = {};
+  plans.forEach(function(p){ if(p.courseId) planCourseIds[p.courseId] = true; });
   const qbookTodos = (store.todos||[]).filter(function(td){ return td.src==='qbook' && td.date===today; });
-  const courseTodos = (store.todos||[]).filter(function(td){ return td.src==='course' && td.date===today; });
+  const courseTodos = (store.todos||[]).filter(function(td){ return td.src==='course' && td.date===today && !(td.planId || planCourseIds[td.courseId]); });
   const allItems = [];
   plans.forEach(function(p){ allItems.push({ type:'plan', id:p.id, text:p.text, meta:p.module+(p.count?' · '+p.count+'题':''), done:p.done, start:p.start, end:p.end }); });
   qbookTodos.forEach(function(td){ allItems.push({ type:'qbook', id:td.id, text:td.text, meta:'题本', done:td.done }); });
@@ -14552,6 +14718,7 @@ function stickerMonthStats(y, m, dimKey){
 function renderBank(){
   renderBankPdf();
   renderManualList();
+  populateKpDropdown();
   updateBankDrillBtn();
 }
 
@@ -14739,6 +14906,7 @@ function reparseBankPdf(id){
 // ---- 手动录入题目 ----
 function addManualQuestion(){
   const module = document.getElementById('manModule').value;
+  const kp = (document.getElementById('manKp') || {}).value || '';
   const q = document.getElementById('manQuestion').value.trim();
   const opts = [
     document.getElementById('manOptA').value.trim(),
@@ -14768,6 +14936,7 @@ function addManualQuestion(){
       it.options = validOpts;
       it.answer = answer;
       it.explainStruct = explainStruct;
+      it.kp = kp;
     }
   } else {
     const item = {
@@ -14776,7 +14945,8 @@ function addManualQuestion(){
       q: q,
       options: validOpts,
       answer: answer,            // -1 表示无答案（自测）
-      explainStruct: explainStruct
+      explainStruct: explainStruct,
+      kp: kp
     };
     store.bankManual.push(item);
   }
@@ -14789,6 +14959,7 @@ function addManualQuestion(){
   for(let i=0;i<4;i++){ const e = document.getElementById('manExplain'+i); if(e) e.value = ''; }
   const es = document.getElementById('manExplainSummary'); if(es) es.value = '';
   document.getElementById('manAnswer').value = '-1';
+  const kpSel = document.getElementById('manKp'); if(kpSel) kpSel.value = '';
   if(editingId){ store._editingManualId = ''; }
   resetManualEditUI();
   renderManualList();
@@ -14814,6 +14985,14 @@ function editManual(id){
   for(let i=0;i<4;i++){ const e = document.getElementById('manExplain'+i); if(e) e.value = parts[i] || ''; }
   const es = document.getElementById('manExplainSummary'); if(es) es.value = struct.summary || '';
   document.getElementById('manAnswer').value = (typeof it.answer === 'number') ? String(it.answer) : '-1';
+  const kpSel2 = document.getElementById('manKp');
+  if(kpSel2){
+    const kpv = it.kp || '';
+    if(kpv && !Array.prototype.some.call(kpSel2.options, function(o){ return o.value === kpv; })){
+      const op = document.createElement('option'); op.value = kpv; op.textContent = kpv; kpSel2.appendChild(op);
+    }
+    kpSel2.value = kpv;
+  }
   const saveBtn = document.getElementById('manSaveBtn');
   if(saveBtn) saveBtn.textContent = '✏️ 更新题目';
   const cancelBtn = document.getElementById('manCancelEdit');
@@ -14833,6 +15012,7 @@ function cancelManualEdit(){
   for(let i=0;i<4;i++){ const e = document.getElementById('manExplain'+i); if(e) e.value = ''; }
   const es = document.getElementById('manExplainSummary'); if(es) es.value = '';
   document.getElementById('manAnswer').value = '-1';
+  const kpSel3 = document.getElementById('manKp'); if(kpSel3) kpSel3.value = '';
   toast('已取消编辑');
 }
 
@@ -14847,9 +15027,11 @@ function resetManualEditUI(){
 function renderManualList(){
   const el = document.getElementById('manualList');
   if(!el) return;
-  const list = store.bankManual || [];
+  const list0 = store.bankManual || [];
+  const kpF = (typeof gBankKp !== 'undefined') ? gBankKp : '';
+  const list = kpF ? list0.filter(function(x){ return (x.kp||'') === kpF; }) : list0;
   if(list.length === 0){
-    el.innerHTML = '<li class="import-empty">还没有手动录入的题目，用上方表单添加 ✍️</li>';
+    el.innerHTML = '<li class="import-empty">' + (kpF ? ('知识点「'+escHtml(kpF)+'」下还没有') : '还没有') + '手动录入的题目，用上方表单添加 ✍️</li>';
     return;
   }
   // 当前筛选状态（'all' / 某科目 / '__none' 未分类）
@@ -14956,6 +15138,7 @@ function renderManualItem(it){
     +   '<details>'
     +     '<summary class="mi-summary">'
     +       '<span class="mi-mod">' + escHtml(it.module || '未分类') + '</span>'
+    +       (it.kp ? '<span class="mi-kp">🧠 ' + escHtml(it.kp) + '</span>' : '')
     +       '<span class="mi-q-short">' + escHtml(qShort) + '</span>'
     +       '<span class="mi-acts-summary">'
     +         '<button type="button" class="btn btn-sm mi-act-view">👁 答案</button>'
@@ -14985,9 +15168,9 @@ function removeManual(id){
 
 function bankAllQuestions(){
   const all = [];
-  store.bankPdf.forEach(function(e){ (e.questions||[]).forEach(function(q){ all.push(Object.assign({}, q, { module: e.module || '未分类' })); }); });
+  store.bankPdf.forEach(function(e){ (e.questions||[]).forEach(function(q){ all.push(Object.assign({}, q, { module: e.module || '未分类', kp: q.kp || '' })); }); });
   store.bankManual.forEach(function(it){
-    all.push({ q: it.q, options: it.options, answer: it.answer, explain: it.explain || '', explainStruct: it.explainStruct || null, module: it.module || '未分类' });
+    all.push({ q: it.q, options: it.options, answer: it.answer, explain: it.explain || '', explainStruct: it.explainStruct || null, module: it.module || '未分类', kp: it.kp || '' });
   });
   return all;
 }
@@ -14995,9 +15178,12 @@ function bankAllQuestions(){
 function updateBankDrillBtn(){
   const all = bankAllQuestions();
   const mod = (typeof gBankDrillMod !== 'undefined') ? gBankDrillMod : '__all';
-  const n = (mod === '__all') ? all.length : all.filter(function(x){ return x.module === mod; }).length;
+  let pool = (mod === '__all') ? all : all.filter(function(x){ return x.module === mod; });
+  const kp = (typeof gBankKp !== 'undefined') ? gBankKp : '';
+  if(kp){ pool = pool.filter(function(x){ return x.kp === kp; }); }
+  const n = pool.length;
   const a = document.getElementById('bankDrillBtn');
-  if(a) a.textContent = (mod === '__all' ? '开始全部演练' : ('开始「' + mod + '」演练')) + '（' + n + ' 题）';
+  if(a) a.textContent = (mod === '__all' ? '开始全部演练' : ('开始「' + mod + '」演练')) + (kp ? (' · '+kp) : '') + '（' + n + ' 题）';
   const b = document.getElementById('homeBankTotal');
   if(b) b.textContent = all.length;
   const chips = document.getElementById('bankModChips');
@@ -15052,7 +15238,9 @@ function startBankDrill(){
   const all = bankAllQuestions();
   let pool = all;
   if(mod !== '__all'){ pool = all.filter(function(x){ return x.module === mod; }); }
-  if(pool.length === 0){ toast((mod==='__all'?'题库里':'该模块下') + '还没有题目，先导入或录入吧~'); return; }
+  const kpFilter = (typeof gBankKp !== 'undefined') ? gBankKp : '';
+  if(kpFilter){ pool = pool.filter(function(x){ return x.kp === kpFilter; }); }
+  if(pool.length === 0){ toast((mod==='__all'?'题库里':'该模块下') + (kpFilter?'「'+kpFilter+'」知识点下':'') + '还没有题目，先导入或录入吧~'); return; }
   quizState.questions = shuffleQuizQuestions(pool);
   quizState.currentIdx = 0;
   quizState.selected = -1;
@@ -15061,7 +15249,7 @@ function startBankDrill(){
   quizState.fromImport = true;
   quizState.module = (mod === '__all') ? '' : mod;   // 空串=全部（按每题模块分别归账）
   quizState.type = '题库演练';
-  document.getElementById('quizTitle').textContent = '我的题库 · 题库演练' + (mod!=='__all' ? (' · ' + mod) : '');
+  document.getElementById('quizTitle').textContent = '我的题库 · 题库演练' + (mod!=='__all' ? (' · ' + mod) : '') + (kpFilter ? (' · '+kpFilter) : '');
   document.getElementById('quizOverlay').classList.add('show');
   renderQuestion();
 }
@@ -15864,6 +16052,29 @@ const GACHA_POOL = [
   {id:'gold', name:'黄金花', emoji:'🏵️', rarity:'UR', w:1},
 ];
 const RARITY_COLOR = {N:'#9aa0a6', R:'#5b9bd5', SR:'#a06bd5', SSR:'#e0a82e', UR:'#e8506e'};
+// 重复花 → 碎片（按稀有度折算）；碎片去「兑换商店」换奖励
+const GACHA_SHARD = {N:1, R:3, SR:8, SSR:20, UR:50};
+function rarityRank(r){ return ({N:0,R:1,SR:2,SSR:3,UR:4})[r]||0; }
+function rollGacha(){
+  const total=GACHA_POOL.reduce((s,x)=>s+(x.w||1),0);
+  let r=Math.random()*total, pick=GACHA_POOL[0];
+  for(const x of GACHA_POOL){ if(r<x.w){ pick=x; break; } r-=x.w; }
+  return pick;
+}
+function forceSRPlus(){
+  const pool=GACHA_POOL.filter(x=> rarityRank(x.rarity)>=2);
+  const total=pool.reduce((s,x)=>s+(x.w||1),0);
+  let r=Math.random()*total, pick=pool[0];
+  for(const x of pool){ if(r<x.w){ pick=x; break; } r-=x.w; }
+  return pick;
+}
+function grantGachaPick(pick){
+  const isNew=!store.gacha.coll[pick.id];
+  store.gacha.coll[pick.id]=true;
+  store.gacha.pulled.push(pick.id);
+  if(!isNew){ store.gacha.shards=(store.gacha.shards||0)+(GACHA_SHARD[pick.rarity]||1); }
+  return isNew;
+}
 
 function totalFocusMin(){ let s=0; const fd=(store.garden&&store.garden.focusDays)||{}; for(const k in fd) s+=(fd[k]||0); return s; }
 function calcCheckinStreak(){
@@ -15897,17 +16108,47 @@ function renderAchievementWall(){
       +'</div>';
   }).join('')+'</div>';
 }
+function switchWall(tab){
+  const ach = document.getElementById('achievementWall');
+  const medal = document.getElementById('medalWall');
+  const ta = document.getElementById('wallTabAch');
+  const tm = document.getElementById('wallTabMedal');
+  const setBtn = function(b,on){
+    if(!b) return;
+    b.style.background = on ? 'linear-gradient(135deg,#6b4fa8,#8566c9)' : '#fff';
+    b.style.color = on ? '#fff' : '#888';
+    b.style.borderColor = on ? '#6b4fa8' : '#e3dde0';
+    b.style.boxShadow = on ? '0 2px 8px rgba(107,79,168,.25)' : 'none';
+  };
+  if(tab==='ach'){ if(ach) ach.style.display=''; if(medal) medal.style.display='none'; setBtn(ta,true); setBtn(tm,false); }
+  else { if(ach) ach.style.display='none'; if(medal) medal.style.display=''; setBtn(ta,false); setBtn(tm,true); }
+}
 function doGacha(){
-  if(!store.gacha) store.gacha={tickets:0,pulled:[],coll:{}};
+  if(!store.gacha) store.gacha={tickets:0,pulled:[],coll:{},shards:0};
   if(store.gacha.tickets<=0){ toast('没有扭蛋币🎰，完成番茄钟专注可获得'); return; }
   store.gacha.tickets-=1;
-  const total=GACHA_POOL.reduce((s,x)=>s+(x.w||1),0);
-  let r=Math.random()*total, pick=GACHA_POOL[0];
-  for(const x of GACHA_POOL){ if(r<x.w){ pick=x; break; } r-=x.w; }
-  const isNew=!store.gacha.coll[pick.id];
-  store.gacha.coll[pick.id]=true; store.gacha.pulled.push(pick.id);
+  const pick=rollGacha();
+  const isNew=grantGachaPick(pick);
   saveStore();
   showGachaResult(pick,isNew);
+  renderGacha(); renderAchievementWall(); checkAchievements();
+}
+// 十连：消耗 10 币；保底——若前 9 抽没有 SR+，则第 10 抽必出 SR+
+function doGacha10(){
+  if(!store.gacha) store.gacha={tickets:0,pulled:[],coll:{},shards:0};
+  if(store.gacha.tickets<10){ toast('十连需要 10 扭蛋币🎰，还差 '+(10-store.gacha.tickets)+' 个'); return; }
+  store.gacha.tickets-=10;
+  const picks=[]; let gotSRplus=false; const newNames=[];
+  for(let i=0;i<10;i++){
+    const pick = (i===9 && !gotSRplus) ? forceSRPlus() : rollGacha();
+    picks.push(pick);
+    if(rarityRank(pick.rarity)>=2) gotSRplus=true;
+    if(grantGachaPick(pick)) newNames.push(pick.name);
+  }
+  saveStore();
+  const best = picks.reduce((a,b)=> rarityRank(b.rarity)>rarityRank(a.rarity)?b:a, picks[0]);
+  showGachaResult(best, newNames.indexOf(best.name)>=0);
+  toast('🎰 十连完成！'+(newNames.length ? ('新收集 '+newNames.length+' 朵 ✨') : '重复花已全部转碎片 🧩')+'（保底已生效）');
   renderGacha(); renderAchievementWall(); checkAchievements();
 }
 function showGachaResult(p,isNew){
@@ -15922,8 +16163,8 @@ function showGachaResult(p,isNew){
 function closeGachaPopup(){ const b=document.getElementById('gachaPopup'); if(b) b.classList.remove('show'); }
 function renderGacha(){
   const el=document.getElementById('gachaWall'); if(!el) return;
-  if(!store.gacha) store.gacha={tickets:0,pulled:[],coll:{}};
-  const tickets=store.gacha.tickets;
+  if(!store.gacha) store.gacha={tickets:0,pulled:[],coll:{},shards:0};
+  const tickets=store.gacha.tickets, shards=store.gacha.shards||0;
   let collHtml='';
   GACHA_POOL.forEach(p=>{
     const has=!!store.gacha.coll[p.id];
@@ -15932,12 +16173,45 @@ function renderGacha(){
       +'<div class="gacha-r" style="color:'+(RARITY_COLOR[p.rarity]||'#888')+'">'+p.rarity+'</div>'
       +'</div>';
   });
+  let shopHtml='';
+  GACHA_EXCHANGE.forEach(it=>{
+    const can = shards>=it.cost;
+    shopHtml+='<div class="gacha-shop-cell">'
+      +'<div class="gacha-shop-name">'+it.name+'</div>'
+      +'<div class="gacha-shop-cost">🧩 '+it.cost+'</div>'
+      +'<button class="btn btn-sm" onclick="redeemGacha(\''+it.id+'\')"'+(can?'':' disabled')+'>兑换</button>'
+      +'</div>';
+  });
   el.innerHTML='<div class="gacha-top">'
     +'<div class="g-badge"><b>🎰 扭蛋币</b> <b>'+tickets+'</b></div>'
-    +'<button class="btn" onclick="doGacha()"'+(tickets<=0?' disabled':'')+'>🎰 抽一次（消耗 1 币）</button>'
+    +'<div class="g-badge"><b>🧩 碎片</b> <b>'+shards+'</b></div>'
     +'</div>'
-    +'<div class="gacha-coll-label">我的花园收藏（'+Object.keys(store.gacha.coll).length+' / '+GACHA_POOL.length+'）</div>'
-    +'<div class="gacha-grid">'+collHtml+'</div>';
+    +'<div class="gacha-actions">'
+    +'<button class="btn" onclick="doGacha()"'+(tickets<=0?' disabled':'')+'>🎰 抽一次（1 币）</button>'
+    +'<button class="btn btn-secondary" onclick="doGacha10()"'+((tickets<10)?' disabled':'')+'>🎰✨ 十连（10 币·保底 SR+）</button>'
+    +'</div>'
+    +'<div class="gacha-coll-label">我的花园收藏（'+Object.keys(store.gacha.coll).length+' / '+GACHA_POOL.length+'）· 重复花自动转碎片 🧩</div>'
+    +'<div class="gacha-grid">'+collHtml+'</div>'
+    +'<div class="gacha-shop">'
+    +'<div class="gacha-coll-label">🛍️ 兑换商店（碎片换好礼）</div>'
+    +'<div class="gacha-shop-grid">'+shopHtml+'</div>'
+    +'</div>';
+}
+const GACHA_EXCHANGE = [
+  {id:'drops10', name:'💧 水滴 ×10', cost:5,  run:function(){ ensureGarden(); store.garden.drops=(store.garden.drops||0)+10; return '💧 +10 水滴'; }},
+  {id:'coins5',  name:'🪙 金币 ×5',  cost:8,  run:function(){ ensureGarden(); store.garden.coins=(store.garden.coins||0)+5; return '🪙 +5 金币'; }},
+  {id:'ticket1', name:'🎰 扭蛋币 ×1', cost:15, run:function(){ store.gacha.tickets=(store.gacha.tickets||0)+1; return '🎰 +1 扭蛋币'; }},
+  {id:'limited', name:'🌟 限定花·星语花', cost:40, run:function(){ ensureGarden(); store.garden.limitedFlowers=store.garden.limitedFlowers||{}; store.garden.limitedFlowers.star=1; return '🌟 解锁限定花「星语花」'; }},
+];
+function redeemGacha(id){
+  const it = GACHA_EXCHANGE.filter(function(x){ return x.id===id; })[0]; if(!it) return;
+  if((store.gacha.shards||0) < it.cost){ toast('碎片不足，还差 '+(it.cost-(store.gacha.shards||0))+' 片 🧩'); return; }
+  store.gacha.shards -= it.cost;
+  ensureGarden();
+  const msg = it.run();
+  saveStore();
+  toast('🛍️ 兑换成功：'+msg);
+  renderGacha();
 }
 // 奖励里程碑：养成第 n 朵花可领取一份奖励（文案可自定义，也可随机抽）
 const REWARD_MILESTONES = [1,3,5,8,10];
@@ -16165,18 +16439,69 @@ function getFlowerSVG(type, phase, prog){
   return s;
 }
 
-// 成就勋章（叠加玩法）：打卡 / 专注 / 做题 三条轨道各自累计，解锁 铜→银→金→钻 四档
+// 成就勋章（叠加玩法）：8 条轨道各自累计，每条解锁 铜→银→金→钻→大师→传奇 六档
 const MEDAL_TIERS = [
-  {key:'bronze',  name:'铜牌', emoji:'🥉', need:3},
-  {key:'silver',  name:'银牌', emoji:'🥈', need:7},
-  {key:'gold',    name:'金牌', emoji:'🥇', need:21},
-  {key:'diamond', name:'钻石', emoji:'💎', need:100},
+  {key:'bronze',  name:'铜牌', emoji:'🥉'},
+  {key:'silver',  name:'银牌', emoji:'🥈'},
+  {key:'gold',    name:'金牌', emoji:'🥇'},
+  {key:'diamond', name:'钻石', emoji:'💎'},
+  {key:'master',  name:'大师', emoji:'👑'},
+  {key:'legend',  name:'传奇', emoji:'🌟'},
 ];
+const MEDAL_TIER_STYLE = {
+  bronze: {bg:'linear-gradient(135deg,#fdf3e7,#f7e0c8)', bd:'#e0b489', tx:'#a4703a'},
+  silver: {bg:'linear-gradient(135deg,#f8f9fb,#e6e9ef)', bd:'#c3c9d4', tx:'#6f7887'},
+  gold:   {bg:'linear-gradient(135deg,#fff8e2,#ffeeb8)', bd:'#e8c766', tx:'#a8801d'},
+  diamond:{bg:'linear-gradient(135deg,#eaf7ff,#d5ecfb)', bd:'#8fc9ea', tx:'#3d7ea6'},
+  master: {bg:'linear-gradient(135deg,#f5ecff,#e6d8fb)', bd:'#b394e6', tx:'#75519f'},
+  legend: {bg:'linear-gradient(135deg,#ffeef4,#ffd9e6)', bd:'#f0a0c0', tx:'#c0507f'},
+};
+// needs 与 MEDAL_TIERS 一一对应（每条轨道自己的门槛，单位不同不能共用一套数字）
 const MEDAL_TRACKS = [
-  {key:'checkin', name:'📅 打卡', unit:'天',  get:function(){ return getCheckinDays(); }},
-  {key:'focus',   name:'🍅 专注', unit:'小时', get:function(){ return Math.round(getFocusMin()/60); }},
-  {key:'done',    name:'📝 做题', unit:'道',  get:function(){ return getCumuDone(); }},
+  {key:'checkin', name:'📅 打卡',   unit:'天',   needs:[3,7,21,60,150,365],           get:function(){ return getCheckinDays(); }},
+  {key:'focus',   name:'🍅 专注',   unit:'小时', needs:[1,5,20,60,150,300],           get:function(){ return Math.round(getFocusMin()/60); }},
+  {key:'done',    name:'📝 做题',   unit:'道',   needs:[50,200,800,2000,5000,10000],  get:function(){ return getCumuDone(); }},
+  {key:'exam',    name:'🧪 模考',   unit:'次',   needs:[1,3,8,20,40,80],              get:function(){ return (store.exams||[]).length; }},
+  {key:'flash',   name:'🃏 闪卡',   unit:'张',   needs:[10,40,120,300,600,1000],      get:function(){ return (store.flashcards||[]).length; }},
+  {key:'mind',    name:'🧠 导图',   unit:'节点', needs:[20,60,150,300,600,1000],      get:function(){ return countMindmapNodes(); }},
+  {key:'gacha',   name:'🎰 图鉴',   unit:'朵',   needs:[1,2,3,4,6,8],                 get:function(){ return Object.keys((store.gacha&&store.gacha.coll)||{}).length; }},
+  {key:'acc',     name:'🎯 正确率', unit:'%',    needs:[50,60,70,80,90,95],           get:function(){ return overallAccPct(); }},
 ];
+// 统计所有科目思维导图的节点总数（不含根节点）
+function countMindmapNodes(){
+  let n = 0;
+  try{
+    const subs = (typeof MINDMAP_DATA !== 'undefined') ? Object.keys(MINDMAP_DATA) : [];
+    const walk = function(list){ (list||[]).forEach(function(x){ n++; walk(x.children); }); };
+    subs.forEach(function(s){
+      const custom = (store.mindmapCustom && store.mindmapCustom[s]) || null;
+      const root = custom || MINDMAP_DATA[s];
+      if(root) walk(root.children);
+    });
+  }catch(e){}
+  return n;
+}
+// 整体正确率（%）：(累计做题 - 累计错题) / 累计做题
+function overallAccPct(){
+  let done = 0, wrong = 0;
+  try{
+    for(const key in TOPICS){
+      done  += moduleCumuDone(TOPICS[key].name);
+      wrong += moduleCumuWrong(TOPICS[key].name);
+    }
+  }catch(e){}
+  return done > 0 ? Math.round((done - wrong) / done * 100) : 0;
+}
+// 已获得勋章总数（8 轨道 × 6 档）
+function totalMedalCount(){
+  let got = 0;
+  MEDAL_TRACKS.forEach(function(tr){
+    let v = 0; try{ v = tr.get(); }catch(e){ v = 0; }
+    tr.needs.forEach(function(nd){ if(v >= nd) got++; });
+  });
+  return got;
+}
+function medalMaxCount(){ return MEDAL_TRACKS.length * MEDAL_TIERS.length; }
 function getCheckinDays(){
   const c = store.checkins || {};
   let n = 0;
@@ -16203,14 +16528,16 @@ function renderMedals(){
       + '<span style="font-size:12px;color:#999;margin-left:auto">当前 ' + val + tr.unit + '</span>'
       + '</div>'
       + '<div style="display:flex;gap:8px;flex-wrap:wrap">';
-    MEDAL_TIERS.forEach(function(tier){
-      const unlocked = val >= tier.need;
-      const rest = tier.need - val;
+    MEDAL_TIERS.forEach(function(tier, idx){
+      const need = tr.needs[idx];
+      const st = MEDAL_TIER_STYLE[tier.key] || {bg:'#f6f4f6', bd:'#e3dde0', tx:'#bbb'};
+      const unlocked = val >= need;
+      const rest = need - val;
       const badge = unlocked
-        ? '<div style="flex:1;min-width:64px;text-align:center;background:linear-gradient(135deg,#fff7ec,#fde8e8);border:1px solid #f3d28a;border-radius:12px;padding:10px 6px;box-shadow:0 2px 8px rgba(232,160,190,.18)">'
+        ? '<div style="flex:1;min-width:64px;text-align:center;background:'+st.bg+';border:1px solid '+st.bd+';border-radius:12px;padding:10px 6px;box-shadow:0 2px 8px rgba(232,160,190,.18)">'
           + '<div style="font-size:26px">' + tier.emoji + '</div>'
-          + '<div style="font-size:12px;font-weight:700;color:#b07a2e">' + tier.name + '</div>'
-          + '<div style="font-size:10px;color:#bbb">已达 ' + tier.need + tr.unit + '</div>'
+          + '<div style="font-size:12px;font-weight:700;color:'+st.tx+'">' + tier.name + '</div>'
+          + '<div style="font-size:10px;color:#bbb">已达 ' + need + tr.unit + '</div>'
         + '</div>'
         : '<div style="flex:1;min-width:64px;text-align:center;background:#f6f4f6;border:1px dashed #e3dde0;border-radius:12px;padding:10px 6px;opacity:.7">'
           + '<div style="font-size:26px;filter:grayscale(1)">' + tier.emoji + '</div>'
