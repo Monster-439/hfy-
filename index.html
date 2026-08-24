@@ -513,6 +513,11 @@ body[data-color-theme="sky"]{
 /* 首页「题库演练」单 tile：沿用六大模块概览 tile 视觉，全宽对齐 */
 .topic-card.home-single{margin:0 0 16px;}
 
+/* 首页「题库演练」板块快捷筛选：小号 chips，点选不触发卡片跳转 */
+.home-bm-chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px;position:relative;z-index:1;}
+.home-bm-chips .bm-chip{padding:3px 10px;font-size:11px;}
+.home-bm-tip{margin-left:auto;opacity:.75;white-space:nowrap;}
+
 /* 首页「知识闪卡」快捷按钮行 */
 .home-fc-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;position:relative;z-index:2;}
 .home-fc-actions .home-fc-btn{padding:7px 14px;font-size:13px;border-radius:18px;flex:0 0 auto;font-weight:600;cursor:pointer;}
@@ -2661,9 +2666,19 @@ body.drawer-open .nav-cloud{display:none;}
       <span class="nm">题库演练</span>
       <span class="arrow">›</span>
     </div>
-    <div class="topic-card-desc">PDF 题库 · 手动录入的题目</div>
+    <div class="topic-card-desc">PDF 题库 · 手动录入的题目。先选板块再开练 👇</div>
+    <div class="home-bm-chips bm-chips" id="homeBankModChips">
+      <button class="bm-chip active" data-m="__all" onclick="event.stopPropagation();pickBankMod('__all', this)">全部</button>
+      <button class="bm-chip" data-m="常识判断" onclick="event.stopPropagation();pickBankMod('常识判断', this)">常识</button>
+      <button class="bm-chip" data-m="时政热点" onclick="event.stopPropagation();pickBankMod('时政热点', this)">时政</button>
+      <button class="bm-chip" data-m="言语理解" onclick="event.stopPropagation();pickBankMod('言语理解', this)">言语</button>
+      <button class="bm-chip" data-m="判断推理" onclick="event.stopPropagation();pickBankMod('判断推理', this)">判断</button>
+      <button class="bm-chip" data-m="数量关系" onclick="event.stopPropagation();pickBankMod('数量关系', this)">数量</button>
+      <button class="bm-chip" data-m="资料分析" onclick="event.stopPropagation();pickBankMod('资料分析', this)">资料</button>
+    </div>
     <div class="topic-mini-stats">
       <span>累计 <b id="homeBankTotal">0</b> 题</span>
+      <span class="home-bm-tip">选板块后再点卡片即可开练 ✨</span>
     </div>
   </div>
 
