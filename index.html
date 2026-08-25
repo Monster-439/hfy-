@@ -16056,15 +16056,38 @@ const ACHIEVEMENTS = [
   {id:'gacha_1', emoji:'🎰', name:'扭蛋新手', desc:'第一次抽卡', check:()=> (store.gacha&&store.gacha.pulled.length>0)},
   {id:'diary_7', emoji:'✍️', name:'笔耕不辍', desc:'连续写日记 7 天', check:()=> (store.garden.diaryStreak||0)>=7},
 ];
+// 扭蛋池：24 种（5 档稀有度），N 早开荒、UR 极稀
+// 重复花 → 碎片（按稀有度折算）；碎片去「兑换商店」换奖励
 const GACHA_POOL = [
-  {id:'sunflower', name:'向日葵', emoji:'🌻', rarity:'N', w:30},
-  {id:'tulip', name:'郁金香', emoji:'🌷', rarity:'N', w:26},
-  {id:'hydrangea', name:'粉绣球', emoji:'🌸', rarity:'N', w:20},
-  {id:'rose', name:'红玫瑰', emoji:'🌹', rarity:'R', w:12},
-  {id:'lily', name:'百合', emoji:'🌱', rarity:'R', w:9},
-  {id:'orchid', name:'蝴蝶兰', emoji:'🦋', rarity:'SR', w:5},
-  {id:'rainbow', name:'彩虹花', emoji:'🌈', rarity:'SSR', w:2},
-  {id:'gold', name:'黄金花', emoji:'🏵️', rarity:'UR', w:1},
+  // N · 8 种（基础款，60% 概率出）
+  {id:'sunflower',   name:'向日葵',   emoji:'🌻', rarity:'N',   w:12},
+  {id:'tulip',       name:'郁金香',   emoji:'🌷', rarity:'N',   w:10},
+  {id:'hydrangea',   name:'粉绣球',   emoji:'🌸', rarity:'N',   w:9},
+  {id:'dandelion',   name:'蒲公英',   emoji:'🌾', rarity:'N',   w:7},
+  {id:'daisy',       name:'雏菊',     emoji:'🌼', rarity:'N',   w:6},
+  {id:'clover',      name:'三叶草',   emoji:'🍀', rarity:'N',   w:5},
+  {id:'bellflower',  name:'风铃草',   emoji:'🔔', rarity:'N',   w:4},
+  {id:'forgetmenot', name:'小蓝花',   emoji:'💠', rarity:'N',   w:3},
+  // R · 6 种（25% 概率，常见款）
+  {id:'rose',        name:'红玫瑰',   emoji:'🌹', rarity:'R',   w:6},
+  {id:'lily',        name:'百合',     emoji:'🪷', rarity:'R',   w:5},
+  {id:'violet',      name:'紫罗兰',   emoji:'💜', rarity:'R',   w:5},
+  {id:'hyacinth',    name:'风信子',   emoji:'🪻', rarity:'R',   w:4},
+  {id:'sakura',      name:'樱花',     emoji:'🌸', rarity:'R',   w:4},
+  {id:'lavender',    name:'薰衣草',   emoji:'🟪', rarity:'R',   w:3},
+  // SR · 5 种（10%，需要攒人品）
+  {id:'orchid',      name:'蝴蝶兰',   emoji:'🦋', rarity:'SR',  w:4},
+  {id:'blue_rose',   name:'蓝色妖姬', emoji:'🫐', rarity:'SR',  w:3},
+  {id:'ephemeral',   name:'昙花',     emoji:'🌙', rarity:'SR',  w:2},
+  {id:'camellia',    name:'山茶花',   emoji:'🌺', rarity:'SR',  w:2},
+  {id:'jasmine',     name:'茉莉',     emoji:'🤍', rarity:'SR',  w:2},
+  // SSR · 3 种（4%，心愿级）
+  {id:'rainbow',     name:'彩虹花',   emoji:'🌈', rarity:'SSR', w:1},
+  {id:'moonlight',   name:'月光花',   emoji:'🌝', rarity:'SSR', w:1},
+  {id:'star_flower', name:'星辰花',   emoji:'⭐', rarity:'SSR', w:1},
+  // UR · 2 种（1%，传说级，欧皇认证）
+  {id:'gold',        name:'黄金花',   emoji:'🏵️', rarity:'UR',  w:1},
+  {id:'higan',       name:'彼岸花',   emoji:'🟥', rarity:'UR',  w:1},
 ];
 const RARITY_COLOR = {N:'#9aa0a6', R:'#5b9bd5', SR:'#a06bd5', SSR:'#e0a82e', UR:'#e8506e'};
 // 重复花 → 碎片（按稀有度折算）；碎片去「兑换商店」换奖励
