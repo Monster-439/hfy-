@@ -1347,6 +1347,12 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .mm-actions-title{font-size:16px;font-weight:700;color:var(--text-main);text-align:center;}
 .mm-actions-meta{font-size:11.5px;color:var(--text-sub);text-align:center;margin:2px 0 14px;}
 .mm-actions-list{background:var(--bg-soft,#FAF6F2);border-radius:14px;overflow:hidden;margin-bottom:10px;}
+.kp-tree-list{background:var(--bg-soft,#FAF6F2);border-radius:14px;max-height:60vh;overflow-y:auto;padding:6px 0;margin-bottom:10px;}
+.kp-tree-row{padding:10px 14px;cursor:pointer;font-size:13px;color:var(--text-main);transition:background .12s ease;border-bottom:1px solid rgba(0,0,0,.03);}
+.kp-tree-row:last-child{border-bottom:none;}
+.kp-tree-row:active{background:rgba(255,255,255,.85);}
+.kp-tree-row:hover{background:rgba(232,160,190,.08);}
+.kp-tree-name{font-weight:600;}
 .mm-actions-item{display:flex;gap:12px;align-items:center;padding:13px 16px;border-bottom:1px solid rgba(0,0,0,.04);cursor:pointer;transition:background .12s ease;}
 .mm-actions-item:last-child{border-bottom:none;}
 .mm-actions-item:active{background:rgba(255,255,255,.85);}
@@ -1377,6 +1383,8 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 /* 深色模式兼容 */
 [data-theme="dark"] .mm-actions-sheet{background:var(--bg-card,#252120);}
 [data-theme="dark"] .mm-actions-list{background:var(--bg-soft,#2D2A28);}
+[data-theme="dark"] .kp-tree-list{background:var(--bg-soft,#2D2A28);}
+[data-theme="dark"] .kp-tree-row{color:var(--text-main);border-bottom:1px solid rgba(255,255,255,.06);}
 [data-theme="dark"] .mm-actions-ico{background:#3A3633;}
 [data-theme="dark"] .mm-actions-cancel{background:var(--bg-soft,#2D2A28);}
 [data-theme="dark"] .mm-import-sheet{background:var(--bg-card,#252120);}
@@ -3363,6 +3371,8 @@ body.drawer-open .nav-cloud{display:none;}
           <option value="3">D</option>
         </select>
         <select id="errorKp" class="manual-sel" onchange="onManKpChange(this)"><option value="">（知识点 · 关联思维导图，选填）</option></select>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="mmPickKpTree('errorKp')">🌳 树状选</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="mmFillKpFree('errorKp')">✏️ 自定义</button>
       </div>
       <div class="manual-row">
         <span class="bank-mod-tip">题干留空时，会用上方「快速记录」区的内容作为兜底；按学科筛节点</span>
@@ -3495,6 +3505,8 @@ body.drawer-open .nav-cloud{display:none;}
       </div>
       <div class="manual-row">
         <select id="manKp" class="manual-sel" onchange="onManKpChange(this)"><option value="">（知识点 · 关联思维导图，选填）</option></select>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="mmPickKpTree('manKp')">🌳 树状选</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="mmFillKpFree('manKp')">✏️ 自定义</button>
         <span class="bank-mod-tip">选题后可点导图节点一键筛出本题</span>
       </div>
       <textarea id="manQuestion" class="manual-area" placeholder="输入题干，例如：下列关于……的说法正确的是？"></textarea>
@@ -7590,6 +7602,7 @@ function renderMindmap(){
   html +=   '<div style="display:flex;gap:6px;flex-wrap:wrap">'
     +'<button onclick="mmShowImport()" style="background:linear-gradient(135deg,#E8919B,#D86B83);border:none;color:#fff;border-radius:10px;font-size:12px;padding:7px 12px;cursor:pointer;font-weight:700;box-shadow:0 2px 6px rgba(216,107,131,.3)">📥 导入</button>'
     +'<button onclick="mmExportCurrent()" style="background:#fff;border:1.5px solid #4F9F73;color:#4F9F73;border-radius:10px;font-size:12px;padding:6px 12px;cursor:pointer;font-weight:700">💾 导出</button>'
+    +'<button onclick="mmExportXmind()" style="background:#fff;border:1.5px solid #E0A82E;color:#E0A82E;border-radius:10px;font-size:12px;padding:6px 12px;cursor:pointer;font-weight:700">🧠 导出Xmind</button>'
     +'<button onclick="resetMindmapSubject()" style="background:#fff;border:1.5px solid #C9A9E0;color:#A86BC4;border-radius:10px;font-size:12px;padding:6px 12px;cursor:pointer;font-weight:700">↺ 重置</button>'
     +'</div>';
   html += '</div>';
@@ -7658,7 +7671,7 @@ function mmEstimateTextWidth(s, fontSize){
   return w * fontSize;
 }
 function layoutRadialMindmap(root){
-  const ROOT_X = 120, COL_STEP = 235;
+  const ROOT_X = 120, COL_STEP = 198;
   // 节点宽：根据 node.name 自适应，至少保留原固定宽度
   const NODE_FONT = function(level){ return level===0?14:(level===1?13:12); };
   const NODE_W = function(level, name){
@@ -7667,7 +7680,7 @@ function layoutRadialMindmap(root){
     return Math.max(min, Math.round(mmEstimateTextWidth(name||'', NODE_FONT(level))) + 40);
   };
   const NODE_H = function(level){ return level===0?44:(level===1?36:30); };
-  const ROW_GAP = 12, BRANCH_GAP = 24, TOP_PAD = 20, BOT_PAD = 20;
+  const ROW_GAP = 8, BRANCH_GAP = 14, TOP_PAD = 16, BOT_PAD = 16;
   const openMap = (store && store.mindmapOpen) ? store.mindmapOpen : (store.mindmapOpen = {});
   const isOpen = function(p){ return !(p in openMap) || !!openMap[p]; };
   const nodes = [], edges = [];
@@ -7961,6 +7974,150 @@ function mmJumpToBankRoot(sub){
   if(typeof toast === 'function') toast('已切到题库：'+nm);
 }
 
+// ----- 反向选择：从知识点（错题的 kp / 题库筛选项）定位到思维导图节点 -----
+function mmLocateInTree(node, segs, trail){
+  if(!node) return null;
+  if((node.name||'') === segs[0]){
+    if(segs.length === 1) return trail;
+    const kids = node.children || [];
+    for(let i=0;i<kids.length;i++){
+      const r = mmLocateInTree(kids[i], segs.slice(1), trail.concat(i));
+      if(r) return r;
+    }
+    return null;
+  }
+  return null;
+}
+function mmLocateByLastName(node, name, trail){
+  if((node.name||'') === name) return trail;
+  const kids = node.children||[];
+  for(let i=0;i<kids.length;i++){
+    const r = mmLocateByLastName(kids[i], name, trail.concat(i));
+    if(r) return r;
+  }
+  return null;
+}
+function mmScrollToPath(path){
+  const scroller = document.getElementById('mmScrollBox');
+  if(!scroller) return;
+  const g = scroller.querySelector('[data-mm-path="'+(path||'')+'"]');
+  if(!g){
+    scroller.scrollTo({ left: scroller.scrollWidth*0.25, behavior:'smooth' });
+    return;
+  }
+  try{ g.scrollIntoView({ behavior:'smooth', inline:'center', block:'center' }); }catch(e){}
+  try{
+    const rects = g.querySelectorAll('rect');
+    rects.forEach(function(rc){ rc.setAttribute('stroke','#E8506E'); rc.setAttribute('stroke-width','3'); });
+    setTimeout(function(){ rects.forEach(function(rc){ rc.removeAttribute('stroke'); rc.removeAttribute('stroke-width'); }); }, 1700);
+  }catch(e){}
+}
+function mmLocateKp(kpPath){
+  if(!kpPath) return;
+  const segs = String(kpPath).split('/').map(function(s){ return s.trim(); }).filter(Boolean);
+  if(!segs.length) return;
+  // 找科目：首段匹配某科目名
+  let sub = null;
+  for(const k in MINDMAP_DATA){ if((MINDMAP_DATA[k] && MINDMAP_DATA[k].name||'') === segs[0]){ sub = k; break; } }
+  if(!sub) sub = getActiveMindmapSubject();
+  // 切换科目并切到导图页
+  if(typeof setActiveMindmapSubject === 'function') setActiveMindmapSubject(sub);
+  else { localStorage.setItem('mm_active_subject', sub); }
+  if(typeof showPage === 'function') showPage('mindmap');
+  const root = getMindmapRootForSubject(sub);
+  let idx = mmLocateInTree(root, segs, []);
+  if(!idx) idx = mmLocateByLastName(root, segs[segs.length-1], []);
+  if(!idx){
+    if(typeof toast === 'function') toast('导图里没找到「'+segs.join(' / ')+'」');
+    return;
+  }
+  if(!store.mindmapOpen) store.mindmapOpen = {};
+  let p = '';
+  for(let i=0;i<idx.length-1;i++){ p = p ? (p+'.'+idx[i]) : (''+idx[i]); store.mindmapOpen[p] = true; }
+  const fullPath = idx.length===0 ? '' : (p ? (p+'.'+idx[idx.length-1]) : (''+idx[idx.length-1]));
+  saveStore();
+  renderMindmap();
+  if(typeof toast === 'function') toast('已定位到导图节点：'+segs.join(' / '));
+  setTimeout(function(){ mmScrollToPath(fullPath); }, 90);
+}
+
+// ----- 知识点"自定义填 / 树状选" -----
+function ensureSelectHasOption(sel, val){
+  if(!val || !sel) return;
+  const exists = Array.from(sel.options).some(function(o){ return o.value === val; });
+  if(!exists){
+    const opt = document.createElement('option');
+    opt.value = val;
+    opt.textContent = val + ' ✏️';
+    sel.appendChild(opt);
+  }
+}
+function mmFillKpFree(targetId){
+  const sel = document.getElementById(targetId);
+  if(!sel) return;
+  const cur = sel.value || '';
+  const v = (typeof prompt==='function') ? prompt('自定义知识点（可任意文字，会作为 kp 关联到本题）：', cur) : cur;
+  if(v===null) return;
+  const trimmed = String(v).trim();
+  if(!trimmed){ return; }
+  ensureSelectHasOption(sel, trimmed);
+  sel.value = trimmed;
+  if(typeof toast==='function') toast('已设为：'+trimmed);
+}
+function mmPickKpTree(targetId){
+  const sel = document.getElementById(targetId);
+  if(!sel) return;
+  const SUB2KEY = { '常识判断':'common','时政热点':'politics','言语理解':'verbal','判断推理':'reasoning','图形推理':'figure','数量关系':'quantity','资料分析':'data','申论':'shenlun' };
+  const subKey = SUB2KEY[(document.getElementById('manModule')||{}).value] || SUB2KEY[(document.getElementById('errorModule')||{}).value] || (typeof getActiveMindmapSubject==='function' ? getActiveMindmapSubject() : 'verbal');
+  const meta = MINDMAP_DATA[subKey] || MINDMAP_DATA.verbal;
+  const root = getMindmapRootForSubject(subKey);
+  let ov = document.getElementById('mmKpTreeOverlay');
+  if(!ov){
+    ov = document.createElement('div');
+    ov.id = 'mmKpTreeOverlay';
+    ov.className = 'mm-actions-overlay';
+    ov.addEventListener('click', function(e){ if(e.target===ov) closeMmKpTree(); });
+    document.body.appendChild(ov);
+  }
+  function escAttrKp(s){ return (''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;').replace(/"/g,'&quot;'); }
+  function buildTree(nodes, depth, ancestors){
+    let html = '';
+    (nodes||[]).forEach(function(n){
+      const nm = n.name || '';
+      const path = ancestors.concat(nm);
+      const fullPath = path.join(' / ');
+      html += '<div class="kp-tree-row" style="padding-left:'+(14+depth*18)+'px" onclick="mmKpTreePick(\''+targetId+'\',\''+escAttrKp(fullPath)+'\')">'
+        + '<span class="kp-tree-name">'+escapeHtml(nm)+'</span>'
+        + (depth>0?'<span style="color:#bbb;font-size:11px;margin-left:6px">'+escapeHtml(path[path.length-2]||'')+'</span>':'')
+        + '</div>';
+      if(n.children && n.children.length) html += buildTree(n.children, depth+1, path);
+    });
+    return html;
+  }
+  let html = '<div class="mm-actions-sheet">';
+  html += '<div class="mm-actions-bar"></div>';
+  html += '<div class="mm-actions-title">从思维导图选知识点</div>';
+  html += '<div class="mm-actions-meta">'+escapeHtml(meta.name||'')+' · 点选一条作为完整路径</div>';
+  html += '<div class="kp-tree-list">'+buildTree(root.children||[], 0, [])+'</div>';
+  html += '<div style="margin-bottom:10px;text-align:center"><button class="btn btn-ghost btn-sm" onclick="closeMmKpTree();mmFillKpFree(\''+targetId+'\')">✏️ 改成自定义填</button></div>';
+  html += '<div class="mm-actions-cancel" onclick="closeMmKpTree()">取消</div>';
+  html += '</div>';
+  ov.innerHTML = html;
+  ov.classList.add('show');
+}
+function mmKpTreePick(targetId, fullPath){
+  const sel = document.getElementById(targetId);
+  if(!sel) return;
+  ensureSelectHasOption(sel, fullPath);
+  sel.value = fullPath;
+  closeMmKpTree();
+  if(typeof toast==='function') toast('已选：'+fullPath);
+}
+function closeMmKpTree(){
+  const ov = document.getElementById('mmKpTreeOverlay');
+  if(ov) ov.classList.remove('show');
+}
+
 // ----- 自导入（JSON / 缩进文本大纲） -----
 function mmShowImport(){
   let ov = document.getElementById('mmImportOverlay');
@@ -7981,8 +8138,11 @@ function mmShowImport(){
   html += '<div class="mm-import-mode">';
   html += '<label><input type="radio" name="mmImportMode" value="text" checked> 缩进文本</label>';
   html += '<label><input type="radio" name="mmImportMode" value="json"> JSON 数组</label>';
+  html += '<label><input type="radio" name="mmImportMode" value="xmind"> Xmind (.xmind)</label>';
   html += '</div>';
   html += '<textarea id="mmImportText" placeholder="示例（缩进）：&#10;言语理解与表达&#10;    逻辑填空&#10;        逻辑分析&#10;        递进关系&#10;    片段阅读&#10;..."></textarea>';
+  html += '<input type="file" id="mmImportFile" accept=".xmind" style="display:none;margin:8px 0 0;font-size:13px;">';
+  html += '<div id="mmImportFileTip" style="display:none;font-size:12px;color:var(--text-sub);margin-top:6px">选择 .xmind 文件（现代 Xmind 的 content.json / 旧版 content.xml 均可解析）</div>';
   html += '<div class="mm-import-row">';
   html += '<span>导入到：</span>';
   html += '<label><input type="radio" name="mmImportTarget" value="append" checked> 追加到当前科目</label>';
@@ -8001,6 +8161,19 @@ function mmShowImport(){
     r.addEventListener('change', function(){
       const inp = document.getElementById('mmImportNewName');
       if(inp) inp.style.display = (r.value==='new' && r.checked) ? 'block' : 'none';
+    });
+  });
+  ov.querySelectorAll('input[name="mmImportMode"]').forEach(function(r){
+    r.addEventListener('change', function(){
+      const isXmind = (r.value==='xmind' && r.checked);
+      const ta = document.getElementById('mmImportText');
+      const fi = document.getElementById('mmImportFile');
+      const tip = document.getElementById('mmImportFileTip');
+      const prev = document.getElementById('mmImportPreview');
+      if(ta) ta.style.display = isXmind ? 'none' : 'block';
+      if(fi) fi.style.display = isXmind ? 'block' : 'none';
+      if(tip) tip.style.display = isXmind ? 'block' : 'none';
+      if(prev) prev.style.display = isXmind ? 'none' : 'block';
     });
   });
   ov.classList.add('show');
@@ -8084,6 +8257,18 @@ function mmConfirmImport(){
   const mode = modeEl ? modeEl.value : 'text';
   const tgtEl = document.querySelector('input[name="mmImportTarget"]:checked');
   const target = tgtEl ? tgtEl.value : 'append';
+  if(mode === 'xmind'){
+    const fi = document.getElementById('mmImportFile');
+    if(!fi || !fi.files || !fi.files.length){ if(typeof toast==='function') toast('请选择 .xmind 文件'); return; }
+    if(typeof toast==='function') toast('正在解析 Xmind…');
+    parseXmindFile(fi.files[0]).then(function(res){
+      if(!res || res.error){ if(typeof toast==='function') toast(res ? res.error : '解析失败'); return; }
+      mmApplyImportedTree(res.tree, target);
+    }).catch(function(err){
+      if(typeof toast==='function') toast('Xmind 解析失败：'+(err && err.message ? err.message : err));
+    });
+    return;
+  }
   const txt = document.getElementById('mmImportText').value;
   if(!txt || !txt.trim()){ if(typeof toast==='function') toast('请粘贴内容'); return; }
   let tree = null;
@@ -8095,7 +8280,10 @@ function mmConfirmImport(){
     if(r.error){ if(typeof toast==='function') toast(r.error); return; }
     tree = r.tree;
   }
-  // 节点数统计
+  mmApplyImportedTree(tree, target);
+}
+function mmApplyImportedTree(tree, target){
+  if(!tree){ if(typeof toast==='function') toast('未能解析出节点'); return; }
   function count(n){ if(!n) return 0; return 1 + (n.children||[]).reduce(function(s,c){ return s+count(c); }, 0); }
   const cnt = count(tree);
   if(cnt<=1){ if(typeof toast==='function') toast('请检查格式，至少要有 1 个根节点 + 子节点'); return; }
@@ -8113,9 +8301,7 @@ function mmConfirmImport(){
       // 新建科目（写入 store.mindmapCustom[newName]，MINDMAP_DATA 不动）
       if(!store.mindmapCustom) store.mindmapCustom = {};
       store.mindmapCustom[newName] = { name:newName, children: tree.children||[] };
-      // 同时存到 localStorage 的 mm_active_subject 切换
       localStorage.setItem('mm_active_subject', newName);
-      // 顶 tab subs 重建
       if(typeof renderMindmap === 'function') renderMindmap();
       saveStore();
       if(typeof toast==='function') toast('已新建科目「'+newName+'」，共 '+cnt+' 个节点');
@@ -8131,6 +8317,196 @@ function mmConfirmImport(){
     if(typeof toast==='function') toast('已追加 '+cnt+' 个节点到当前科目');
   }
   closeMmImport();
+}
+
+// ----- Xmind 导入（解析 .xmind 里的 content.json / content.xml） -----
+function xmindJsonToTree(text){
+  const obj = JSON.parse(text);
+  const rootTopic = obj.rootTopic || obj;
+  function conv(t){
+    if(!t) return { name:'', children:[] };
+    const title = (t.title != null ? t.title : t.text);
+    const name = (title != null ? String(title) : '');
+    const node = { name: name, children: [] };
+    const ch = (t.children && (t.children.attached || t.children.detached)) || [];
+    (ch||[]).forEach(function(c){ const cc = conv(c); if(cc && cc.name) node.children.push(cc); });
+    return node;
+  }
+  return conv(rootTopic);
+}
+function xmindXmlToTree(text){
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  function conv(topicEl){
+    if(!topicEl) return { name:'', children:[] };
+    const name = topicEl.getAttribute('text') || (topicEl.textContent||'').trim();
+    const node = { name: name, children: [] };
+    const topics = topicEl.querySelector(':scope > children > topics[type="attached"]') || topicEl.querySelector(':scope > children > topics');
+    if(topics){ topics.querySelectorAll(':scope > topic').forEach(function(c){ const cc = conv(c); if(cc.name) node.children.push(cc); }); }
+    return node;
+  }
+  const root = doc.querySelector('sheet > topic') || doc.querySelector('topic');
+  return root ? conv(root) : { name:'(导入)', children:[] };
+}
+function mmReadZipEntry(buf, dv, entry){
+  const lo = entry.localOffset;
+  const nameLen = dv.getUint16(lo+26, true);
+  const extraLen = dv.getUint16(lo+28, true);
+  const start = lo + 30 + nameLen + extraLen;
+  const raw = buf.slice(start, start + entry.compSize);
+  if(entry.compMethod === 0) return Promise.resolve(raw);
+  if(entry.compMethod === 8){
+    if(typeof DecompressionStream === 'undefined') return Promise.resolve(raw);
+    try{
+      const ds = new DecompressionStream('deflate-raw');
+      const stream = new Response(raw).body.pipeThrough(ds);
+      return new Response(stream).arrayBuffer();
+    }catch(e){ return Promise.resolve(raw); }
+  }
+  return Promise.resolve(raw);
+}
+function parseXmindFile(file){
+  return file.arrayBuffer().then(function(buf){
+    const dv = new DataView(buf);
+    // 找 End Of Central Directory（签名 0x06054b50）
+    let eocd = -1;
+    const minPos = Math.max(0, buf.byteLength - 66000);
+    for(let i = buf.byteLength - 22; i >= minPos; i--){
+      if(dv.getUint32(i, true) === 0x06054b50){ eocd = i; break; }
+    }
+    if(eocd < 0) return { error: '不是有效的 .xmind（找不到压缩包目录）' };
+    const cdOffset = dv.getUint32(eocd+16, true);
+    const cdCount = dv.getUint16(eocd+10, true);
+    const entries = [];
+    let p = cdOffset;
+    for(let i=0;i<cdCount;i++){
+      if(dv.getUint32(p, true) !== 0x02014b50) break;
+      const compMethod = dv.getUint16(p+10, true);
+      const compSize = dv.getUint32(p+20, true);
+      const nameLen = dv.getUint16(p+28, true);
+      const extraLen = dv.getUint16(p+30, true);
+      const commentLen = dv.getUint16(p+32, true);
+      const localOffset = dv.getUint32(p+42, true);
+      const name = new TextDecoder('utf-8').decode(buf.slice(p+46, p+46+nameLen));
+      entries.push({ name:name, compMethod:compMethod, compSize:compSize, localOffset:localOffset });
+      p += 46 + nameLen + extraLen + commentLen;
+    }
+    const target = entries.find(function(e){ return e.name === 'content.json'; })
+      || entries.find(function(e){ return /(^|\/)content\.json$/.test(e.name); })
+      || entries.find(function(e){ return e.name === 'content.xml'; })
+      || entries.find(function(e){ return /(^|\/)content\.xml$/.test(e.name); });
+    if(!target) return { error: '.xmind 里没有 content.json / content.xml' };
+    return mmReadZipEntry(buf, dv, target).then(function(data){
+      const text = new TextDecoder('utf-8').decode(data);
+      try{
+        if(target.name.endsWith('.json')) return { tree: xmindJsonToTree(text) };
+        return { tree: xmindXmlToTree(text) };
+      }catch(e){ return { error: '解析 Xmind 内容失败：'+e.message }; }
+    });
+  });
+}
+// ----- 导出 Xmind（生成 .xmind：content.json + content.xml，STORE 不压缩） -----
+function mmTreeToXmindJson(node){
+  const o = { title: node.name || '' };
+  if(node.children && node.children.length){
+    o.children = { attached: node.children.map(mmTreeToXmindJson) };
+  }
+  return o;
+}
+function mmTreeToXmindXml(node){
+  let s = '<topic text="' + (node.name||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') + '">';
+  if(node.children && node.children.length){
+    s += '<children><topics type="attached">' + node.children.map(mmTreeToXmindXml).join('') + '</topics></children>';
+  }
+  return s + '</topic>';
+}
+function mmExportXmind(){
+  const sub = getActiveMindmapSubject();
+  const root = getMindmapData();
+  const enc = new TextEncoder();
+  // content.json
+  const jsonStr = JSON.stringify({ rootTopic: mmTreeToXmindJson(root) });
+  const jsonBytes = enc.encode(jsonStr);
+  // content.xml
+  const xmlStr = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n<map version="1.0.0">\n<sheet>\n' + mmTreeToXmindXml(root) + '\n</sheet>\n</map>\n';
+  const xmlBytes = enc.encode(xmlStr);
+  function localEntry(nameBytes, dataBytes){
+    const out = new Uint8Array(30 + nameBytes.length + dataBytes.length);
+    const v = new DataView(out.buffer);
+    v.setUint32(0, 0x04034b50, true);
+    v.setUint16(4, 20, true);
+    v.setUint16(6, 0, true);
+    v.setUint16(8, 0, true);
+    v.setUint32(10, 0, true);
+    v.setUint32(14, 0, true);
+    v.setUint32(18, 0, true);
+    v.setUint32(22, dataBytes.length, true);
+    v.setUint32(26, dataBytes.length, true);
+    v.setUint16(30, nameBytes.length, true);
+    v.setUint16(32, 0, true);
+    out.set(nameBytes, 34);
+    out.set(dataBytes, 34 + nameBytes.length);
+    return out;
+  }
+  function centralEntry(nameBytes, dataBytes, localOffset){
+    const out = new Uint8Array(46 + nameBytes.length);
+    const v = new DataView(out.buffer);
+    v.setUint32(0, 0x02014b50, true);
+    v.setUint16(4, 20, true);
+    v.setUint16(6, 20, true);
+    v.setUint16(8, 0, true);
+    v.setUint16(10, 0, true);
+    v.setUint32(12, 0, true);
+    v.setUint32(16, 0, true);
+    v.setUint32(20, 0, true);
+    v.setUint32(24, dataBytes.length, true);
+    v.setUint32(28, dataBytes.length, true);
+    v.setUint16(32, nameBytes.length, true);
+    v.setUint16(34, 0, true);
+    v.setUint16(36, 0, true);
+    v.setUint16(38, 0, true);
+    v.setUint16(40, 0, true);
+    v.setUint16(42, 0, true);
+    v.setUint32(44, localOffset, true);
+    out.set(nameBytes, 46);
+    return out;
+  }
+  const files = [
+    { name:'content.json', bytes: jsonBytes },
+    { name:'content.xml', bytes: xmlBytes }
+  ];
+  const locals = [], centrals = [];
+  let offset = 0;
+  files.forEach(function(f){
+    const nb = enc.encode(f.name);
+    const l = localEntry(nb, f.bytes);
+    locals.push(l);
+    centrals.push(centralEntry(nb, f.bytes, offset));
+    offset += l.length;
+  });
+  let cdSize = 0; centrals.forEach(function(c){ cdSize += c.length; });
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(4, 0, true);
+  ev.setUint16(6, 0, true);
+  ev.setUint16(8, files.length, true);
+  ev.setUint16(10, files.length, true);
+  ev.setUint32(12, cdSize, true);
+  ev.setUint32(16, offset, true);
+  ev.setUint32(20, 0, true);
+  const parts = locals.concat(centrals, [eocd]);
+  let total = 0; parts.forEach(function(p){ total += p.length; });
+  const out = new Uint8Array(total);
+  let pos = 0; parts.forEach(function(p){ out.set(p, pos); pos += p.length; });
+  const blob = new Blob([out], { type:'application/vnd.xmind.workbook' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'mindmap-' + sub + '-' + todayKey() + '.xmind';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  if(typeof toast==='function') toast('已导出 Xmind：mindmap-'+sub+'.xmind');
 }
 
 // ----- 导出 JSON（备份当前自定义数据） -----
@@ -9393,6 +9769,19 @@ function getQuestions(module, type){
   (store.bankPdf||[]).forEach(function(e){
     if(e.module === module){
       (e.questions||[]).forEach(function(q){ extra.push(q); });
+    }
+  });
+  // 合并「我的错题」中带完整题干的题目（手动录入/题本关联）—— 与题库同体系，刷题也能刷到错题
+  (store.errors||[]).forEach(function(e){
+    if(e && e.module === module && Array.isArray(e.options) && e.options.length>=2 && typeof e.answer==='number' && e.answer>=0){
+      extra.push({
+        q: e.question || e.content || '(错题回顾)',
+        options: e.options,
+        answer: e.answer,
+        explain: e.summary || '',
+        explainStruct: e.parts || null,
+        _fromError: e.id
+      });
     }
   });
   // 题量≥30 时，按 dailySeed() 每天8点稳定选 20 道；不足 20 时全返回
@@ -12984,7 +13373,7 @@ function renderErrors(){
     let html = '<div class="error-item" style="flex-direction:column;align-items:stretch;">'
       + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">'
         + '<span class="type-tag">' + escapeHtml(e.module||'') + '</span>'
-        + (e.kp ? '<span class="err-kp" style="display:inline-block;font-size:10px;color:#7A5BA8;background:#F1EAF9;border-radius:8px;padding:1px 7px;">📎 ' + escapeHtml(e.kp) + '</span>' : '')
+        + (e.kp ? '<span class="err-kp" title="点此在思维导图里定位这个知识点" style="cursor:pointer;display:inline-block;font-size:10px;color:#7A5BA8;background:#F1EAF9;border-radius:8px;padding:1px 7px;" onclick="mmLocateKp(\'' + escapeAttr(e.kp) + '\')">📎 ' + escapeHtml(e.kp) + '</span>' : '')
         + '<span style="font-size:11px;color:var(--text-sub);">' + escapeHtml(e.date||'') + '</span>'
         + (e.srcLabel ? '<span class="err-src" style="display:inline-block;font-size:10px;color:#4A3B40;background:var(--pink-btn);border-radius:8px;padding:1px 7px;">' + escapeHtml(e.srcLabel) + '</span>' : '')
         + '<span class="del" style="margin-left:auto;" onclick="deleteError(\'' + e.id + '\')">✕</span>'
@@ -18797,6 +19186,11 @@ function addFocus(minutes, modOverride, opts){
       if(td && td.done && td.planId && store.plans[t]){
         const p = store.plans[t].find(x=>x.id===td.planId);
         if(p && !p.done){ p.done = true; }
+      }
+      // 兼容 src='plan'：每日计划页生成的 todo 关联的是 p.todoId===td.id
+      if(td && td.done && td.src==='plan' && store.plans[t]){
+        const pp = store.plans[t].find(function(x){ return x.todoId===td.id; });
+        if(pp && !pp.done){ pp.done = true; }
       }
       // 联动：番茄完成 → 题本 / 课程进度自动 +1
       if(td && td.src==='qbook' && td.qbookId){
