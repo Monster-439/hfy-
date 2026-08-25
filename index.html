@@ -3298,11 +3298,13 @@ body.drawer-open .nav-cloud{display:none;}
 <div class="page" id="page-error">
   <div class="card">
     <div class="card-title"><span class="dot"></span>添加错题（支持拍照与语音）</div>
+
+    <!-- 1) 快捷单行录入（兼容老习惯） -->
     <div class="error-input-area">
-      <textarea id="errorInput" placeholder="输入错题内容、解析或知识点..."></textarea>
+      <textarea id="errorInput" placeholder="快速记录：粘贴题目/拍照上传/口述内容…（下方可补充完整结构）"></textarea>
     </div>
     <div class="error-input-area" style="margin-bottom:8px;">
-      <select id="errorModule" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
+      <select id="errorModule" onchange="populateKpDropdown('__current','manKp');populateKpDropdown('__current','errorKp')" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
         <option value="常识判断">常识判断</option>
         <option value="时政热点">时政热点</option>
         <option value="言语理解">言语理解</option>
@@ -3314,9 +3316,42 @@ body.drawer-open .nav-cloud{display:none;}
       <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;" multiple>
       <button class="icon-btn voice" id="voiceBtn" onclick="toggleVoice()" title="语音输入">🎤</button>
       <button class="btn" onclick="addError()">保存错题</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('errorFullPanel').style.display=document.getElementById('errorFullPanel').style.display==='none'?'block':'none';this.textContent=document.getElementById('errorFullPanel').style.display==='none'?'📋 展开完整结构（题干/选项/解析）':'✕ 收起完整结构';">📋 展开完整结构（题干/选项/解析）</button>
     </div>
     <div class="voice-indicator" id="voiceIndicator">🔴 录音中...点击停止</div>
     <div class="error-photos" id="errorPhotos"></div>
+
+    <!-- 2) 完整结构（折叠展开）—— 题干/选项/正确答案/知识点/各选项解析/总论 -->
+    <div id="errorFullPanel" class="manual-form" style="display:none;margin-top:12px;padding:12px;background:var(--bg-soft);border:1px dashed var(--border);border-radius:12px;">
+      <div class="manual-row">
+        <select id="errorAnswer" class="manual-sel">
+          <option value="-1">正确答案（选填）</option>
+          <option value="0">A</option>
+          <option value="1">B</option>
+          <option value="2">C</option>
+          <option value="3">D</option>
+        </select>
+        <select id="errorKp" class="manual-sel" onchange="onManKpChange(this)"><option value="">（知识点 · 关联思维导图，选填）</option></select>
+      </div>
+      <div class="manual-row">
+        <span class="bank-mod-tip">题干留空时，会用上方「快速记录」区的内容作为兜底；按学科筛节点</span>
+      </div>
+      <textarea id="errorQuestion" class="manual-area" placeholder="题干（可与上方「快速记录」互补；留空则用上方）"></textarea>
+      <div class="manual-opts">
+        <div class="manual-opt"><span class="manual-opt-k">A</span><input id="errorOptA" class="manual-opt-in" placeholder="选项 A"></div>
+        <div class="manual-opt"><span class="manual-opt-k">B</span><input id="errorOptB" class="manual-opt-in" placeholder="选项 B"></div>
+        <div class="manual-opt"><span class="manual-opt-k">C</span><input id="errorOptC" class="manual-opt-in" placeholder="选项 C"></div>
+        <div class="manual-opt"><span class="manual-opt-k">D</span><input id="errorOptD" class="manual-opt-in" placeholder="选项 D（可留空）"></div>
+      </div>
+      <div class="manual-explain-block">
+        <div class="meb-title">📋 各选项解析（乱序后自动跟选项走，永不错位）</div>
+        <div class="meb-row"><span class="meb-k" id="errorEk0">A</span><textarea id="errorExplain0" class="manual-area meb-in" placeholder="为什么 A 对/错（选填）"></textarea></div>
+        <div class="meb-row"><span class="meb-k" id="errorEk1">B</span><textarea id="errorExplain1" class="manual-area meb-in" placeholder="为什么 B 对/错（选填）"></textarea></div>
+        <div class="meb-row"><span class="meb-k" id="errorEk2">C</span><textarea id="errorExplain2" class="manual-area meb-in" placeholder="为什么 C 对/错（选填）"></textarea></div>
+        <div class="meb-row"><span class="meb-k" id="errorEk3">D</span><textarea id="errorExplain3" class="manual-area meb-in" placeholder="为什么 D 对/错（选填）"></textarea></div>
+        <div class="meb-row meb-row-sum"><span class="meb-k">总</span><textarea id="errorExplainSummary" class="manual-area meb-in" placeholder="总论/题干梳理（选填）"></textarea></div>
+      </div>
+    </div>
   </div>
 
   <div class="card import-card">
@@ -3407,7 +3442,7 @@ body.drawer-open .nav-cloud{display:none;}
     <div class="card-title"><span class="dot"></span>✍️ 手动录入题目</div>
     <div class="manual-form">
       <div class="manual-row">
-        <select id="manModule" class="manual-sel">
+        <select id="manModule" class="manual-sel" onchange="populateKpDropdown('__current','manKp')">
           <option value="常识判断">常识判断</option>
           <option value="时政热点">时政热点</option>
           <option value="言语理解">言语理解</option>
@@ -3424,7 +3459,7 @@ body.drawer-open .nav-cloud{display:none;}
         </select>
       </div>
       <div class="manual-row">
-        <select id="manKp" class="manual-sel"><option value="">（知识点 · 关联思维导图，选填）</option></select>
+        <select id="manKp" class="manual-sel" onchange="onManKpChange(this)"><option value="">（知识点 · 关联思维导图，选填）</option></select>
         <span class="bank-mod-tip">选题后可点导图节点一键筛出本题</span>
       </div>
       <textarea id="manQuestion" class="manual-area" placeholder="输入题干，例如：下列关于……的说法正确的是？"></textarea>
@@ -4294,7 +4329,38 @@ const MINDMAP_DATA = {
     { name:'材料类型', children:[ {name:'文字材料'},{name:'表格材料'},{name:'图形材料'},{name:'综合材料'} ] },
   ]},
   reasoning: { name:'判断推理', icon:'🧩', children:[
-    { name:'图形推理', children:[ {name:'数量类'},{name:'位置类'},{name:'样式类'},{name:'属性类'},{name:'重构折叠'} ] },
+    { name:'图形推理', children:[
+      { name:'数量类', children:[
+        { name:'点', children:[ {name:'交点'},{name:'切点'},{name:'端点'},{name:'出头点'} ] },
+        { name:'线', children:[ {name:'直线'},{name:'曲线'},{name:'笔画'},{name:'横线/竖线'} ] },
+        { name:'角', children:[ {name:'锐角'},{name:'直角'},{name:'钝角'},{name:'内角'} ] },
+        { name:'面', children:[ {name:'封闭区域'},{name:'部分数'},{name:'空白/阴影'} ] },
+        { name:'素', children:[ {name:'元素种类'},{name:'元素数量'},{name:'遍历'} ] },
+      ]},
+      { name:'位置类', children:[
+        { name:'平移', children:[ {name:'上下平移'},{name:'左右平移'},{name:'斜向平移'} ] },
+        { name:'旋转', children:[ {name:'顺/逆时针'},{name:'旋转角度(45/90/135/180)'},{name:'整体/部分旋转'} ] },
+        { name:'翻转', children:[ {name:'左右翻转'},{name:'上下翻转'},{name:'中心翻转'} ] },
+        { name:'静态关系', children:[ {name:'相邻'},{name:'相离'},{name:'相交'},{name:'包含'} ] },
+      ]},
+      { name:'样式类', children:[
+        { name:'叠加', children:[ {name:'去同存异'},{name:'去异存同'},{name:'自定义叠加'} ] },
+        { name:'遍历', children:[ {name:'整体遍历'},{name:'缺一不可'},{name:'位置遍历'} ] },
+        { name:'属性', children:[ {name:'对称性'},{name:'曲直性'},{name:'封闭性'},{name:'凹凸性'} ] },
+      ]},
+      { name:'属性类', children:[
+        { name:'对称性', children:[ {name:'轴对称'},{name:'中心对称'},{name:'对称轴数/方向'} ] },
+        { name:'曲直性', children:[ {name:'全曲线'},{name:'全直线'},{name:'曲直混合'} ] },
+        { name:'开闭性', children:[ {name:'全开放'},{name:'全封闭'},{name:'半开半闭'} ] },
+        { name:'凹凸性', children:[ {name:'全凸'},{name:'全凹'},{name:'凹凸混合'} ] },
+      ]},
+      { name:'重构折叠', children:[
+        { name:'三视图', children:[ {name:'正视图'},{name:'侧视图'},{name:'俯视图'} ] },
+        { name:'正六面体', children:[ {name:'相邻面'},{name:'相对面'},{name:'公共边/顶点'} ] },
+        { name:'四棱锥', children:[ {name:'底面'},{name:'侧面'},{name:'公共边'} ] },
+        { name:'立体拼合', children:[ {name:'凹凸对应'},{name:'切割重组'},{name:'折叠方向'} ] },
+      ]},
+    ]},
     { name:'定义判断', children:[ {name:'单定义'},{name:'多定义'},{name:'成分分析'},{name:'关键信息'} ] },
     { name:'类比推理', children:[ {name:'内涵关系'},{name:'外延关系'},{name:'语法关系'},{name:'语义关系'} ] },
     { name:'逻辑判断', children:[ {name:'翻译推理'},{name:'真假推理'},{name:'分析推理'},{name:'加强削弱'},{name:'前提假设'} ] },
@@ -7234,15 +7300,37 @@ function collectMindmapGroupedNames(){
   return groups;
 }
 function _escAttrKp(s){ return (''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function populateKpDropdown(){
-  const groups = collectMindmapGroupedNames();
-  ['manKp','bankKpFilter'].forEach(function(id){
+// populateKpDropdown(scope, targetId)
+//   scope: '__all' 全部科目；'__current' 只显示当前学科（按 manModule / errorModule）；具体 sub key 也可
+//   targetId: 'manKp' | 'bankKpFilter' | 不传=两个一起
+function populateKpDropdown(scope, targetId){
+  scope = scope || '__all';
+  const SUB2KEY = { '常识判断':'common','时政热点':'politics','言语理解':'verbal','判断推理':'reasoning','数量关系':'quantity','资料分析':'data','申论':'shenlun' };
+  const selVal = (id)=>{ const e=document.getElementById(id); return e?e.value:''; };
+  const currentSubKey = SUB2KEY[selVal('manModule')] || SUB2KEY[selVal('errorModule')] || '';
+  const targets = targetId ? [targetId] : ['manKp','bankKpFilter','errorKp'];
+  const wantAll = (scope === '__all');
+  const wantCurrent = (scope === '__current');
+  const fixedSub = (!wantAll && !wantCurrent) ? scope : '';
+  const groups = (function(){
+    const all = collectMindmapGroupedNames();
+    if(fixedSub) return all.filter(function(g){ return g.sub === fixedSub; });
+    if(wantCurrent && currentSubKey) return all.filter(function(g){ return g.sub === currentSubKey; });
+    return all;
+  })();
+  targets.forEach(function(id){
     const sel = document.getElementById(id);
     if(!sel) return;
     const cur = sel.value;
-    let html = (id === 'bankKpFilter') ? '<option value="">全部知识点</option>' : '<option value="">（知识点 · 关联思维导图，选填）</option>';
+    const isFilter = (id === 'bankKpFilter');
+    let html = isFilter ? '<option value="">全部知识点</option>' : '<option value="">（知识点 · 关联思维导图，选填）</option>';
+    if(!wantAll && !isFilter){
+      // 手动录入 / 错题面板：加「显示全部」快捷回退
+      html += '<option value="__show_all__">📋 显示全部科目（跨学科选题）</option>';
+    }
     if(groups.length === 0){
-      html += '<option value="" disabled>暂无知识点，请先在思维导图里添加节点</option>';
+      const msg = wantAll ? '暂无知识点，请先在思维导图里添加节点' : '当前学科暂无节点，点上方「显示全部」跨学科选题，或去「知识体系导图」添加';
+      html += '<option value="" disabled>' + msg + '</option>';
     } else {
       groups.forEach(function(g){
         html += '<optgroup label="' + _escAttrKp((g.icon||'📘') + ' ' + g.label) + '">';
@@ -7253,16 +7341,30 @@ function populateKpDropdown(){
       });
     }
     sel.innerHTML = html;
-    if(cur) sel.value = cur;
+    if(cur && cur !== '__show_all__') sel.value = cur;
   });
+  // 顶部小角标
+  const tip = document.getElementById('bankKpScopeTip');
+  if(tip){
+    if(wantAll){ tip.textContent = '全部科目'; }
+    else if(wantCurrent){ const m = (typeof MINDMAP_DATA!=='undefined' && MINDMAP_DATA[currentSubKey]) ? MINDMAP_DATA[currentSubKey].name : '当前学科'; tip.textContent = m; }
+  }
 }
 var gBankKp = '';
 function pickBankKp(v){
   gBankKp = v || '';
-  populateKpDropdown();
+  populateKpDropdown('__all', 'bankKpFilter');
   const clearBtn = document.getElementById('bankKpClear');
   if(clearBtn) clearBtn.style.display = gBankKp ? '' : 'none';
   updateBankDrillBtn();
+}
+function onManKpChange(sel){
+  if(sel && sel.value === '__show_all__'){
+    // 用户选了"显示全部"——切到全科模式，但保持当前选项可被再次选择
+    const id = (sel.id === 'errorKp') ? 'errorKp' : 'manKp';
+    populateKpDropdown('__all', id);
+    if(sel) sel.value = '__show_all__';
+  }
 }
 function toggleMindmapNode(path){
   if(!store.mindmapOpen) store.mindmapOpen = {};
@@ -7880,7 +7982,7 @@ function onPageShow(page){
   if(page==='checkin') renderCheckin();
   if(page==='stats') renderStats();
   if(page==='exam') renderExam();
-  if(page==='error') renderErrors();
+  if(page==='error'){ renderErrors(); populateKpDropdown('__current','errorKp'); populateKpDropdown('__current','manKp'); }
   if(TOPICS[page]) renderTopic(page);
   if(IMPORT_SECTIONS.indexOf(page)>=0) renderImports(page);
   if(page==='bank') renderBank();
@@ -8968,16 +9070,17 @@ function renderTopicErrors(key, moduleName){
     el.innerHTML = '<div class="empty-state"><span class="emoji">📝</span>暂无错题，去「错题记录」添加吧</div>';
     return;
   }
-  el.innerHTML = errors.slice(-5).reverse().map(e=>`
-    <div class="error-item">
-      <span class="type-tag">${e.module}</span>
-      <div class="content">
-        <div class="q">${e.content.substring(0,100)}</div>
-        <div class="a">${e.date}</div>
-      </div>
-      <span class="del" onclick="deleteError('${e.id}')">✕</span>
-    </div>
-  `).join('');
+  el.innerHTML = errors.slice(-5).reverse().map(function(e){
+    const q = (e.question && e.question.trim()) ? e.question : (e.content || '');
+    return '<div class="error-item">'
+      + '<span class="type-tag">' + escapeHtml(e.module) + '</span>'
+      + '<div class="content">'
+        + '<div class="q">' + escapeHtml(q).substring(0,100) + '</div>'
+        + '<div class="a">' + escapeHtml(e.date) + '</div>'
+      + '</div>'
+      + '<span class="del" onclick="deleteError(\'' + e.id + '\')">✕</span>'
+      + '</div>';
+  }).join('');
 }
 
 // ---- 统计数字：点击直接修改（叠加偏移，不覆盖自动累计）----
@@ -12577,7 +12680,26 @@ function stopVoice(){
 function addError(){
   const content = document.getElementById('errorInput').value.trim();
   const module = document.getElementById('errorModule').value;
-  if(!content && currentPhotos.length===0){ toast('请输入错题内容或拍照'); return; }
+  // 完整结构（题干/选项/答案/各选项解析/总论/知识点）—— 全选填
+  const question = (document.getElementById('errorQuestion') || {}).value || '';
+  const opts = [
+    (document.getElementById('errorOptA') || {}).value || '',
+    (document.getElementById('errorOptB') || {}).value || '',
+    (document.getElementById('errorOptC') || {}).value || '',
+    (document.getElementById('errorOptD') || {}).value || '',
+  ].map(function(s){ return (''+s).trim(); });
+  const answerSel = document.getElementById('errorAnswer');
+  const answer = answerSel ? parseInt(answerSel.value, 10) : -1;
+  const parts = [];
+  for(let i=0;i<4;i++){
+    const e = document.getElementById('errorExplain'+i);
+    parts.push(e ? (''+e.value).trim() : '');
+  }
+  const summary = (document.getElementById('errorExplainSummary') || {}).value || '';
+  const kp = (document.getElementById('errorKp') || {}).value || '';
+  const hasFull = !!(question.trim() || opts.some(function(s){ return !!s; }) || (answer>=0) || parts.some(function(s){ return !!s; }) || summary.trim() || kp);
+
+  if(!content && currentPhotos.length===0 && !hasFull){ toast('请输入错题内容、拍照或展开填写完整结构'); return; }
 
   // 联动：从题本卡片「关联错题」进来的话，会暂存 _pendingQbookErr
   const pending = store._pendingQbookErr || null;
@@ -12590,29 +12712,47 @@ function addError(){
       if(rest) realContent = rest; else realContent = realContent.slice(0, nl).trim() + '（待补内容）';
     }
   }
+  // 兜底：如果没填题干但有内容，把内容当题干
+  const finalQuestion = question.trim() || (hasFull ? '' : realContent);
+  const finalContent = hasFull ? (realContent === '(图片错题)' ? '' : realContent) : realContent;
 
   store.errors.push({
     id:'err'+Date.now()+'_'+Math.floor(Math.random()*1000),
     module,
-    content: realContent,
+    content: finalContent,
     photos: [...currentPhotos],
     date: todayKey(),
     // 关联题本时附上元数据
-    src: pending ? 'qbook' : undefined,
+    src: pending ? 'qbook' : (hasFull ? 'manual' : undefined),
     bookId: pending ? pending.bookId : undefined,
     chapName: pending ? pending.chapName : undefined,
     key: pending ? (pending.bookId+'|'+pending.chapName+'|'+todayKey()+'|'+Date.now()) : undefined,
-    srcLabel: pending ? '关联题本' : undefined,
-    explain: pending ? '来自《'+(pending.bName||'题本')+'》'+(pending.chapName?' · '+pending.chapName:'') : ''
+    srcLabel: pending ? '关联题本' : (hasFull ? '完整录入' : undefined),
+    explain: pending ? '来自《'+(pending.bName||'题本')+'》'+(pending.chapName?' · '+pending.chapName:'') : '',
+    // 完整结构字段
+    question: finalQuestion,
+    options: opts,
+    answer: (typeof answer === 'number' && answer >= 0) ? answer : undefined,
+    parts: parts,
+    summary: summary.trim() || undefined,
+    kp: kp || undefined,
   });
   saveStore();
   document.getElementById('errorInput').value = '';
+  // 重置完整结构
+  const setVal = (id, v)=>{ const e=document.getElementById(id); if(e) e.value = v; };
+  setVal('errorQuestion','');
+  setVal('errorOptA',''); setVal('errorOptB',''); setVal('errorOptC',''); setVal('errorOptD','');
+  setVal('errorAnswer','-1');
+  for(let i=0;i<4;i++) setVal('errorExplain'+i, '');
+  setVal('errorExplainSummary','');
+  setVal('errorKp','');
   currentPhotos = [];
   renderErrorPhotos();
 
   // 连续添加：不清 _pendingQbookErr，让用户能在同一题本下连续录入多道错题
   if(typeof renderErrors==='function') renderErrors();
-  toast('错题已保存'+(pending?' · 已关联《'+(pending.bName||'题本')+'》':''));
+  toast('错题已保存'+(pending?' · 已关联《'+(pending.bName||'题本')+'》':(hasFull?' · 完整录入':'')));
 }
 
 // 离开错题记录页（跳到其他页）时清掉暂存，避免被错误继承到无关错题
@@ -12652,25 +12792,60 @@ function renderErrors(){
     list.innerHTML = bookBanner + '<div class="empty-state"><span class="emoji">❌</span>暂无错题记录</div>';
     return;
   }
-  list.innerHTML = bookBanner + errors.map(e=>`
-    <div class="error-item" style="flex-direction:column;align-items:stretch;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-        <span class="type-tag">${e.module}</span>
-        <span style="font-size:11px;color:var(--text-sub);">${e.date}</span>
-        <span class="del" style="margin-left:auto;" onclick="deleteError('${e.id}')">✕</span>
-      </div>
-      <div class="content">
-        <div class="q">${e.content.replace(/\n/g,'<br>')}</div>
-        ${e.explain ? `<div class="qe" style="margin-top:6px;font-size:12px;color:var(--text-sub);line-height:1.6;background:#FFF7F9;border-radius:8px;padding:6px 8px;"><b>解析：</b>${e.explain.replace(/\n/g,'<br>')}</div>` : ''}
-        ${e.src==='drill' ? `<span class="err-src" style="display:inline-block;margin-top:6px;font-size:10px;color:#4A3B40;background:var(--pink-btn);border-radius:8px;padding:1px 7px;">站内刷题自动收录</span>` : ''}
-      </div>
-      ${e.photos && e.photos.length>0 ? `
-        <div class="error-photos" style="margin-top:8px;">
-          ${e.photos.map(src=>`<div class="error-photo"><img src="${src}" alt="错题"></div>`).join('')}
-        </div>
-      ` : ''}
-    </div>
-  `).join('');
+  list.innerHTML = bookBanner + errors.map(e=>{
+    // 完整结构：题干优先（question），否则 content
+    const hasFull = !!(e.options && e.options.some(function(s){ return !!s; }) && (e.answer>=0));
+    const qText = e.question && e.question.trim() ? e.question : e.content;
+    let html = '<div class="error-item" style="flex-direction:column;align-items:stretch;">'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">'
+        + '<span class="type-tag">' + escapeHtml(e.module||'') + '</span>'
+        + (e.kp ? '<span class="err-kp" style="display:inline-block;font-size:10px;color:#7A5BA8;background:#F1EAF9;border-radius:8px;padding:1px 7px;">📎 ' + escapeHtml(e.kp) + '</span>' : '')
+        + '<span style="font-size:11px;color:var(--text-sub);">' + escapeHtml(e.date||'') + '</span>'
+        + (e.srcLabel ? '<span class="err-src" style="display:inline-block;font-size:10px;color:#4A3B40;background:var(--pink-btn);border-radius:8px;padding:1px 7px;">' + escapeHtml(e.srcLabel) + '</span>' : '')
+        + '<span class="del" style="margin-left:auto;" onclick="deleteError(\'' + e.id + '\')">✕</span>'
+      + '</div>'
+      + '<div class="content">'
+        + '<div class="q">' + escapeHtml(qText||'').replace(/\n/g,'<br>') + '</div>';
+    // 选项 + 答案
+    if(hasFull){
+      const letters = ['A','B','C','D'];
+      html += '<div class="err-opts" style="margin-top:8px;">';
+      (e.options||[]).forEach(function(opt, idx){
+        if(!opt) return;
+        const isAns = (idx === e.answer);
+        html += '<div class="err-opt" style="display:flex;align-items:flex-start;gap:6px;padding:4px 8px;border-radius:8px;margin-top:4px;font-size:12px;background:' + (isAns ? '#E9F7EC' : 'var(--bg-soft)') + ';border:1px solid ' + (isAns ? '#7BC896' : 'transparent') + ';">'
+          + '<span style="font-weight:700;color:' + (isAns ? '#2D7A4F' : '#999') + ';">' + letters[idx] + (isAns ? ' ✓' : '') + '</span>'
+          + '<span style="flex:1;line-height:1.6;">' + escapeHtml(opt).replace(/\n/g,'<br>') + '</span>'
+          + '</div>';
+      });
+      html += '</div>';
+    }
+    // 各选项解析
+    if(e.parts && e.parts.some(function(s){ return !!s; })){
+      const letters2 = ['A','B','C','D'];
+      html += '<div style="margin-top:6px;font-size:12px;color:var(--text-sub);line-height:1.7;">';
+      (e.parts||[]).forEach(function(p, idx){
+        if(!p) return;
+        html += '<div style="padding:3px 0;"><b style="color:' + (idx===e.answer ? '#2D7A4F' : '#A86BC4') + ';">' + letters2[idx] + (idx===e.answer ? '（对）' : '（错）') + '：</b>' + escapeHtml(p).replace(/\n/g,'<br>') + '</div>';
+      });
+      html += '</div>';
+    }
+    // 总论
+    if(e.summary){
+      html += '<div class="qe" style="margin-top:6px;font-size:12px;color:var(--text-sub);line-height:1.6;background:#FFF7F9;border-radius:8px;padding:6px 8px;"><b>📋 总论：</b>' + escapeHtml(e.summary).replace(/\n/g,'<br>') + '</div>';
+    }
+    // 老 explain 兜底
+    if(!e.summary && e.explain){
+      html += '<div class="qe" style="margin-top:6px;font-size:12px;color:var(--text-sub);line-height:1.6;background:#FFF7F9;border-radius:8px;padding:6px 8px;"><b>解析：</b>' + escapeHtml(e.explain).replace(/\n/g,'<br>') + '</div>';
+    }
+    html += '</div>';
+    // 图片
+    if(e.photos && e.photos.length>0){
+      html += '<div class="error-photos" style="margin-top:8px;">' + e.photos.map(src=>'<div class="error-photo"><img src="'+src+'" alt="错题"></div>').join('') + '</div>';
+    }
+    html += '</div>';
+    return html;
+  }).join('');
 
   // 同步各题型页面错题
   Object.keys(TOPICS).forEach(key=>{
@@ -14739,7 +14914,8 @@ function stickerMonthStats(y, m, dimKey){
 function renderBank(){
   renderBankPdf();
   renderManualList();
-  populateKpDropdown();
+  populateKpDropdown('__all', 'bankKpFilter');
+  populateKpDropdown('__current', 'manKp');
   updateBankDrillBtn();
 }
 
