@@ -2701,7 +2701,7 @@ body.drawer-open .nav-cloud{display:none;}
   </div>
 
   <div class="card">
-    <div class="card-title"><span class="dot"></span>六大模块概览</div>
+    <div class="card-title"><span class="dot"></span>七大模块概览</div>
     <div class="topic-grid" id="overviewTopics"></div>
   </div>
 
@@ -7423,12 +7423,22 @@ function onManKpChange(sel){
 function toggleMindmapNode(path){
   if(!store.mindmapOpen) store.mindmapOpen = {};
   store.mindmapOpen[path] = !(store.mindmapOpen[path] !== false);
+  mmCaptureScroll();
   saveStore();
   renderMindmap();
+}
+function mmCaptureScroll(){
+  try{
+    const sb = document.getElementById('mmScrollBox');
+    if(sb){
+      window.__mmScrollState = { l: sb.scrollLeft|0, t: sb.scrollTop|0 };
+    }
+  }catch(_){ }
 }
 function addMindmapChild(parentPath){
   const name = (typeof prompt==='function') ? (prompt('子节点名称：','')||'').trim() : '';
   if(!name) return;
+  mmCaptureScroll();
   const root = getMindmapData();
   // 根节点：直接追加一级分支
   if(!parentPath){
@@ -7455,6 +7465,7 @@ function editMindmapNode(path){
   for(let i=0;i<segs.length;i++){ cur = cur.children && cur.children[parseInt(segs[i],10)]; if(!cur) return; }
   const newName = (typeof prompt==='function') ? (prompt('重命名节点：', cur.name||'')||'').trim() : '';
   if(!newName) return;
+  mmCaptureScroll();
   cur.name = newName;
   saveMindmapTreeToStore(root);
   renderMindmap();
@@ -7462,6 +7473,7 @@ function editMindmapNode(path){
 function deleteMindmapNode(path){
   const root = getMindmapData();
   if(!path){ if(typeof toast==='function') toast('根节点不能删除～'); return; }
+  mmCaptureScroll();
   const segs = path.split('.');
   let parent = root;
   for(let i=0;i<segs.length-1;i++){ parent = parent.children && parent.children[parseInt(segs[i],10)]; if(!parent) return; }
@@ -7477,6 +7489,8 @@ function saveMindmapTreeToStore(root){
   if(!store.mindmapCustom) store.mindmapCustom = {};
   function stripPath(node){
     const out = { name: node.name };
+    if(node.img) out.img = node.img;
+    if(node.note) out.note = node.note;
     if(node.children) out.children = node.children.map(stripPath);
     return out;
   }
@@ -7538,17 +7552,30 @@ function renderMindmap(){
     if(lvl===0){ fill=COL_ROOT_FILL; stroke=COL_ROOT_STROKE; textColor=COL_ROOT_TEXT; tSize=14; tWeight=800; }
     else if(lvl===1){ fill=COL_L1_FILL; stroke=COL_L1_STROKE; textColor=COL_L1_TEXT; tSize=13; tWeight=700; }
     else { fill=COL_L2_FILL; stroke=COL_L2_STROKE; textColor=COL_L2_TEXT; tSize=12; tWeight=600; }
+    const hasImg = !!n.img;
+    const imgH = hasImg ? 32 : 0;
+    const baseH = nd.h;
+    const totalH = baseH + imgH;
+    const cy = nd.y + (hasImg ? imgH/2 : 0);
     const canFold = nd.hasKids && lvl>=1;
     const foldSym = nd.open ? '▾' : '▸';
     const textDx = canFold ? 8 : 0;
     let g = '<g data-mm-path="'+escapeAttr(nd.path)+'" style="cursor:pointer" onclick="onMindmapNodeClick(\''+escapeAttr(nd.path)+'\','+lvl+')">'
-      + svgRect(nd.x, nd.y, nd.w, nd.h, fill, stroke);
+      + svgRect(nd.x, cy, nd.w, baseH, fill, stroke);
     if(canFold){
-      g += '<text x="'+(nd.x - nd.w/2 + 11)+'" y="'+(nd.y+4)+'" text-anchor="middle" font-size="13" font-weight="800" fill="'+(lvl===1?COL_L1_TEXT:COL_L2_TEXT)+'" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif" style="cursor:pointer" onclick="event.stopPropagation();toggleMindmapNode(\''+escapeAttr(nd.path)+'\')">'+foldSym+'</text>';
+      g += '<text x="'+(nd.x - nd.w/2 + 11)+'" y="'+(cy+4)+'" text-anchor="middle" font-size="13" font-weight="800" fill="'+(lvl===1?COL_L1_TEXT:COL_L2_TEXT)+'" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif" style="cursor:pointer" onclick="event.stopPropagation();toggleMindmapNode(\''+escapeAttr(nd.path)+'\')">'+foldSym+'</text>';
     }
-    g += svgText(nd.x + textDx, nd.y, n.name||(lvl===0?data.name:'(未命名)'), textColor, tSize, tWeight)
-      + svgErrBadge(nd.x, nd.y, mmGetErr(sub, nd.path), nd.w)
-      + '</g>';
+    g += svgText(nd.x + textDx, cy, n.name||(lvl===0?data.name:'(未命名)'), textColor, tSize, tWeight)
+      + svgErrBadge(nd.x, cy, mmGetErr(sub, nd.path), nd.w);
+    // 节点图片缩略图（位于节点下方，32px 高）
+    if(hasImg){
+      const imgY = cy + baseH/2 + 16;
+      const imgW = 36, imgHH = 28;
+      const ix = nd.x - imgW/2, iy = imgY - imgHH/2;
+      g += '<rect x="'+(ix-1)+'" y="'+(iy-1)+'" width="'+(imgW+2)+'" height="'+(imgHH+2)+'" rx="6" ry="6" fill="#fff" stroke="'+stroke+'" stroke-width="1" />';
+      g += '<image href="'+escapeAttr(n.img)+'" x="'+ix+'" y="'+iy+'" width="'+imgW+'" height="'+imgHH+'" preserveAspectRatio="xMidYMid meet" style="pointer-events:none"/>';
+    }
+    g += '</g>';
     svg += g;
   });
   // ----- 外壳 HTML -----
@@ -7590,7 +7617,7 @@ function renderMindmap(){
     +'<span>📥 自导入</span>'
     +'</div>';
   // 思维导图本体（SVG，手机左右滑动）
-  html += '<div style="margin-top:12px;background:#fff;border-radius:18px;padding:14px 18px;box-shadow:0 2px 8px rgba(0,0,0,.04);overflow-x:auto">';
+  html += '<div id="mmScrollBox" style="margin-top:12px;background:#fff;border-radius:18px;padding:14px 18px;box-shadow:0 2px 8px rgba(0,0,0,.04);overflow-x:auto">';
   html += '<svg width="'+svgW+'" height="'+svgH+'" viewBox="0 0 '+svgW+' '+svgH+'" style="display:block;min-width:'+svgW+'px">'+svg+'</svg>';
   html += '</div>';
   html += '<div style="margin-top:10px;font-size:11px;color:#bbb;text-align:center">💡 手指左右滑动查看完整导图 · 节点右上角数字为该分支关联的错题数</div>';
@@ -7601,6 +7628,15 @@ function renderMindmap(){
   html += '</div>';
   html += '</div>';
   el.innerHTML = html;
+  // 重渲染后恢复滚动位置，避免添加节点/重命名后页面跳回根节点位置
+  try{
+    const scroller = document.getElementById('mmScrollBox');
+    const prev = window.__mmScrollState;
+    if(scroller && prev){
+      scroller.scrollLeft = prev.l|0;
+      scroller.scrollTop  = prev.t|0;
+    }
+  }catch(_){ }
 }
 // ----- SVG 布局辅助：三次贝塞尔曲线 -----
 function svgCurve(x1,y1,x2,y2){
@@ -7608,9 +7644,28 @@ function svgCurve(x1,y1,x2,y2){
   return 'M '+x1+' '+y1+' C '+(x1+R)+' '+y1+' '+(x2-R)+' '+y2+' '+x2+' '+y2;
 }
 // ----- SVG 布局算法（递归，支持任意层级；根居左，逐级向右延展） -----
+// 中文按 1 倍字宽，ASCII 按 0.55，半角符号按 0.85，最小宽度保留旧值
+function mmEstimateTextWidth(s, fontSize){
+  if(!s) return 0;
+  let w = 0;
+  for(let i=0;i<s.length;i++){
+    const c = s.charAt(i);
+    const code = s.charCodeAt(i);
+    if(code>=0x4e00 && code<=0x9fff) w += 1.05;
+    else if(/[a-zA-Z0-9]/.test(c)) w += 0.6;
+    else w += 0.9;
+  }
+  return w * fontSize;
+}
 function layoutRadialMindmap(root){
   const ROOT_X = 120, COL_STEP = 235;
-  const NODE_W = function(level){ return level===0?140:(level===1?110:92); };
+  // 节点宽：根据 node.name 自适应，至少保留原固定宽度
+  const NODE_FONT = function(level){ return level===0?14:(level===1?13:12); };
+  const NODE_W = function(level, name){
+    const min = level===0?140:(level===1?110:92);
+    const hasImgPad = false; // 这里只算文本宽度；图额外撑高
+    return Math.max(min, Math.round(mmEstimateTextWidth(name||'', NODE_FONT(level))) + 40);
+  };
   const NODE_H = function(level){ return level===0?44:(level===1?36:30); };
   const ROW_GAP = 12, BRANCH_GAP = 24, TOP_PAD = 20, BOT_PAD = 20;
   const openMap = (store && store.mindmapOpen) ? store.mindmapOpen : (store.mindmapOpen = {});
@@ -7621,9 +7676,10 @@ function layoutRadialMindmap(root){
   // 递归布局：先计算子节点位置，再让父节点居中于子节点
   function layout(node, path, level){
     const x = colX(level);
-    const w = NODE_W(level), h = NODE_H(level);
+    const w = NODE_W(level, node.name), h = NODE_H(level);
     const hasKids = !!(node.children && node.children.length>0);
     const open = hasKids && isOpen(path);
+    const extraH = node.img ? 32 : 0; // 有图时垂直多占 32px
     let y;
     if(hasKids && open){
       const ys = [];
@@ -7637,6 +7693,7 @@ function layoutRadialMindmap(root){
       y = cursor + h/2;
       cursor += h + ROW_GAP;
     }
+    if(extraH){ cursor += extraH; }
     nodes.push({ node:node, path:path, level:level, x:x, y:y, w:w, h:h, hasKids:hasKids, open:open });
     return y;
   }
@@ -7665,6 +7722,7 @@ function mmGetErr(sub, path){
 function mmSetErr(sub, path, n){
   if(!store.mindmapErr) store.mindmapErr = {};
   if(!store.mindmapErr[sub]) store.mindmapErr[sub] = {};
+  mmCaptureScroll();
   store.mindmapErr[sub][path] = Math.max(0, parseInt(n,10)||0);
   saveStore();
   renderMindmap();
@@ -7693,6 +7751,7 @@ function getNodeByPath(path){
 function moveMindmapNode(path, dir){
   const sub = getActiveMindmapSubject();
   if(!path){ if(typeof toast==='function') toast('根节点不能移动～'); return; }
+  mmCaptureScroll();
   const root = getMindmapData();
   const segs = path.split('.');
   let parent = root;
@@ -7730,8 +7789,13 @@ function mmShowActions(path, level){
   const isRoot = (lv < 0);
   const items = [];
   if(!isRoot){
+    const _nodeImg = !!(node && node.img);
     items.push({ ico:'＋', title:'添加子节点', desc:'为这个节点新增一个子级', fn:function(){ closeMmActions(); addMindmapChild(path||sub); } });
     items.push({ ico:'✏️', title:'重命名', desc:'修改这个节点的名称', fn:function(){ closeMmActions(); editMindmapNode(path||sub); } });
+    items.push({ ico:'🖼', title:_nodeImg?'更换图片':'插入图片', desc:'节点下方插入一张例题图（≤2MB，会自动缩到 320px）', fn:function(){ closeMmActions(); mmSetNodeImg(path); } });
+    if(_nodeImg){
+      items.push({ ico:'🗑', title:'删除图片', desc:'移除该节点的图片缩略图', danger:true, fn:function(){ closeMmActions(); mmDelNodeImg(path); } });
+    }
     items.push({ ico:'📚', title:'跳到「我的题库」刷这题点', desc:'用本节点名称筛题，立刻开始', fn:function(){ closeMmActions(); mmJumpToBank(path); } });
     items.push({ ico:'📊', title:'设置错题数', desc:'关联错题后会显示橙色徽章', fn:function(){ closeMmActions(); mmEditErr(sub, path); } });
     items.push({ ico:'⬆️', title:'上移', desc:'和同级节点交换位置', fn:function(){ closeMmActions(); moveMindmapNode(path, -1); } });
@@ -7780,6 +7844,7 @@ function mmRenameRoot(sub){
   const cur = (MINDMAP_DATA[sub] && MINDMAP_DATA[sub].name) || sub;
   const v = (typeof prompt==='function') ? prompt('修改科目名：', cur) : '';
   if(!v) return;
+  mmCaptureScroll();
   // 写到 MINDMAP_DATA（默认种子不动，只影响此次会话）；同时同步自定义根
   MINDMAP_DATA[sub].name = v.trim();
   // 自定义版本的根
@@ -7797,6 +7862,72 @@ function mmEditErr(sub, path){
   const v = (typeof prompt==='function') ? prompt('关联错题数（0 不显示徽章）：', cur) : '0';
   if(v===null) return;
   mmSetErr(sub, path, v);
+}
+
+// 节点插入/更换图片（FileReader → 缩放 base64，存 store）
+function mmSetNodeImg(path){
+  if(!path){ if(typeof toast==='function') toast('根节点不支持图片～'); return; }
+  let input = document.getElementById('mmImgFileInput');
+  if(!input){
+    input = document.createElement('input');
+    input.type = 'file';
+    input.id = 'mmImgFileInput';
+    input.accept = 'image/*';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    input.addEventListener('change', function(){
+      const f = input.files && input.files[0];
+      const p = input.getAttribute('data-mm-path');
+      input.value = '';
+      if(!f || !p) return;
+      if(f.size > 2*1024*1024){ if(typeof toast==='function') toast('图片超过 2MB，请压缩后再试～'); return; }
+      const reader = new FileReader();
+      reader.onload = function(ev){
+        const dataUrl = String(ev.target.result||'');
+        const img = new Image();
+        img.onload = function(){
+          // 限制最大 320x320，等比缩放
+          const maxSide = 320;
+          let w = img.naturalWidth, h = img.naturalHeight;
+          if(w>maxSide || h>maxSide){
+            if(w>=h){ h = Math.round(h*maxSide/w); w = maxSide; }
+            else { w = Math.round(w*maxSide/h); h = maxSide; }
+          }
+          const c = document.createElement('canvas');
+          c.width = w; c.height = h;
+          c.getContext('2d').drawImage(img, 0, 0, w, h);
+          const out = c.toDataURL('image/png');
+          const root = getMindmapData();
+          const segs = p.split('.');
+          let cur = root;
+          for(let i=0;i<segs.length;i++){ cur = cur.children && cur.children[parseInt(segs[i],10)]; if(!cur) return; }
+          cur.img = out;
+          mmCaptureScroll();
+          saveMindmapTreeToStore(root);
+          renderMindmap();
+          if(typeof toast==='function') toast('已插入图片');
+        };
+        img.src = dataUrl;
+      };
+      reader.readAsDataURL(f);
+    });
+  }
+  input.setAttribute('data-mm-path', path);
+  input.click();
+}
+function mmDelNodeImg(path){
+  if(!path) return;
+  const root = getMindmapData();
+  const segs = path.split('.');
+  let cur = root;
+  for(let i=0;i<segs.length;i++){ cur = cur.children && cur.children[parseInt(segs[i],10)]; if(!cur) return; }
+  if(!cur || !cur.img) return;
+  if(typeof confirm==='function' && !confirm('删除该节点的图片？')) return;
+  mmCaptureScroll();
+  delete cur.img;
+  saveMindmapTreeToStore(root);
+  renderMindmap();
+  if(typeof toast==='function') toast('已删除图片');
 }
 
 // 跳题库（叶子/任意节点 → 用节点名作为筛选关键字 + showPage('bank')）
