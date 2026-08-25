@@ -2535,6 +2535,7 @@ body.drawer-open .nav-cloud{display:none;}
       <div class="nav-children">
         <div class="nav-item" data-page="common"><span class="nav-icon">📚</span>常识判断</div>
         <div class="nav-item" data-page="verbal"><span class="nav-icon">📖</span>言语理解</div>
+        <div class="nav-item" data-page="figure"><span class="nav-icon">🔺</span>图形推理</div>
         <div class="nav-item" data-page="reasoning"><span class="nav-icon">🧩</span>判断推理</div>
         <div class="nav-item" data-page="quantity"><span class="nav-icon">🔢</span>数量关系</div>
         <div class="nav-item" data-page="data"><span class="nav-icon">📊</span>资料分析</div>
@@ -2673,6 +2674,7 @@ body.drawer-open .nav-cloud{display:none;}
       <button class="bm-chip" data-m="时政热点" onclick="event.stopPropagation();pickBankMod('时政热点', this)">时政</button>
       <button class="bm-chip" data-m="言语理解" onclick="event.stopPropagation();pickBankMod('言语理解', this)">言语</button>
       <button class="bm-chip" data-m="判断推理" onclick="event.stopPropagation();pickBankMod('判断推理', this)">判断</button>
+      <button class="bm-chip" data-m="图形推理" onclick="event.stopPropagation();pickBankMod('图形推理', this)">图形</button>
       <button class="bm-chip" data-m="数量关系" onclick="event.stopPropagation();pickBankMod('数量关系', this)">数量</button>
       <button class="bm-chip" data-m="资料分析" onclick="event.stopPropagation();pickBankMod('资料分析', this)">资料</button>
     </div>
@@ -2875,8 +2877,13 @@ body.drawer-open .nav-cloud{display:none;}
 <div class="page" id="page-reasoning">
   <div class="stat-row" id="stats-reasoning"></div>
   <div class="card">
-    <div class="card-title"><span class="dot"></span>四大题型专项刷题</div>
+    <div class="card-title"><span class="dot"></span>三大题型专项刷题（图形推理已独立为顶级板块，下方直达入口）</div>
     <div class="drill-list" id="drill-reasoning"></div>
+  </div>
+  <div class="card" style="background:linear-gradient(135deg,#fef7f4,#fdebe6);border:1.5px dashed #f5b7a3;">
+    <div class="card-title" style="color:#c0552b;"><span class="dot" style="background:#f5a380;"></span>📍 图形推理已独立成顶级板块</div>
+    <p style="font-size:13px;color:#7d4a3c;line-height:1.7;margin-bottom:10px;">按照「把图形推理从判断推理中拆出来」的最新调整，图形推理拥有独立的考点入口、独立的思维导图、独立的刷题数据。建议把更多刷题时间放到那边的专项里 📈</p>
+    <button class="btn" onclick="showPage('figure')" style="background:linear-gradient(135deg,#f5a380,#e85a4f);">🔺 进入「图形推理」独立板块</button>
   </div>
   <div class="grid-2">
     <div class="card">
@@ -2886,6 +2893,25 @@ body.drawer-open .nav-cloud{display:none;}
     <div class="card">
       <div class="card-title"><span class="dot"></span>推理错题与陷阱汇总</div>
       <div id="error-reasoning"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 图形推理（独立顶级板块） ===== -->
+<div class="page" id="page-figure">
+  <div class="stat-row" id="stats-figure"></div>
+  <div class="card">
+    <div class="card-title"><span class="dot"></span>五大题型专项刷题（从判断推理中独立出来）</div>
+    <div class="drill-list" id="drill-figure"></div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>图形规律与思维导图要点 <span class="more" onclick="refreshKnowledge('figure')">🔄 换一批</span><span class="more kp-add" onclick="addKnowledge('figure')">➕ 添加</span></div>
+      <div class="knowledge-list" id="knowledge-figure"></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>图形推理错题与陷阱汇总</div>
+      <div id="error-figure"></div>
     </div>
   </div>
 </div>
@@ -2978,6 +3004,8 @@ body.drawer-open .nav-cloud{display:none;}
         <option value="常识判断">常识判断</option>
         <option value="时政热点">时政热点</option>
         <option value="言语理解" selected>言语理解</option>
+        <option value="图形推理">图形推理</option>
+        <option value="图形推理">图形推理</option>
         <option value="判断推理">判断推理</option>
         <option value="数量关系">数量关系</option>
         <option value="资料分析">资料分析</option>
@@ -3019,6 +3047,7 @@ body.drawer-open .nav-cloud{display:none;}
         <option value="常识判断">常识判断</option>
         <option value="时政热点">时政热点</option>
         <option value="言语理解" selected>言语理解</option>
+        <option value="图形推理">图形推理</option>
         <option value="判断推理">判断推理</option>
         <option value="数量关系">数量关系</option>
         <option value="资料分析">资料分析</option>
@@ -3205,6 +3234,7 @@ body.drawer-open .nav-cloud{display:none;}
         <option value="常识判断">常识判断</option>
         <option value="时政热点">时政热点</option>
         <option value="言语理解">言语理解</option>
+        <option value="图形推理">图形推理</option>
         <option value="判断推理">判断推理</option>
         <option value="数量关系">数量关系</option>
         <option value="资料分析">资料分析</option>
@@ -3308,6 +3338,7 @@ body.drawer-open .nav-cloud{display:none;}
         <option value="常识判断">常识判断</option>
         <option value="时政热点">时政热点</option>
         <option value="言语理解">言语理解</option>
+        <option value="图形推理">图形推理</option>
         <option value="判断推理">判断推理</option>
         <option value="数量关系">数量关系</option>
         <option value="资料分析">资料分析</option>
@@ -3376,6 +3407,7 @@ body.drawer-open .nav-cloud{display:none;}
           <option value="常识判断">常识判断</option>
           <option value="时政热点">时政热点</option>
           <option value="言语理解">言语理解</option>
+          <option value="图形推理">图形推理</option>
           <option value="判断推理">判断推理</option>
           <option value="数量关系">数量关系</option>
           <option value="资料分析">资料分析</option>
@@ -3400,6 +3432,7 @@ body.drawer-open .nav-cloud{display:none;}
       <button class="bm-chip" data-m="时政热点" onclick="pickBankMod('时政热点', this)">时政热点</button>
       <button class="bm-chip" data-m="言语理解" onclick="pickBankMod('言语理解', this)">言语理解</button>
       <button class="bm-chip" data-m="判断推理" onclick="pickBankMod('判断推理', this)">判断推理</button>
+      <button class="bm-chip" data-m="图形推理" onclick="pickBankMod('图形推理', this)">图形推理</button>
       <button class="bm-chip" data-m="数量关系" onclick="pickBankMod('数量关系', this)">数量关系</button>
       <button class="bm-chip" data-m="资料分析" onclick="pickBankMod('资料分析', this)">资料分析</button>
     </div>
@@ -3420,6 +3453,7 @@ body.drawer-open .nav-cloud{display:none;}
         <option value="常识判断">常识判断</option>
         <option value="时政热点">时政热点</option>
         <option value="言语理解" selected>言语理解</option>
+        <option value="图形推理">图形推理</option>
         <option value="判断推理">判断推理</option>
         <option value="数量关系">数量关系</option>
         <option value="资料分析">资料分析</option>
@@ -3446,6 +3480,7 @@ body.drawer-open .nav-cloud{display:none;}
           <option value="常识判断">常识判断</option>
           <option value="时政热点">时政热点</option>
           <option value="言语理解">言语理解</option>
+          <option value="图形推理">图形推理</option>
           <option value="判断推理">判断推理</option>
           <option value="数量关系">数量关系</option>
           <option value="资料分析">资料分析</option>
@@ -3733,6 +3768,7 @@ body.drawer-open .nav-cloud{display:none;}
         <option value="常识判断">常识判断</option>
         <option value="时政热点">时政热点</option>
         <option value="言语理解">言语理解</option>
+        <option value="图形推理">图形推理</option>
         <option value="判断推理">判断推理</option>
         <option value="数量关系">数量关系</option>
         <option value="资料分析">资料分析</option>
@@ -3788,6 +3824,7 @@ body.drawer-open .nav-cloud{display:none;}
         <option value="常识判断">常识判断</option>
         <option value="时政热点">时政热点</option>
         <option value="言语理解">言语理解</option>
+        <option value="图形推理">图形推理</option>
         <option value="判断推理">判断推理</option>
         <option value="数量关系">数量关系</option>
         <option value="资料分析">资料分析</option>
@@ -3816,6 +3853,7 @@ body.drawer-open .nav-cloud{display:none;}
         <option value="常识判断">常识判断</option>
         <option value="时政热点">时政热点</option>
         <option value="言语理解">言语理解</option>
+        <option value="图形推理">图形推理</option>
         <option value="判断推理">判断推理</option>
         <option value="数量关系">数量关系</option>
         <option value="资料分析">资料分析</option>
@@ -4294,8 +4332,14 @@ const TOPICS = {
     {ic:'🔢',nm:'语句排序',ct:'150+'},{ic:'🔍',nm:'细节判断',ct:'150+'},
   ]},
   reasoning: { name:'判断推理', icon:'🧩', drills:[
-    {ic:'🔺',nm:'图形推理',ct:'200+'},{ic:'📋',nm:'定义判断',ct:'200+'},
-    {ic:'🔗',nm:'类比推理',ct:'200+'},{ic:'🧠',nm:'逻辑判断',ct:'200+'},
+    {ic:'📋',nm:'定义判断',ct:'200+'},
+    {ic:'🔗',nm:'类比推理',ct:'200+'},
+    {ic:'🧠',nm:'逻辑判断',ct:'200+'},
+  ]},
+  figure: { name:'图形推理', icon:'🔺', drills:[
+    {ic:'🔢',nm:'数量类',ct:'80+'},{ic:'↔️',nm:'位置类',ct:'80+'},
+    {ic:'🎨',nm:'样式类',ct:'60+'},{ic:'⚖️',nm:'属性类',ct:'60+'},
+    {ic:'📦',nm:'重构折叠',ct:'40+'},
   ]},
   quantity: { name:'数量关系', icon:'🔢', drills:[
     {ic:'🔨',nm:'工程问题',ct:'80+'},{ic:'🚗',nm:'行程问题',ct:'80+'},
@@ -4328,39 +4372,39 @@ const MINDMAP_DATA = {
     { name:'题型突破', children:[ {name:'简单计算'},{name:'现期基期'},{name:'两期比重'},{name:'平均数增长率'} ] },
     { name:'材料类型', children:[ {name:'文字材料'},{name:'表格材料'},{name:'图形材料'},{name:'综合材料'} ] },
   ]},
-  reasoning: { name:'判断推理', icon:'🧩', children:[
-    { name:'图形推理', children:[
-      { name:'数量类', children:[
-        { name:'点', children:[ {name:'交点'},{name:'切点'},{name:'端点'},{name:'出头点'} ] },
-        { name:'线', children:[ {name:'直线'},{name:'曲线'},{name:'笔画'},{name:'横线/竖线'} ] },
-        { name:'角', children:[ {name:'锐角'},{name:'直角'},{name:'钝角'},{name:'内角'} ] },
-        { name:'面', children:[ {name:'封闭区域'},{name:'部分数'},{name:'空白/阴影'} ] },
-        { name:'素', children:[ {name:'元素种类'},{name:'元素数量'},{name:'遍历'} ] },
-      ]},
-      { name:'位置类', children:[
-        { name:'平移', children:[ {name:'上下平移'},{name:'左右平移'},{name:'斜向平移'} ] },
-        { name:'旋转', children:[ {name:'顺/逆时针'},{name:'旋转角度(45/90/135/180)'},{name:'整体/部分旋转'} ] },
-        { name:'翻转', children:[ {name:'左右翻转'},{name:'上下翻转'},{name:'中心翻转'} ] },
-        { name:'静态关系', children:[ {name:'相邻'},{name:'相离'},{name:'相交'},{name:'包含'} ] },
-      ]},
-      { name:'样式类', children:[
-        { name:'叠加', children:[ {name:'去同存异'},{name:'去异存同'},{name:'自定义叠加'} ] },
-        { name:'遍历', children:[ {name:'整体遍历'},{name:'缺一不可'},{name:'位置遍历'} ] },
-        { name:'属性', children:[ {name:'对称性'},{name:'曲直性'},{name:'封闭性'},{name:'凹凸性'} ] },
-      ]},
-      { name:'属性类', children:[
-        { name:'对称性', children:[ {name:'轴对称'},{name:'中心对称'},{name:'对称轴数/方向'} ] },
-        { name:'曲直性', children:[ {name:'全曲线'},{name:'全直线'},{name:'曲直混合'} ] },
-        { name:'开闭性', children:[ {name:'全开放'},{name:'全封闭'},{name:'半开半闭'} ] },
-        { name:'凹凸性', children:[ {name:'全凸'},{name:'全凹'},{name:'凹凸混合'} ] },
-      ]},
-      { name:'重构折叠', children:[
-        { name:'三视图', children:[ {name:'正视图'},{name:'侧视图'},{name:'俯视图'} ] },
-        { name:'正六面体', children:[ {name:'相邻面'},{name:'相对面'},{name:'公共边/顶点'} ] },
-        { name:'四棱锥', children:[ {name:'底面'},{name:'侧面'},{name:'公共边'} ] },
-        { name:'立体拼合', children:[ {name:'凹凸对应'},{name:'切割重组'},{name:'折叠方向'} ] },
-      ]},
+  figure: { name:'图形推理', icon:'🔺', children:[
+    { name:'数量类', children:[
+      { name:'点', children:[ {name:'交点'},{name:'切点'},{name:'端点'},{name:'出头点'} ] },
+      { name:'线', children:[ {name:'直线'},{name:'曲线'},{name:'笔画'},{name:'横线/竖线'} ] },
+      { name:'角', children:[ {name:'锐角'},{name:'直角'},{name:'钝角'},{name:'内角'} ] },
+      { name:'面', children:[ {name:'封闭区域'},{name:'部分数'},{name:'空白/阴影'} ] },
+      { name:'素', children:[ {name:'元素种类'},{name:'元素数量'},{name:'遍历'} ] },
     ]},
+    { name:'位置类', children:[
+      { name:'平移', children:[ {name:'上下平移'},{name:'左右平移'},{name:'斜向平移'} ] },
+      { name:'旋转', children:[ {name:'顺/逆时针'},{name:'旋转角度(45/90/135/180)'},{name:'整体/部分旋转'} ] },
+      { name:'翻转', children:[ {name:'左右翻转'},{name:'上下翻转'},{name:'中心翻转'} ] },
+      { name:'静态关系', children:[ {name:'相邻'},{name:'相离'},{name:'相交'},{name:'包含'} ] },
+    ]},
+    { name:'样式类', children:[
+      { name:'叠加', children:[ {name:'去同存异'},{name:'去异存同'},{name:'自定义叠加'} ] },
+      { name:'遍历', children:[ {name:'整体遍历'},{name:'缺一不可'},{name:'位置遍历'} ] },
+      { name:'属性', children:[ {name:'对称性'},{name:'曲直性'},{name:'封闭性'},{name:'凹凸性'} ] },
+    ]},
+    { name:'属性类', children:[
+      { name:'对称性', children:[ {name:'轴对称'},{name:'中心对称'},{name:'对称轴数/方向'} ] },
+      { name:'曲直性', children:[ {name:'全曲线'},{name:'全直线'},{name:'曲直混合'} ] },
+      { name:'开闭性', children:[ {name:'全开放'},{name:'全封闭'},{name:'半开半闭'} ] },
+      { name:'凹凸性', children:[ {name:'全凸'},{name:'全凹'},{name:'凹凸混合'} ] },
+    ]},
+    { name:'重构折叠', children:[
+      { name:'三视图', children:[ {name:'正视图'},{name:'侧视图'},{name:'俯视图'} ] },
+      { name:'正六面体', children:[ {name:'相邻面'},{name:'相对面'},{name:'公共边/顶点'} ] },
+      { name:'四棱锥', children:[ {name:'底面'},{name:'侧面'},{name:'公共边'} ] },
+      { name:'立体拼合', children:[ {name:'凹凸对应'},{name:'切割重组'},{name:'折叠方向'} ] },
+    ]},
+  ]},
+  reasoning: { name:'判断推理', icon:'🧩', children:[
     { name:'定义判断', children:[ {name:'单定义'},{name:'多定义'},{name:'成分分析'},{name:'关键信息'} ] },
     { name:'类比推理', children:[ {name:'内涵关系'},{name:'外延关系'},{name:'语法关系'},{name:'语义关系'} ] },
     { name:'逻辑判断', children:[ {name:'翻译推理'},{name:'真假推理'},{name:'分析推理'},{name:'加强削弱'},{name:'前提假设'} ] },
@@ -4426,14 +4470,24 @@ const KNOWLEDGE = {
     {tag:'技巧',text:'语句排序题：先看选项首句排除，再找关联词（这、那、换句话说）确定先后，最后通读验证。'},
   ],
   reasoning: [
-    {tag:'图形',text:'图形推理常见规律：对称性、旋转、平移、元素分布、叠加（去同存异/去异存同）、数量关系（点线角面素）。'},
     {tag:'逻辑',text:'翻译推理：p→q 等价于 非q→非p（逆否命题）。肯前必肯后，否后必否前，否前肯后无必然结论。'},
     {tag:'定义',text:'定义判断解题法：找关键词（主体、客体、条件、方式、目的、结果），逐一比对选项排除。'},
     {tag:'类比',text:'类比推理常见关系：全同、并列、包含、交叉、属性、对应、因果。注意词性一致和逻辑关系一致。'},
-    {tag:'图形',text:'数量类规律：点（交点、切点）、线（直线、曲线、笔画）、角（锐角、直角、钝角）、面（封闭区域）、素（元素种类/数量）。'},
     {tag:'逻辑',text:'削弱论证方法：否定论点、否定论据、切断联系（论据推不出论点）、另有他因。加强则相反。'},
     {tag:'技巧',text:'逻辑判断真假推理：矛盾关系（必一真一假）：A↔非A；所有是↔有些非；所有非↔有些是；p且q↔非p或非q。'},
     {tag:'定义',text:'定义判断注意：多定义题先看提问问哪个定义；关键词不是所有都要满足，看题目要求。'},
+    {tag:'逻辑',text:'分析推理（排列/组合）：优先用排除法、最大信息法、列表法；条件复杂时假设代入验证。'},
+    {tag:'类比',text:'类比推理二级辨析：词性、感情色彩、程度、必然/或然、主动/被动，能区分易混选项。'},
+  ],
+  figure: [
+    {tag:'数量',text:'数量类规律：点（交点、切点、出头点）、线（直线、曲线、笔画数）、角（锐角、直角、钝角）、面（封闭区域数）、素（元素种类/个数）。常呈等差或循环。'},
+    {tag:'位置',text:'位置类规律：平移（方向+步长）、旋转（顺/逆时针+角度）、翻转（左右/上下）、静态关系（相邻/相离/相交/包含）。看清运动轨迹。'},
+    {tag:'样式',text:'样式类规律：遍历（缺啥补啥）、叠加（去同存异、去异存同、黑白叠加自定义规则）。先看前两图叠加得第三图的规则。'},
+    {tag:'属性',text:'属性类规律：对称性（轴对称/中心对称/对称轴数量方向）、曲直性（全直/全曲/混合）、开闭性（封闭/开放/半开半闭）。优先看是否对称。'},
+    {tag:'重构',text:'重构折叠：相对面（相间或Z端）不相邻；相邻面公共边/公共顶点定方位；三视图与立体拼合看凹凸对应。'},
+    {tag:'技巧',text:'做题顺序：先看属性（对称/曲直/开闭）与整体特征，再看数量（点线角面素笔画），最后看位置与样式。特征明显优先属性。'},
+    {tag:'笔画',text:'一笔画判定：奇点（连奇数条线）为0或2可一笔画；多笔=奇点个数/2。常见"日""中"可一笔画，"田"需两笔。'},
+    {tag:'陷阱',text:'九宫格优先看每行/每列规律一致；两组图看第一组规律套第二组；类比图推看词项间逻辑关系而非图形像不像。'},
   ],
   quantity: [
     {tag:'公式',text:'工程问题：工作总量=效率×时间。赋值法：给效率或总量赋特殊值（如1或最小公倍数）。'},
@@ -7268,7 +7322,7 @@ function collectMindmapNodeNames(){
 }
 // 按科目分组收集思维导图节点名（用于"知识点"下拉菜单分类展示）
 function collectMindmapGroupedNames(){
-  const builtinOrder = ['verbal','data','reasoning','quantity','common','shenlun'];
+  const builtinOrder = ['verbal','data','reasoning','figure','quantity','common','shenlun'];
   const known = new Set(builtinOrder);
   const seen = {}; // 全局去重，命中则跳过
   const groups = [];
@@ -7305,7 +7359,7 @@ function _escAttrKp(s){ return (''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
 //   targetId: 'manKp' | 'bankKpFilter' | 不传=两个一起
 function populateKpDropdown(scope, targetId){
   scope = scope || '__all';
-  const SUB2KEY = { '常识判断':'common','时政热点':'politics','言语理解':'verbal','判断推理':'reasoning','数量关系':'quantity','资料分析':'data','申论':'shenlun' };
+  const SUB2KEY = { '常识判断':'common','时政热点':'politics','言语理解':'verbal','判断推理':'reasoning','图形推理':'figure','数量关系':'quantity','资料分析':'data','申论':'shenlun' };
   const selVal = (id)=>{ const e=document.getElementById(id); return e?e.value:''; };
   const currentSubKey = SUB2KEY[selVal('manModule')] || SUB2KEY[selVal('errorModule')] || '';
   const targets = targetId ? [targetId] : ['manKp','bankKpFilter','errorKp'];
@@ -7514,8 +7568,8 @@ function renderMindmap(){
   html += '</div>';
   // 6 个科目 tab（含用户自定义）
   if(!store.mindmapCustom) store.mindmapCustom = {};
-  const builtinSubs = ['verbal','data','reasoning','quantity','common','shenlun'];
-  const subLabel = { verbal:'言语理解与表达', data:'资料分析', reasoning:'判断推理', quantity:'数量关系', common:'常识判断', shenlun:'申论' };
+  const builtinSubs = ['verbal','data','reasoning','figure','quantity','common','shenlun'];
+  const subLabel = { verbal:'言语理解与表达', data:'资料分析', reasoning:'判断推理', figure:'图形推理', quantity:'数量关系', common:'常识判断', shenlun:'申论' };
   const customSubs = Object.keys(store.mindmapCustom).filter(function(k){ return builtinSubs.indexOf(k)<0; });
   customSubs.forEach(function(k){ subLabel[k] = (store.mindmapCustom[k] && store.mindmapCustom[k].name) || k; });
   const subs = builtinSubs.concat(customSubs);
@@ -7752,7 +7806,7 @@ function mmJumpToBank(path){
   const kw = (node.name||'').trim();
   if(!kw){ if(typeof toast==='function') toast('这个节点没有名称'); return; }
   // 精确等于 TOPICS 模块名 → 按模块筛；否则按知识点（kp）精确筛
-  const TOPIC_NAMES = ['言语理解','资料分析','判断推理','数量关系','常识判断','时政热点','申论'];
+  const TOPIC_NAMES = ['言语理解','资料分析','判断推理','图形推理','数量关系','常识判断','时政热点','申论'];
   const matchedTopic = TOPIC_NAMES.indexOf(kw)>=0;
   if(matchedTopic){
     if(typeof pickBankMod === 'function') pickBankMod(kw, null);
@@ -7769,7 +7823,7 @@ function mmJumpToBank(path){
 }
 // 根节点跳题库（直接用科目对应的模块名）
 function mmJumpToBankRoot(sub){
-  const sub2name = { verbal:'言语理解', data:'资料分析', reasoning:'判断推理', quantity:'数量关系', common:'常识判断', shenlun:'申论' };
+  const sub2name = { verbal:'言语理解', data:'资料分析', reasoning:'判断推理', figure:'图形推理', quantity:'数量关系', common:'常识判断', shenlun:'申论' };
   const nm = sub2name[sub] || (MINDMAP_DATA[sub] && MINDMAP_DATA[sub].name) || sub;
   if(typeof pickBankMod === 'function') pickBankMod(nm, null);
   if(typeof showPage === 'function') showPage('bank');
@@ -8037,7 +8091,7 @@ function renderTopic(key){
     <div class="stat-box"><div class="stat-num orange clickable" onclick="openModuleStatEdit('${t.name}')">${totalErr2}</div><div class="stat-label">错题数</div></div>
   `;
   // 刷题入口（每行：题量 + 🔄换一批 = 重新选一批 20 题）
-  const _keyOf = (d)=> t.name+'|'+d.nm;
+  const _keyOf = (d)=>{ const k = t.name+'|'+d.nm; return (typeof QUESTION_BANK!=='undefined' && QUESTION_BANK[k]) ? k : t.name; };
   const _countOf = (d)=>{
     try{
       const base = (typeof QUESTION_BANK!=='undefined' && QUESTION_BANK[_keyOf(d)]) || [];
@@ -9018,7 +9072,7 @@ function renderKnowledge(key){
 function refreshKnowledge(key){ renderKnowledge(key); toast('已刷新知识点'); }
 
 // ---------- 用户自定义考点：添加 / 导入 / 删除 ----------
-const KP_NAME = {common:'常识判断',politics:'时政热点',verbal:'言语理解',reasoning:'判断推理',quantity:'数量关系',data:'资料分析'};
+const KP_NAME = {common:'常识判断',politics:'时政热点',verbal:'言语理解',reasoning:'判断推理',figure:'图形推理',quantity:'数量关系',data:'资料分析'};
 let kpKey = null;
 function addKnowledge(key){
   kpKey = key;
@@ -9163,7 +9217,7 @@ function startDrill(module, type){
   if(quizState.questions.length < 5){
     try{
       const _k = module+'|'+type;
-      const _raw = (typeof QUESTION_BANK!=='undefined' && QUESTION_BANK[_k]) || [];
+      const _raw = (typeof QUESTION_BANK!=='undefined' && (QUESTION_BANK[_k] || QUESTION_BANK[module])) || [];
       if(_raw.length >= 5){
         console.warn('[startDrill] 题量异常，自动用原始题库补足', _k, 'old=', quizState.questions.length, 'raw=', _raw.length);
         const _pick = _raw.slice().sort(()=>Math.random()-0.5).slice(0, Math.min(20, _raw.length));
@@ -9197,7 +9251,7 @@ function startDrill(module, type){
 // ====================================================
 function getQuestions(module, type){
   const key = module+'|'+type;
-  const base = QUESTION_BANK[key] || [];
+  const base = QUESTION_BANK[key] || QUESTION_BANK[module] || [];
   const extra = [];
   // 合并「我的题库」中同模块的题目（手动录入 + PDF 题库），自动同步到对应板块刷题池
   (store.bankManual||[]).forEach(function(it){
@@ -9622,7 +9676,7 @@ const QUESTION_BANK = {
     {q:'湿地被誉为"地球之肾", 具有涵养水源、净化水质、维护生物多样性等重要生态功能。我国于2022年6月1日起施行《湿地保护法》, 标志着湿地保护进入法治化新阶段。目前, 全国已建立600余处国家湿地公园, 湿地保护率超过50%。多个城市获"国际湿地城市"认证, 湿地保护与城市宜居协同推进。据此, 下列选项中不正确的一项是:',options:['湿地具有涵养水源、净化水质等功能','《湿地保护法》于2022年6月1日施行','我国早在20世纪80年代就已建成600余处国家湿地公园','全国湿地保护率已超过50%'],answer:2,explain:'C项错误, 属于时态混淆。原文以"目前"说明已建立600余处国家湿地公园, 属当下状态; C项将其错置为"早在20世纪80年代就已建成", 把当前成就篡改到数十年前, 混淆了时间。A、B、D正确。'},
     {q:'推行生活垃圾分类, 有利于减量化、资源化、无害化处理, 促进循环经济。多地实施垃圾分类投放、分类收集、分类运输、分类处理全链条管理。部分城市通过积分奖励、智能回收箱等方式, 提高居民参与积极性, 分类准确率逐步提升。生活垃圾一般分为可回收物、厨余垃圾、有害垃圾和其他垃圾四类。据此, 下列选项中不正确的一项是:',options:['垃圾分类有利于减量化、资源化、无害化处理','多地实施分类投放到处理全链条管理','垃圾分类仅在少数试点小区象征性开展无实际作用','部分城市用积分奖励提高居民参与度'],answer:2,explain:'C项错误, 属于范围缩小兼曲解文意。原文指出"多地实施全链条管理"且"分类准确率逐步提升", 说明工作已实质铺开并见效; C项将其缩小为"仅在少数试点小区象征性开展、无实际作用", 贬低并限缩了原文表述, 与文意不符。A、B、D正确。'},
   ],
-  '判断推理|图形推理': [
+  '图形推理': [
     {q:'图形序列中,已知图形①②③④分别由 3 条、4 条、5 条、6 条直线构成(依次为三角形、四边形、五边形、六边形),直线数量依次递增 1。问号处(图形⑤)应含有直线数为:',options:['由 8 条直线构成的图形(两个正方形叠放)','由 7 条直线构成的图形(七边形)','由 5 条直线构成的图形(五边形)','由 9 条直线构成的图形'],answer:1,explain:'题干图形直线数依次为 3、4、5、6,呈公差为 1 的等差数列,故问号处应为 7 条直线。选项 B 描述为七边形(7 条直线),符合规律。'},
     {q:'图形序列中,已知图形①②③④的封闭区域(面)数量依次为 1、2、3、4(分别为一个圆、两个独立圆、三个独立圆、四个独立圆)。问号处(图形⑤)封闭区域数应为:',options:['5 个相互独立的小圆','3 个相互独立的小圆','6 个相互独立的小圆','2 个相互独立的小圆'],answer:0,explain:'题干封闭区域数依次为 1、2、3、4,等差递增,问号处应为 5 个面。选项 A 为 5 个独立小圆,符合规律。'},
     {q:'图形序列中,每个图形由若干相同的小图形(元素)组成,图形①②③④的元素个数依次为 2、3、4、5。问号处(图形⑤)的元素个数应为:',options:['6 个元素','4 个元素','7 个元素','5 个元素'],answer:0,explain:'题干元素个数依次为 2、3、4、5,等差递增,问号处应为 6 个元素。选项 A 描述 6 个元素,符合规律。'},
@@ -10324,7 +10378,7 @@ function showQuizResult(){
   // 这样错题记录与累计做题总数都会落到正确的模块下。
   const today = todayKey();
   if(!store.records[today]) store.records[today] = [];
-  const keyMap = {'常识判断':'common','时政热点':'politics','言语理解':'verbal','判断推理':'reasoning','数量关系':'quantity','资料分析':'data','申论':'shenlun'};
+  const keyMap = {'常识判断':'common','时政热点':'politics','言语理解':'verbal','判断推理':'reasoning','图形推理':'figure','数量关系':'quantity','资料分析':'data','申论':'shenlun'};
   const byMod = {};
   quizState.questions.forEach(function(q, i){
     const hasAnswer = (typeof q.answer === 'number' && q.answer >= 0);
@@ -10608,7 +10662,7 @@ function buildDailyRecommend(today){
   const ex = examInfo();
   const count = (ex && ex.days <= 14) ? 4 : (ex && ex.days <= 90) ? 3 : 2;
   const dayNum = parseInt(today.replace(/-/g, ''), 10);
-  const mods = ['常识判断','时政热点','言语理解','判断推理','数量关系','资料分析'];
+  const mods = ['常识判断','时政热点','言语理解','判断推理','图形推理','数量关系','资料分析'];
   const memos = ['常识速记','时政热点','言语金句','申论素材'];
   const items = [];
   if(ex && ex.days <= 14){
@@ -10729,7 +10783,7 @@ function deletePlan(id){
 // ====================================================
 //  智能生成学习计划（根据薄弱项）
 // ====================================================
-const PLAN_MODULE_OPTS = ['常识判断','时政热点','言语理解','判断推理','数量关系','资料分析','试卷练习','其他'];
+const PLAN_MODULE_OPTS = ['常识判断','时政热点','言语理解','判断推理','图形推理','数量关系','资料分析','试卷练习','其他'];
 
 // 各板块对应的推荐网课（生成计划时给出具体课型，让安排更准）
 const MODULE_COURSE = {
@@ -11515,7 +11569,7 @@ function quickRecord(){
   store.records[today].push({module,done,right,time:Date.now(),manual:true});
   addReviewSchedule(today, module, done);
   // 更新累计
-  const keyMap = {'常识判断':'common','时政热点':'politics','言语理解':'verbal','判断推理':'reasoning','数量关系':'quantity','资料分析':'data','申论':'shenlun'};
+  const keyMap = {'常识判断':'common','时政热点':'politics','言语理解':'verbal','判断推理':'reasoning','图形推理':'figure','数量关系':'quantity','资料分析':'data','申论':'shenlun'};
   const k = keyMap[module];
   if(k) store.stats[k] = (store.stats[k]||0) + done;
   saveStore();
@@ -13186,7 +13240,7 @@ function startImportDrill(sec){
 // ====================================================
 //  我的题库（导入 PDF 题库 + 手动录入题目）
 // ====================================================
-const BANK_MODULES = ['常识判断','时政热点','言语理解','判断推理','数量关系','资料分析'];
+const BANK_MODULES = ['常识判断','时政热点','言语理解','判断推理','图形推理','数量关系','资料分析'];
 const BANK_ICONS = {
   '常识判断':'📚',
   '时政热点':'📰',
