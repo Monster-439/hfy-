@@ -1395,7 +1395,7 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .city-btn.active{background:linear-gradient(135deg,var(--pink-soft),var(--pink-btn));color:#fff;border-color:var(--pink-btn);}
 .city-pick-btn{padding:4px 10px;font-size:12px;border:1px solid var(--pink-btn)55;color:var(--text-main);background:#fff;}
 .city-pick-btn:active{transform:scale(.95);}
-@media (max-width:480px){.care-grid{grid-template-columns:repeat(2,1fr);}.flower-scene{flex-direction:column;align-items:center;gap:2px;}.flower-scene-left,.flower-scene-right{width:100%;flex-direction:row;flex-wrap:wrap;justify-content:center;padding-top:0;}.flower-scene-right{margin-top:2px;}.fs-stat{flex:0 1 calc(33.333% - 6px);min-width:0;}}
+@media (max-width:480px){.care-grid{grid-template-columns:repeat(2,1fr);}.flower-scene{flex-direction:column;align-items:center;gap:2px;}.flower-scene-left,.flower-scene-right{width:100%;display:flex;flex-direction:row;flex-wrap:nowrap;justify-content:space-around;align-items:center;padding-top:0;gap:4px;}.flower-scene-right{margin-top:2px;}.fs-stat{flex:1 1 0;min-width:0;justify-content:center;flex-wrap:nowrap;white-space:nowrap;}.flower-scene-right .fs-emoji{width:22px;height:22px;font-size:17px;}.flower-scene-right .fs-label{font-size:11px;}.flower-scene-right .fs-bar{flex:0 0 20px;min-width:20px;}}
 /* 喷药动画：喷雾瓶 + 雾点 */
 .spray-can{position:absolute;font-size:26px;left:50%;top:30px;transform:translateX(-50%);animation:sprayShake .5s ease-in-out infinite;pointer-events:none;z-index:5;}
 .spray-dot{position:absolute;font-size:14px;pointer-events:none;animation:sprayDot 1s ease-out forwards;}
@@ -4428,7 +4428,11 @@ function goBack(){
 }
 
 document.querySelectorAll('.nav-item').forEach(item=>{
-  item.addEventListener('click',()=> showPage(item.dataset.page));
+  item.addEventListener('click',()=> {
+    showPage(item.dataset.page);
+    // 移动端抽屉：点完子项双重保险收起（showPage 内已收，这里防遗漏）
+    closeDrawer();
+  });
 });
 
 // 移动端隐藏式抽屉（汉堡菜单）
@@ -6750,6 +6754,8 @@ function toggleQuestionBookToday(id){
     b._todayDone = false;
   }
   saveStore(); renderQuestionBooks(); renderTodoList();
+  if(typeof renderPlan==='function') renderPlan();
+  if(typeof renderHome==='function') renderHome();
   if(RT_CURRENT_PAGE==='tomato'){ renderTomatoTodoPick(); autoPickTodayTodo(); }
 }
 function openQbookStatsPopup(tdId){
@@ -16637,6 +16643,8 @@ function renderGarden(){  ensureGarden();
     if(days>=2 && !g.gardenEvent.type && g.weather!=='rain'){ g.gardenEvent = {type:'dry', since:todayKey()}; }
     // 相思病：连续 N 天没来「打卡日历」打卡 → 小花想你生病（成长变慢）；与干旱(没浇水)区分，治愈=去打卡
     else if(calGap>=AWAY_DAYS && !g.gardenEvent.type){ g.gardenEvent = {type:'away', since:todayKey()}; }
+    // 长虫：认真照顾也免不了被虫子盯上，跨天结算 22% 概率被动出现（冷却期内不重新长虫），让"除虫"机制保持可见
+    else if(!g.gardenEvent.type && (Date.now()-(g.gardenEventClearedAt||0)) >= EVENT_COOLDOWN_MS && Math.random()<0.22){ g.gardenEvent = {type:'bug', since:todayKey()}; }
     // 健康连续天数：健康度>=70 才算"养得好"
     if(g.health>=70){ g.healthyStreak = (g.healthyStreak||0)+1; } else { g.healthyStreak = 0; }
     g._lastTick = todayKey();
