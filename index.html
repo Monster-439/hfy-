@@ -7636,15 +7636,16 @@ function renderMindmap(){
     }
     g += svgText(nd.x + textDx, cy, n.name||(lvl===0?data.name:'(未命名)'), textColor, tSize, tWeight)
       + svgErrBadge(nd.x, cy, mmGetErr(sub, nd.path), nd.w);
-    // 节点图片预览（多图相册：清晰大图，最多展示 2 张横向排列；超过用 +N 提示）
+    // 节点图片预览（多图相册：清晰大图，挂在节点正右侧，横向并排；超过用 +N 提示）
     if(hasImg){
       const imgs = (n.images && n.images.length) ? n.images : [{src: n.img}];
-      const tw = 96, th = 66, gap = 5, badgeW = 22;
+      const tw = 96, th = 60, gap = 6, badgeW = 22;
       const show = imgs.slice(0, 2);
       const more = imgs.length - show.length;
       const stripW = show.length * tw + (show.length - 1) * gap + (more > 0 ? badgeW : 0);
-      const stripX0 = nd.x - stripW/2;
-      const imgYc = cy + baseH/2 + th/2 + 14;
+      // 紧贴节点正右侧、与节点同 Y 中心对齐
+      const stripX0 = nd.x + nd.w/2 + 8;
+      const imgYc = cy;
       g += '<g data-mm-img-strip="'+escapeAttr(nd.path)+'" style="cursor:pointer" onclick="event.stopPropagation();mmShowImagesManager(\''+escapeAttr(nd.path)+'\')">';
       const pad = 4;
       g += '<rect x="'+(stripX0-pad)+'" y="'+(imgYc-th/2-pad)+'" width="'+(stripW+pad*2)+'" height="'+(th+pad*2)+'" rx="9" ry="9" fill="rgba(216,107,131,0.05)" stroke="rgba(216,107,131,0.32)" stroke-width="1" stroke-dasharray="4,3"/>';
@@ -7778,7 +7779,7 @@ function layoutRadialMindmap(root){
     const hasKids = !!(node.children && node.children.length>0);
     const open = hasKids && isOpen(path);
     const imgCount = (node.images && node.images.length) || (node.img ? 1 : 0);
-    const extraH = imgCount > 0 ? 80 : 0; // 有图时垂直多留空间给清晰缩略图
+    const extraH = 0; // 缩略图改挂在节点右侧，不再额外占垂直空间
     let y;
     if(hasKids && open){
       const ys = [];
@@ -7808,7 +7809,9 @@ function layoutRadialMindmap(root){
     }
   });
   const maxLevel = nodes.reduce(function(m,n){ return Math.max(m,n.level); }, 0);
-  const width = ROOT_X + (maxLevel+1)*COL_STEP + 60;
+  // 预估图缩略图条占的水平空间：单图 96、最多 2 张 + 间距 + 徽章 ≈ 220
+  const STRIP_MAX_W = 220;
+  const width = ROOT_X + (maxLevel+1)*COL_STEP + STRIP_MAX_W + 30;
   const height = Math.max(cursor + BOT_PAD, 220);
   return { nodes: nodes, edges: edges, width: width, height: height, rootNode: nodes[0] };
 }
@@ -7941,15 +7944,26 @@ function mmAddParentForSelected(){
   // 还原成原 path 升序（自然树序：左→右、上→下），作为新父的子
   taken.sort(function(a,b){ return a.p.localeCompare(b.p, undefined, {numeric:true}); });
   const childNodes = taken.map(function(t){ return t.node; });
-  // 新父节点插在「最浅选中节点」的原位置（父级 children 中原索引处），
-  // 这样新父出现在选中节点右侧一列、选中节点作为其子向左展开
-  const shallow = allPaths[allPaths.length-1]; // 升序后最后一项 = 层级最浅
-  const ss = shallow.split('.');
-  let insPa = root;
-  for(let i=0;i<ss.length-1;i++){ insPa = insPa.children && insPa.children[parseInt(ss[i],10)]; }
-  const insIdx = parseInt(ss[ss.length-1], 10);
+  // 计算「选中节点组的最后一个位置」：最深路径的最后一段索引
+  // 同时记录 originParent（用于无法定位时的兜底插回）
+  let tailParent = null, tailIdx = -1;
+  taken.forEach(function(t){
+    if(!t.p) return;
+    const ss = t.p.split('.');
+    let pa = root;
+    for(let i=0;i<ss.length-1;i++){ pa = pa.children && pa.children[parseInt(ss[i],10)]; }
+    if(!pa || !pa.children) return;
+    const curIdx = parseInt(ss[ss.length-1], 10);
+    if(curIdx > tailIdx){ tailIdx = curIdx; tailParent = pa; }
+  });
+  if(!tailParent){
+    if(typeof toast==='function') toast('合并失败，未识别到选中节点的父级');
+    return;
+  }
+  // 新父节点插到「选中节点组的右侧下一个位置」，让 newNode 出现在 A B 之后（汇总在右侧）
+  const insertAt = tailIdx + 1;
   const newNode = { name: name, children: childNodes };
-  insPa.children.splice(isNaN(insIdx) ? 0 : insIdx, 0, newNode);
+  tailParent.children.splice(insertAt, 0, newNode);
   saveMindmapTreeToStore(root);
   mmSelectedPaths.clear();
   mmMultiSelectMode = false;
