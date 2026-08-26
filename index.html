@@ -37,7 +37,26 @@
 //# sourceMappingURL=chart.umd.js.map
 
 </script>
-<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>
+// 外部库按需懒加载：首屏零外部请求，避免 CDN 卡死整页；仅导入 PDF/Word 时才联网
+(function(){
+  window.__extLibCache = window.__extLibCache || {};
+  window.loadExtLib = function(url){
+    if(window.__extLibCache[url]) return window.__extLibCache[url];
+    window.__extLibCache[url] = new Promise(function(resolve, reject){
+      var s = document.createElement('script');
+      s.src = url; s.async = true;
+      var tid = setTimeout(function(){ reject(new Error('extlib_timeout')); }, 15000);
+      s.onload = function(){ clearTimeout(tid); resolve(); };
+      s.onerror = function(){ clearTimeout(tid); reject(new Error('extlib_error')); };
+      document.head.appendChild(s);
+    });
+    return window.__extLibCache[url];
+  };
+  window.PDFJS_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+  window.MAMMOTH_URL = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
+})();
+</script>
 <style>
 /* ========== 全局重置与变量 ========== */
 
@@ -2549,7 +2568,7 @@ body.drawer-open .nav-cloud{display:none;}
 .diary-past-empty{padding:16px;text-align:center;color:#A98A98;font-size:13px;}
 
 </style></style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<!-- mammoth.browser.min.js 改为按需懒加载（loadExtLib），首屏不再同步联网 -->
 </head>
 <body>
 <div class="app">
@@ -9559,14 +9578,12 @@ function onIdiomFile(input){
   reader.onload = function(e){
     const buf = e.target.result;
     if(/\.docx$/i.test(f.name)){
-      if(window.mammoth){
+      window.loadExtLib(window.MAMMOTH_URL).then(function(){
         mammoth.extractRawText({arrayBuffer:buf}).then(r=>{
           const ta=document.getElementById('idiomImportText'); if(ta) ta.value = r.value || '';
           renderIdiomImportPreview();
         }).catch(err=>toast('Word 解析失败：'+(err&&err.message||err)));
-      } else {
-        toast('Word 解析库未加载，请改用 .txt 或直接粘贴（也可把 Word 发我帮你导入）');
-      }
+      }).catch(function(){ toast('Word 解析需要联网加载组件，当前网络不可用，请改用 .txt 或直接粘贴'); });
     } else {
       const text = (typeof buf==='string')?buf:new TextDecoder('utf-8').decode(new Uint8Array(buf));
       const ta=document.getElementById('idiomImportText'); if(ta) ta.value = text;
@@ -14097,10 +14114,10 @@ function arrayBufferToDataUrl(buf, mime){
 }
 
 function extractPdfQuestions(buf){
-  if(!window.pdfjsLib){
-    return Promise.reject(new Error('no_pdfjs'));
-  }
-  return pdfjsLib.getDocument({data: buf}).promise.then(function(pdf){
+  return window.loadExtLib(window.PDFJS_URL).then(function(){
+    try{ if(pdfjsLib && pdfjsLib.GlobalWorkerOptions) pdfjsLib.GlobalWorkerOptions.workerSrc = window.PDFJS_URL.replace('pdf.min.js','pdf.worker.min.js'); }catch(e){}
+    return pdfjsLib.getDocument({data: buf}).promise;
+  }).then(function(pdf){
     const pagePromises = [];
     for(let p=1;p<=pdf.numPages;p++){
       pagePromises.push(pdf.getPage(p).then(function(page){
@@ -17155,11 +17172,7 @@ function examMgrDel(id){
   if(document.getElementById('page-home').classList.contains('active')) renderHome();
 }
 function saveExamMgr(){ closeExamMgr(); toast('考试目标已更新'); }
-if(window.pdfjsLib){
-  try{
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-  }catch(e){}
-}
+// PDF.js 的 workerSrc 已移至 extractPdfQuestions 懒加载成功后按需设置，避免首屏同步联网
 
 // ====================================================
 //  我的小花园（番茄钟 / 水滴 / 养花 / 灵感库）
