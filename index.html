@@ -11320,6 +11320,10 @@ function recordDrillErrors(){
       id:'err'+Date.now()+'_'+i,
       module: mod,
       content: q.q,
+      // 保留原题结构化字段，使其能作为选择题被「题库/科目刷题」复刷（与题库同池）
+      question: q.q,
+      options: Array.isArray(q.options) ? q.options : undefined,
+      answer: (typeof q.answer === 'number' && q.answer >= 0) ? q.answer : undefined,
       explain: q.explain || '',
       photos: [],
       date: todayKey(),
