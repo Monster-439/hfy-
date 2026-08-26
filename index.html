@@ -7624,7 +7624,7 @@ function renderMindmap(){
     const drawStrokeW= isSel ? 3 : 1.5;
     const hasImg = nd.imgCount > 0;
     const baseH = nd.h;
-    const yShift = hasImg ? 16 : 0;
+    const yShift = 0;
     const cy = nd.y + yShift;
     const canFold = nd.hasKids && lvl>=1;
     const foldSym = nd.open ? '▾' : '▸';
@@ -7636,29 +7636,29 @@ function renderMindmap(){
     }
     g += svgText(nd.x + textDx, cy, n.name||(lvl===0?data.name:'(未命名)'), textColor, tSize, tWeight)
       + svgErrBadge(nd.x, cy, mmGetErr(sub, nd.path), nd.w);
-    // 节点图片缩略图条（多图相册：最多展示 3 张横向排列；超过用 +N 提示）
+    // 节点图片预览（多图相册：清晰大图，最多展示 2 张横向排列；超过用 +N 提示）
     if(hasImg){
       const imgs = (n.images && n.images.length) ? n.images : [{src: n.img}];
-      const show = imgs.slice(0, 3);
+      const tw = 96, th = 66, gap = 5, badgeW = 22;
+      const show = imgs.slice(0, 2);
       const more = imgs.length - show.length;
-      const tw = 28, th = 22, gap = 4, badgeW = more > 0 ? 18 : 0;
-      const stripW = show.length * tw + (show.length - 1) * gap + badgeW;
+      const stripW = show.length * tw + (show.length - 1) * gap + (more > 0 ? badgeW : 0);
       const stripX0 = nd.x - stripW/2;
-      const imgY = cy + baseH/2 + 20;
+      const imgYc = cy + baseH/2 + th/2 + 14;
       g += '<g data-mm-img-strip="'+escapeAttr(nd.path)+'" style="cursor:pointer" onclick="event.stopPropagation();mmShowImagesManager(\''+escapeAttr(nd.path)+'\')">';
-      const pad = 3;
-      g += '<rect x="'+(stripX0-pad)+'" y="'+(imgY-th/2-pad)+'" width="'+(stripW+pad*2)+'" height="'+(th+pad*2)+'" rx="6" ry="6" fill="rgba(216,107,131,0.06)" stroke="rgba(216,107,131,0.28)" stroke-width="1" stroke-dasharray="3,2"/>';
+      const pad = 4;
+      g += '<rect x="'+(stripX0-pad)+'" y="'+(imgYc-th/2-pad)+'" width="'+(stripW+pad*2)+'" height="'+(th+pad*2)+'" rx="9" ry="9" fill="rgba(216,107,131,0.05)" stroke="rgba(216,107,131,0.32)" stroke-width="1" stroke-dasharray="4,3"/>';
       let cxs = stripX0 + tw/2;
       for(let i=0;i<show.length;i++){
         const im = show[i];
-        g += '<rect x="'+(cxs-tw/2-0.5)+'" y="'+(imgY-th/2-0.5)+'" width="'+(tw+1)+'" height="'+(th+1)+'" rx="5" ry="5" fill="#fff" stroke="'+stroke+'" stroke-width="1"/>';
-        g += '<image href="'+escapeAttr(im.src)+'" x="'+(cxs-tw/2)+'" y="'+(imgY-th/2)+'" width="'+tw+'" height="'+th+'" preserveAspectRatio="xMidYMid meet" style="pointer-events:none"/>';
+        g += '<rect x="'+(cxs-tw/2-1)+'" y="'+(imgYc-th/2-1)+'" width="'+(tw+2)+'" height="'+(th+2)+'" rx="7" ry="7" fill="#fff" stroke="'+stroke+'" stroke-width="1.2"/>';
+        g += '<image href="'+escapeAttr(im.src)+'" x="'+(cxs-tw/2)+'" y="'+(imgYc-th/2)+'" width="'+tw+'" height="'+th+'" preserveAspectRatio="xMidYMid meet" style="pointer-events:none"/>';
         cxs += tw + gap;
       }
       if(more>0){
-        const bx = cxs - gap + badgeW/2 - 1;
-        g += '<circle cx="'+bx+'" cy="'+imgY+'" r="10" fill="#D86B83" stroke="#fff" stroke-width="1.5"/>';
-        g += '<text x="'+bx+'" y="'+(imgY+3.5)+'" text-anchor="middle" font-size="11" font-weight="800" fill="#fff" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif" style="pointer-events:none">+'+more+'</text>';
+        const bx = cxs - gap + badgeW/2;
+        g += '<circle cx="'+bx+'" cy="'+imgYc+'" r="11" fill="#D86B83" stroke="#fff" stroke-width="1.5"/>';
+        g += '<text x="'+bx+'" y="'+(imgYc+4)+'" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif" style="pointer-events:none">+'+more+'</text>';
       }
       g += '</g>';
     }
@@ -7778,7 +7778,7 @@ function layoutRadialMindmap(root){
     const hasKids = !!(node.children && node.children.length>0);
     const open = hasKids && isOpen(path);
     const imgCount = (node.images && node.images.length) || (node.img ? 1 : 0);
-    const extraH = imgCount > 0 ? 36 : 0; // 有图时垂直多留 36px 给缩略图条
+    const extraH = imgCount > 0 ? 80 : 0; // 有图时垂直多留空间给清晰缩略图
     let y;
     if(hasKids && open){
       const ys = [];
@@ -7915,12 +7915,12 @@ function mmAddParentForSelected(){
   if(!name) return;
   mmCaptureScroll();
   const root = getMindmapData();
-  // 按 path 倒序：避免从 children[] 中 splice 时索引前移
-  const paths = Array.from(mmSelectedPaths).slice().sort(function(a,b){
+  // 倒序（先取深层、同层大的索引，避免 splice 时索引漂移）
+  const allPaths = Array.from(mmSelectedPaths).slice().sort(function(a,b){
     return b.split('.').length - a.split('.').length || b.localeCompare(a, undefined, {numeric:true});
   });
   const taken = [];
-  paths.forEach(function(p){
+  allPaths.forEach(function(p){
     if(!p) return;
     const segs = p.split('.');
     let parent = root;
@@ -7932,20 +7932,24 @@ function mmAddParentForSelected(){
     const idx = parseInt(segs[segs.length-1], 10);
     if(idx < 0 || idx >= parent.children.length) return;
     const node = parent.children.splice(idx, 1)[0];
-    if(node){ node._origPath = p; taken.push(node); }
+    if(node) taken.push({ node: node, p: p });
   });
   if(taken.length < 2){
-    // 兜底：拿到的不足说明路径解析失败，原样放回
     if(typeof toast==='function') toast('合并失败，未识别到选中节点');
     return;
   }
-  // 还原成原 path 升序（自然树序：左→右、上→下）
-  taken.sort(function(a,b){
-    return a._origPath.localeCompare(b._origPath, undefined, {numeric:true});
-  });
-  taken.forEach(function(x){ delete x._origPath; });
-  const newNode = { name: name, children: taken };
-  root.children.push(newNode);
+  // 还原成原 path 升序（自然树序：左→右、上→下），作为新父的子
+  taken.sort(function(a,b){ return a.p.localeCompare(b.p, undefined, {numeric:true}); });
+  const childNodes = taken.map(function(t){ return t.node; });
+  // 新父节点插在「最浅选中节点」的原位置（父级 children 中原索引处），
+  // 这样新父出现在选中节点右侧一列、选中节点作为其子向左展开
+  const shallow = allPaths[allPaths.length-1]; // 升序后最后一项 = 层级最浅
+  const ss = shallow.split('.');
+  let insPa = root;
+  for(let i=0;i<ss.length-1;i++){ insPa = insPa.children && insPa.children[parseInt(ss[i],10)]; }
+  const insIdx = parseInt(ss[ss.length-1], 10);
+  const newNode = { name: name, children: childNodes };
+  insPa.children.splice(isNaN(insIdx) ? 0 : insIdx, 0, newNode);
   saveMindmapTreeToStore(root);
   mmSelectedPaths.clear();
   mmMultiSelectMode = false;
@@ -8068,8 +8072,8 @@ function mmSetNodeImg(path){
         const dataUrl = String(ev.target.result||'');
         const img = new Image();
         img.onload = function(){
-          // 限制最大 320x320，等比缩放
-          const maxSide = 320;
+          // 限制最大 760x760，等比缩放（更高分辨率，导图里更清晰）
+          const maxSide = 760;
           let w = img.naturalWidth, h = img.naturalHeight;
           if(w>maxSide || h>maxSide){
             if(w>=h){ h = Math.round(h*maxSide/w); w = maxSide; }
@@ -8078,7 +8082,7 @@ function mmSetNodeImg(path){
           const c = document.createElement('canvas');
           c.width = w; c.height = h;
           c.getContext('2d').drawImage(img, 0, 0, w, h);
-          const out = c.toDataURL('image/png');
+          const out = c.toDataURL('image/jpeg', 0.82);
           const root = getMindmapData();
           const segs = p.split('.');
           let cur = root;
@@ -8181,7 +8185,7 @@ function mmCompressAndAddImages(path, files, idx){
   reader.onload = function(ev){
     const img = new Image();
     img.onload = function(){
-      const maxSide = 320;
+      const maxSide = 760;
       let w = img.naturalWidth, h = img.naturalHeight;
       if(w>maxSide || h>maxSide){ if(w>=h){ h = Math.round(h*maxSide/w); w = maxSide; } else { w = Math.round(w*maxSide/h); h = maxSide; } }
       const c = document.createElement('canvas'); c.width = w; c.height = h;
