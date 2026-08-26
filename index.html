@@ -18208,7 +18208,7 @@ function bindStatInteractions(){
   document.querySelectorAll('.fs-stat').forEach(el=>{
     const type = el.dataset.stat;
     const detail = el.querySelector('.fs-detail');
-    const press = (e)=>{ if(e && e.cancelable) e.preventDefault(); const v = type==='moist'?(store.garden.moisture||0):type==='health'?(store.garden.health||0):(store.garden.sunlight||0); if(detail) detail.textContent = statDetailText(type, v); el.classList.add('pressed'); };
+    const press = (e)=>{ if(e && e.cancelable) e.preventDefault(); const g = store.garden||{}; const v = type==='moist'?(g.moisture||0):type==='health'?(g.health||0):(g.sunlight||0); if(detail) detail.textContent = statDetailText(type, v); el.classList.add('pressed'); };
     const release = ()=>{ el.classList.remove('pressed'); };
     el.addEventListener('pointerdown', press);
     el.addEventListener('pointerup', release);
@@ -20843,11 +20843,17 @@ function ghRefreshPage(){ try{ if(store.onboard) applyUsername(); }catch(e){} tr
 window.addEventListener('beforeunload', function(){ try{ ghFlush(); }catch(e){} });
 
 function boot(){
-  bindStatInteractions();   // 状态条「按住展开 / 松手缩放」交互
-  ghInit();                 // 云同步：GitHub 私有仓库同步（若启用）自动连接
-  ensureDailyTodos(); // 进入时同步今日计划 + 生成每日推荐待办（跨天自动更新）
-  if(!store.onboard || !store.onboard.done){ startOnboarding(); }
-  else { showSplash(); }
+  // 防御性：每条预备步骤单独兜底，任一步出错都不能阻断开屏弹窗（刷新必出弹窗是预期行为）
+  try { bindStatInteractions(); } catch(e){ console.error('[boot] bindStatInteractions 出错(已忽略):', e); }
+  try { ghInit(); } catch(e){ console.error('[boot] ghInit 出错(已忽略):', e); }
+  try { ensureDailyTodos(); } catch(e){ console.error('[boot] ensureDailyTodos 出错(已忽略):', e); }
+  try {
+    if(!store.onboard || !store.onboard.done){ startOnboarding(); }
+    else { showSplash(); }
+  } catch(e){
+    console.error('[boot] 启动弹窗出错，兜底显示开屏:', e);
+    try { showSplash(); } catch(e2){}
+  }
 }
 // 每分钟检测跨天：自动刷新「今日待办」（归档往日 + 生成当日推荐）
 setInterval(function(){
@@ -21015,7 +21021,7 @@ function enterWorkbench(){
   const sp = document.getElementById('splash');
   if(sp) sp.classList.remove('show');
   // 关闭 splash 后渲染首页主区（之前漏了这步，导致主区一直空白）
-  if(typeof renderHome==='function') renderHome();
+  try { if(typeof renderHome==='function') renderHome(); } catch(e){ console.error('[enterWorkbench] renderHome 出错(主区可能空白):', e); }
   if(typeof setActiveNav==='function') setActiveNav('home');
 }
 
