@@ -3048,7 +3048,6 @@ body.drawer-open .nav-cloud{display:none;}
         <option value="时政热点">时政热点</option>
         <option value="言语理解" selected>言语理解</option>
         <option value="图形推理">图形推理</option>
-        <option value="图形推理">图形推理</option>
         <option value="判断推理">判断推理</option>
         <option value="数量关系">数量关系</option>
         <option value="资料分析">资料分析</option>
@@ -7586,11 +7585,11 @@ function renderMindmap(){
   const notes = (store.mindmapNotes && store.mindmapNotes[sub]) || '';
   const openMap = (store && store.mindmapOpen) ? store.mindmapOpen : (store.mindmapOpen = {});
   const isOpen = function(path){ return !(path in openMap) || !!openMap[path]; };
-  // ----- 配色 -----
+  // ----- 配色（按「刘义恒导图」风：根绿盒，其余白底+紫色描边；选中/多选再加粗描边） -----
   const COL_ROOT_FILL = '#DCEED6', COL_ROOT_STROKE = '#4F9F73', COL_ROOT_TEXT = '#2D7A4F';
-  const COL_L1_FILL = '#fff',     COL_L1_STROKE   = '#5A7BAE', COL_L1_TEXT   = '#3F5F8F';
-  const COL_L2_FILL = '#fff',     COL_L2_STROKE   = 'var(--pink-btn)', COL_L2_TEXT   = '#C95B7E';
-  const COL_CURVE   = '#D8B8C2';
+  const COL_L1_FILL = '#fff',     COL_L1_STROKE   = '#8A6FBE', COL_L1_TEXT   = '#6B5BA8';
+  const COL_L2_FILL = '#fff',     COL_L2_STROKE   = '#A89BD4', COL_L2_TEXT   = '#7B68B5';
+  const COL_CURVE   = '#BFB3DA';
   // ----- 节点尺寸 -----
   const W_ROOT = 140, H_ROOT = 44;
   const W_L1   = 110, H_L1   = 36;
@@ -7623,15 +7622,20 @@ function renderMindmap(){
     if(lvl===0){ fill=COL_ROOT_FILL; stroke=COL_ROOT_STROKE; textColor=COL_ROOT_TEXT; tSize=14; tWeight=800; }
     else if(lvl===1){ fill=COL_L1_FILL; stroke=COL_L1_STROKE; textColor=COL_L1_TEXT; tSize=13; tWeight=700; }
     else { fill=COL_L2_FILL; stroke=COL_L2_STROKE; textColor=COL_L2_TEXT; tSize=12; tWeight=600; }
+    // 多选模式选中态：填充变浅蓝，描边加粗变蓝
+    const isSel = mmMultiSelectMode && mmSelectedPaths.has(nd.path);
+    const drawFill   = isSel ? '#EEF4FF' : fill;
+    const drawStroke = isSel ? '#3B82F6' : stroke;
+    const drawStrokeW= isSel ? 3 : 1.5;
     const hasImg = nd.imgCount > 0;
     const baseH = nd.h;
-    const yShift = hasImg ? 18 : 0;
+    const yShift = hasImg ? 16 : 0;
     const cy = nd.y + yShift;
     const canFold = nd.hasKids && lvl>=1;
     const foldSym = nd.open ? '▾' : '▸';
-    const textDx = canFold ? 8 : 0;
-    let g = '<g data-mm-path="'+escapeAttr(nd.path)+'" style="cursor:pointer" onclick="onMindmapNodeClick(\''+escapeAttr(nd.path)+'\','+lvl+')">'
-      + svgRect(nd.x, cy, nd.w, baseH, fill, stroke);
+    const textDx = canFold ? 7 : 0;
+    let g = '<g data-mm-path="'+escapeAttr(nd.path)+'" data-mm-sel="'+(isSel?1:0)+'" style="cursor:'+(mmMultiSelectMode?'crosshair':'pointer')+'" onclick="onMindmapNodeClick(\''+escapeAttr(nd.path)+'\','+lvl+')">'
+      + '<rect x="'+(nd.x-nd.w/2)+'" y="'+(cy-baseH/2)+'" width="'+nd.w+'" height="'+baseH+'" rx="'+RX+'" ry="'+RX+'" fill="'+drawFill+'" stroke="'+drawStroke+'" stroke-width="'+drawStrokeW+'"/>';
     if(canFold){
       g += '<text x="'+(nd.x - nd.w/2 + 11)+'" y="'+(cy+4)+'" text-anchor="middle" font-size="13" font-weight="800" fill="'+(lvl===1?COL_L1_TEXT:COL_L2_TEXT)+'" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif" style="cursor:pointer" onclick="event.stopPropagation();toggleMindmapNode(\''+escapeAttr(nd.path)+'\')">'+foldSym+'</text>';
     }
@@ -7676,6 +7680,7 @@ function renderMindmap(){
     +'<div style="font-size:11px;color:#aaa;margin-top:1px">放射状结构 · 一步步搭建自己的知识网</div></div>'
     +'</div>';
   html +=   '<div style="display:flex;gap:6px;flex-wrap:wrap">'
+    +'<button onclick="toggleMmMultiSelMode()" style="background:'+(mmMultiSelectMode?'linear-gradient(135deg,#3B82F6,#2563EB)':'#fff')+';border:1.5px solid '+(mmMultiSelectMode?'#2563EB':'#9B92CC')+';color:'+(mmMultiSelectMode?'#fff':'#6B5BA8')+';border-radius:10px;font-size:12px;padding:6px 12px;cursor:pointer;font-weight:700">☑️ '+(mmMultiSelectMode?'多选开':'多选')+'</button>'
     +'<button onclick="mmShowImport()" style="background:linear-gradient(135deg,#E8919B,#D86B83);border:none;color:#fff;border-radius:10px;font-size:12px;padding:7px 12px;cursor:pointer;font-weight:700;box-shadow:0 2px 6px rgba(216,107,131,.3)">📥 导入</button>'
     +'<button onclick="mmExportCurrent()" style="background:#fff;border:1.5px solid #4F9F73;color:#4F9F73;border-radius:10px;font-size:12px;padding:6px 12px;cursor:pointer;font-weight:700">💾 导出</button>'
     +'<button onclick="mmExportXmind()" style="background:#fff;border:1.5px solid #E0A82E;color:#E0A82E;border-radius:10px;font-size:12px;padding:6px 12px;cursor:pointer;font-weight:700">🧠 导出Xmind</button>'
@@ -7710,6 +7715,14 @@ function renderMindmap(){
   html += '<svg width="'+svgW+'" height="'+svgH+'" viewBox="0 0 '+svgW+' '+svgH+'" style="display:block;min-width:'+svgW+'px">'+svg+'</svg>';
   html += '</div>';
   html += '<div style="margin-top:10px;font-size:11px;color:#bbb;text-align:center">💡 手指左右滑动查看完整导图 · 节点右上角数字为该分支关联的错题数</div>';
+  // 多选浮窗：选中 ≥2 节点时固定底部显示，可一键加上级节点
+  if(mmSelectedPaths.size >= 2){
+    html += '<div style="position:fixed;left:0;right:0;bottom:0;z-index:150;display:flex;gap:8px;align-items:center;padding:12px 14px calc(12px + env(safe-area-inset-bottom));background:rgba(255,255,255,.97);box-shadow:0 -4px 18px rgba(0,0,0,.12)">'
+      + '<span style="font-size:13px;font-weight:700;color:#3B82F6;flex:1">已选 <b>'+mmSelectedPaths.size+'</b> 个节点</span>'
+      + '<button onclick="mmClearSelection()" style="background:#fff;border:1.5px solid #C9C2D8;color:#7B738C;border-radius:12px;font-size:13px;padding:9px 14px;cursor:pointer;font-weight:700">清空</button>'
+      + '<button onclick="mmAddParentForSelected()" style="background:linear-gradient(135deg,#3B82F6,#2563EB);border:none;color:#fff;border-radius:12px;font-size:13px;padding:9px 16px;cursor:pointer;font-weight:700;box-shadow:0 2px 8px rgba(37,99,235,.35)">📦 添加上级节点</button>'
+      + '</div>';
+  }
   // 笔记区
   html += '<div style="background:#fff;border-radius:14px;padding:14px;margin-top:14px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:13px;font-weight:700;color:#A86BC4">📝 知识体系搭建笔记</div><span style="font-size:11px;color:#bbb">自动保存</span></div>';
@@ -7727,9 +7740,10 @@ function renderMindmap(){
     }
   }catch(_){ }
 }
-// ----- SVG 布局辅助：三次贝塞尔曲线 -----
+// ----- SVG 布局辅助：三次贝塞尔曲线（COL_STEP 收紧后 R 也调小，避免 S 形） -----
 function svgCurve(x1,y1,x2,y2){
-  const R = Math.min(80, Math.max(40, Math.abs(x2-x1)/2));
+  const gap = Math.abs(x2-x1);
+  const R = Math.max(8, Math.min(22, gap*0.4));
   return 'M '+x1+' '+y1+' C '+(x1+R)+' '+y1+' '+(x2-R)+' '+y2+' '+x2+' '+y2;
 }
 // ----- SVG 布局算法（递归，支持任意层级；根居左，逐级向右延展） -----
@@ -7747,16 +7761,16 @@ function mmEstimateTextWidth(s, fontSize){
   return w * fontSize;
 }
 function layoutRadialMindmap(root){
-  const ROOT_X = 120, COL_STEP = 198;
+  const ROOT_X = 110, COL_STEP = 150;
   // 节点宽：根据 node.name 自适应，至少保留原固定宽度
-  const NODE_FONT = function(level){ return level===0?14:(level===1?13:12); };
+  const NODE_FONT = function(level){ return level===0?13:(level===1?12:11.5); };
   const NODE_W = function(level, name){
-    const min = level===0?140:(level===1?110:92);
+    const min = level===0?128:(level===1?96:78);
     const hasImgPad = false; // 这里只算文本宽度；图额外撑高
-    return Math.max(min, Math.round(mmEstimateTextWidth(name||'', NODE_FONT(level))) + 40);
+    return Math.max(min, Math.round(mmEstimateTextWidth(name||'', NODE_FONT(level))) + 32);
   };
-  const NODE_H = function(level){ return level===0?44:(level===1?36:30); };
-  const ROW_GAP = 8, BRANCH_GAP = 14, TOP_PAD = 16, BOT_PAD = 16;
+  const NODE_H = function(level){ return level===0?38:(level===1?30:26); };
+  const ROW_GAP = 3, BRANCH_GAP = 5, TOP_PAD = 14, BOT_PAD = 14;
   const openMap = (store && store.mindmapOpen) ? store.mindmapOpen : (store.mindmapOpen = {});
   const isOpen = function(p){ return !(p in openMap) || !!openMap[p]; };
   const nodes = [], edges = [];
@@ -7819,6 +7833,10 @@ function mmSetErr(sub, path, n){
 }
 // ----- 节点点击：弹出可识别的 Action Sheet（避免 confirm 链反人类） -----
 function onMindmapNodeClick(path, level){
+  if(mmMultiSelectMode){
+    mmToggleSelect(path);
+    return;
+  }
   mmShowActions(path, level);
 }
 
@@ -7860,6 +7878,85 @@ function moveMindmapNode(path, dir){
 
 // Action Sheet 弹层（替代 confirm 链）
 let mmCurrentActions = null;  // {path, level}
+
+// 多选模式：选中多个节点 → 反向添加一个上级节点，把选中的都挪进去
+let mmMultiSelectMode = false;        // 是否处于多选模式
+const mmSelectedPaths = new Set();    // 已选中的节点 path 集合
+
+// 切换多选模式（顶部工具栏点这个按钮）
+function toggleMmMultiSelMode(){
+  mmMultiSelectMode = !mmMultiSelectMode;
+  if(!mmMultiSelectMode) mmSelectedPaths.clear();
+  renderMindmap();
+  if(typeof toast==='function'){
+    toast(mmMultiSelectMode ? '多选模式开启，点节点切换选中' : '已退出多选');
+  }
+}
+// 单节点切换选中（多选模式下）
+function mmToggleSelect(path){
+  if(!path){
+    if(typeof toast==='function') toast('根节点不能选中');
+    return;
+  }
+  if(mmSelectedPaths.has(path)) mmSelectedPaths.delete(path);
+  else mmSelectedPaths.add(path);
+  renderMindmap();
+}
+// 清空选中（不影响模式开关）
+function mmClearSelection(){
+  if(!mmSelectedPaths.size) return;
+  mmSelectedPaths.clear();
+  renderMindmap();
+}
+// 把选中节点合并到新建的上级节点下（≥2 才有效）
+function mmAddParentForSelected(){
+  const n = mmSelectedPaths.size;
+  if(n < 2){
+    if(typeof toast==='function') toast('请先选 2 个或更多节点');
+    return;
+  }
+  const defaultName = '新建上级（' + n + ' 项）';
+  const name = ((typeof prompt==='function') ? (prompt('新上级节点名称：', defaultName) || '') : '').trim();
+  if(!name) return;
+  mmCaptureScroll();
+  const root = getMindmapData();
+  // 按 path 倒序：避免从 children[] 中 splice 时索引前移
+  const paths = Array.from(mmSelectedPaths).slice().sort(function(a,b){
+    return b.split('.').length - a.split('.').length || b.localeCompare(a, undefined, {numeric:true});
+  });
+  const taken = [];
+  paths.forEach(function(p){
+    if(!p) return;
+    const segs = p.split('.');
+    let parent = root;
+    for(let i=0;i<segs.length-1;i++){
+      parent = parent.children && parent.children[parseInt(segs[i],10)];
+      if(!parent) return;
+    }
+    if(!parent || !parent.children) return;
+    const idx = parseInt(segs[segs.length-1], 10);
+    if(idx < 0 || idx >= parent.children.length) return;
+    const node = parent.children.splice(idx, 1)[0];
+    if(node){ node._origPath = p; taken.push(node); }
+  });
+  if(taken.length < 2){
+    // 兜底：拿到的不足说明路径解析失败，原样放回
+    if(typeof toast==='function') toast('合并失败，未识别到选中节点');
+    return;
+  }
+  // 还原成原 path 升序（自然树序：左→右、上→下）
+  taken.sort(function(a,b){
+    return a._origPath.localeCompare(b._origPath, undefined, {numeric:true});
+  });
+  taken.forEach(function(x){ delete x._origPath; });
+  const newNode = { name: name, children: taken };
+  root.children.push(newNode);
+  saveMindmapTreeToStore(root);
+  mmSelectedPaths.clear();
+  mmMultiSelectMode = false;
+  renderMindmap();
+  if(typeof toast==='function') toast('已新建上级「'+name+'」（含 '+taken.length+' 个子节点）');
+}
 function mmShowActions(path, level){
   mmCurrentActions = { path:path, level:level };
   const { node, level:lv } = getNodeByPath(path);
@@ -16225,6 +16322,20 @@ function bankAllQuestions(){
   store.bankPdf.forEach(function(e){ (e.questions||[]).forEach(function(q){ all.push(Object.assign({}, q, { module: e.module || '未分类', kp: q.kp || '' })); }); });
   store.bankManual.forEach(function(it){
     all.push({ q: it.q, options: it.options, answer: it.answer, explain: it.explain || '', explainStruct: it.explainStruct || null, module: it.module || '未分类', kp: it.kp || '' });
+  });
+  // 合并「我的错题」中带完整结构的题目（题干+≥2选项+答案）—— 与题库同池，刷题也能刷到错题
+  (store.errors||[]).forEach(function(e){
+    if(e && e.module && Array.isArray(e.options) && e.options.length>=2 && typeof e.answer==='number' && e.answer>=0){
+      all.push({
+        q: e.question || e.content || '(错题回顾)',
+        options: e.options,
+        answer: e.answer,
+        explain: e.summary || '',
+        explainStruct: e.parts || null,
+        module: e.module,
+        kp: e.kp || ''
+      });
+    }
   });
   return all;
 }
