@@ -1366,6 +1366,41 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 /* 知识导图：导入弹层（居中 modal） */
 .mm-import-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:center;justify-content:center;padding:18px;}
 .mm-import-overlay.show{display:flex;animation:mmActionsIn .25s ease;}
+
+[data-theme="dark"] .mm-import-sheet{background:#2D2A28;color:#E8E2DD;}
+[data-theme="dark"] #mmImportText{background:#1F1C1A;color:#E8E2DD;border-color:#3D3937;}
+[data-theme="dark"] .mm-import-preview{background:#1F1C1A;color:#A8A09A;}
+
+/* 知识导图：多图相册管理弹层 */
+.mm-imgs-overlay{position:fixed;inset:0;background:rgba(20,14,18,.65);z-index:220;display:none;align-items:center;justify-content:center;padding:18px;}
+.mm-imgs-overlay.show{display:flex;animation:mmActionsIn .25s ease;}
+.mm-imgs-sheet{background:var(--bg-card,#fff);border-radius:18px;width:100%;max-width:520px;max-height:88vh;overflow:auto;padding:10px 18px 20px;box-shadow:0 16px 48px rgba(0,0,0,.3);animation:mmActionsIn .25s ease;}
+.mm-imgs-bar{width:42px;height:4px;background:#D9CDD5;border-radius:2px;margin:6px auto 12px;}
+.mm-imgs-title{font-size:15px;font-weight:700;color:var(--text-main);text-align:center;margin-bottom:4px;}
+.mm-imgs-desc{font-size:11.5px;color:var(--text-sub);text-align:center;margin-bottom:12px;}
+.mm-imgs-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.mm-img-card{position:relative;aspect-ratio:1/1;border:1.5px solid var(--border-mid);border-radius:10px;overflow:hidden;cursor:pointer;background:#FBF8FC;}
+.mm-img-card img{width:100%;height:100%;object-fit:cover;display:block;}
+.mm-img-idx{position:absolute;left:4px;top:4px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:700;}
+.mm-img-del{position:absolute;right:4px;top:4px;background:rgba(216,88,110,.95);color:#fff;font-size:10px;padding:1px 7px;border-radius:8px;font-weight:700;cursor:pointer;border:none;}
+.mm-img-del:hover{background:#C04A60;}
+.mm-img-note{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.65));color:#fff;font-size:10.5px;line-height:1.45;padding:14px 6px 5px;text-align:center;}
+.mm-imgs-add{display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;border:2px dashed var(--pink-btn,#D86B83);border-radius:10px;color:var(--pink-deep,#C95B7E);cursor:pointer;font-size:14px;font-weight:700;background:rgba(216,107,131,.04);}
+.mm-imgs-add:hover{background:rgba(216,107,131,.12);}
+.mm-img-actbar{display:flex;gap:8px;margin-top:14px;}
+.mm-img-actbar .btn{flex:1;}
+
+/* 知识导图：单图大图查看 */
+.mm-imgview-overlay{position:fixed;inset:0;background:rgba(0,0,0,.86);z-index:230;display:none;align-items:center;justify-content:center;flex-direction:column;padding:14px;}
+.mm-imgview-overlay.show{display:flex;animation:mmActionsIn .22s ease;}
+.mm-imgview-img{max-width:96vw;max-height:76vh;border-radius:10px;background:#fff;display:block;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.mm-imgview-nav{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.18);color:#fff;font-size:22px;font-weight:700;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.mm-imgview-nav:hover{background:rgba(255,255,255,.3);}
+.mm-imgview-prev{left:10px;}
+.mm-imgview-next{right:10px;}
+.mm-imgview-tools{position:absolute;bottom:18px;left:0;right:0;display:flex;justify-content:center;gap:10px;flex-wrap:wrap;padding:0 16px;}
+.mm-imgview-tools .btn{backdrop-filter:blur(8px);}
+.mm-imgview-close{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.22);color:#fff;font-size:18px;border:none;cursor:pointer;}
 .mm-import-sheet{background:var(--bg-card,#fff);border-radius:18px;width:100%;max-width:520px;max-height:88vh;overflow:auto;padding:8px 20px 22px;box-shadow:0 16px 48px rgba(0,0,0,.25);animation:mmActionsIn .25s ease;}
 .mm-import-bar{width:42px;height:4px;background:#D9CDD5;border-radius:2px;margin:6px auto 12px;}
 .mm-import-title{font-size:16px;font-weight:700;color:var(--text-main);text-align:center;margin-bottom:4px;}
@@ -3776,7 +3811,7 @@ body.drawer-open .nav-cloud{display:none;}
     <p class="import-empty" style="text-align:left;margin-bottom:14px;">专注学习一段时间，完成后自动累计到「打卡日历 / 时长统计」，并奖励水滴养花。每完成一次赠送水滴 = 专注分钟 ÷ 5。选择正在攻克的模块，能看清时间都花在哪啦～ 专注中可随时「暂停」后再「结束」，按实际专注时长结算，已经专注的时间不会浪费，照样换算成水滴💧</p>
     <div class="tomato-module">
       <span class="tm-label">📚 正在攻克</span>
-      <select id="tomatoModule" class="manual-sel">
+      <select id="tomatoModule" class="manual-sel" onchange="updateTomatoJumpBtn()">
         <option value="常识判断">常识判断</option>
         <option value="时政热点">时政热点</option>
         <option value="言语理解">言语理解</option>
@@ -3787,6 +3822,7 @@ body.drawer-open .nav-cloud{display:none;}
         <option value="申论">申论</option>
         <option value="综合/其他">综合 / 其他</option>
       </select>
+      <button id="tomatoJumpBtn" class="tm-jump" style="display:none;margin-left:8px;background:linear-gradient(135deg,#E8919B,#D86B83);border:none;color:#fff;border-radius:10px;font-size:12px;padding:6px 12px;cursor:pointer;font-weight:700" onclick="jumpTomatoModule()">⚡ 跳到 <span id="tomatoJumpName">图推</span></button>
     </div>
     <div class="tomato-task">
       <span class="tm-label">🎯 具体在做什么</span>
@@ -7311,6 +7347,19 @@ function getMindmapData(){
   if(!store.mindmapCustom) store.mindmapCustom = {};
   const custom = store.mindmapCustom[sub];
   const root = custom ? JSON.parse(JSON.stringify(custom)) : JSON.parse(JSON.stringify(base));
+  // 老数据迁移：把 node.img 同步进 node.images[0]，便于多图管理
+  function migrate(node){
+    if(node.img && (!Array.isArray(node.images) || !node.images.length)){
+      node.images = [{ src: node.img, name:'', note:'', ts: Date.now() }];
+    }
+    // 清理空数组 / 缺 src 的脏数据
+    if(Array.isArray(node.images)){
+      node.images = node.images.filter(function(im){ return im && im.src; });
+      if(node.images.length===0) delete node.images;
+    }
+    if(node.children) node.children.forEach(migrate);
+  }
+  migrate(root);
   function attachPath(node, p){
     node.path = p;
     if(node.children) node.children.forEach(function(c,i){ attachPath(c, p+'.'+i); });
@@ -7503,6 +7552,16 @@ function saveMindmapTreeToStore(root){
     const out = { name: node.name };
     if(node.img) out.img = node.img;
     if(node.note) out.note = node.note;
+    // 多图相册：保留 images 数组（图+可选标注）
+    if(Array.isArray(node.images) && node.images.length){
+      out.images = node.images.map(function(im){
+        const e = { src: im.src };
+        if(im.note) e.note = im.note;
+        if(im.name) e.name = im.name;
+        if(im.ts) e.ts = im.ts;
+        return e;
+      });
+    }
     if(node.children) out.children = node.children.map(stripPath);
     return out;
   }
@@ -7564,11 +7623,10 @@ function renderMindmap(){
     if(lvl===0){ fill=COL_ROOT_FILL; stroke=COL_ROOT_STROKE; textColor=COL_ROOT_TEXT; tSize=14; tWeight=800; }
     else if(lvl===1){ fill=COL_L1_FILL; stroke=COL_L1_STROKE; textColor=COL_L1_TEXT; tSize=13; tWeight=700; }
     else { fill=COL_L2_FILL; stroke=COL_L2_STROKE; textColor=COL_L2_TEXT; tSize=12; tWeight=600; }
-    const hasImg = !!n.img;
-    const imgH = hasImg ? 32 : 0;
+    const hasImg = nd.imgCount > 0;
     const baseH = nd.h;
-    const totalH = baseH + imgH;
-    const cy = nd.y + (hasImg ? imgH/2 : 0);
+    const yShift = hasImg ? 18 : 0;
+    const cy = nd.y + yShift;
     const canFold = nd.hasKids && lvl>=1;
     const foldSym = nd.open ? '▾' : '▸';
     const textDx = canFold ? 8 : 0;
@@ -7579,13 +7637,31 @@ function renderMindmap(){
     }
     g += svgText(nd.x + textDx, cy, n.name||(lvl===0?data.name:'(未命名)'), textColor, tSize, tWeight)
       + svgErrBadge(nd.x, cy, mmGetErr(sub, nd.path), nd.w);
-    // 节点图片缩略图（位于节点下方，32px 高）
+    // 节点图片缩略图条（多图相册：最多展示 3 张横向排列；超过用 +N 提示）
     if(hasImg){
-      const imgY = cy + baseH/2 + 16;
-      const imgW = 36, imgHH = 28;
-      const ix = nd.x - imgW/2, iy = imgY - imgHH/2;
-      g += '<rect x="'+(ix-1)+'" y="'+(iy-1)+'" width="'+(imgW+2)+'" height="'+(imgHH+2)+'" rx="6" ry="6" fill="#fff" stroke="'+stroke+'" stroke-width="1" />';
-      g += '<image href="'+escapeAttr(n.img)+'" x="'+ix+'" y="'+iy+'" width="'+imgW+'" height="'+imgHH+'" preserveAspectRatio="xMidYMid meet" style="pointer-events:none"/>';
+      const imgs = (n.images && n.images.length) ? n.images : [{src: n.img}];
+      const show = imgs.slice(0, 3);
+      const more = imgs.length - show.length;
+      const tw = 28, th = 22, gap = 4, badgeW = more > 0 ? 18 : 0;
+      const stripW = show.length * tw + (show.length - 1) * gap + badgeW;
+      const stripX0 = nd.x - stripW/2;
+      const imgY = cy + baseH/2 + 20;
+      g += '<g data-mm-img-strip="'+escapeAttr(nd.path)+'" style="cursor:pointer" onclick="event.stopPropagation();mmShowImagesManager(\''+escapeAttr(nd.path)+'\')">';
+      const pad = 3;
+      g += '<rect x="'+(stripX0-pad)+'" y="'+(imgY-th/2-pad)+'" width="'+(stripW+pad*2)+'" height="'+(th+pad*2)+'" rx="6" ry="6" fill="rgba(216,107,131,0.06)" stroke="rgba(216,107,131,0.28)" stroke-width="1" stroke-dasharray="3,2"/>';
+      let cxs = stripX0 + tw/2;
+      for(let i=0;i<show.length;i++){
+        const im = show[i];
+        g += '<rect x="'+(cxs-tw/2-0.5)+'" y="'+(imgY-th/2-0.5)+'" width="'+(tw+1)+'" height="'+(th+1)+'" rx="5" ry="5" fill="#fff" stroke="'+stroke+'" stroke-width="1"/>';
+        g += '<image href="'+escapeAttr(im.src)+'" x="'+(cxs-tw/2)+'" y="'+(imgY-th/2)+'" width="'+tw+'" height="'+th+'" preserveAspectRatio="xMidYMid meet" style="pointer-events:none"/>';
+        cxs += tw + gap;
+      }
+      if(more>0){
+        const bx = cxs - gap + badgeW/2 - 1;
+        g += '<circle cx="'+bx+'" cy="'+imgY+'" r="10" fill="#D86B83" stroke="#fff" stroke-width="1.5"/>';
+        g += '<text x="'+bx+'" y="'+(imgY+3.5)+'" text-anchor="middle" font-size="11" font-weight="800" fill="#fff" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif" style="pointer-events:none">+'+more+'</text>';
+      }
+      g += '</g>';
     }
     g += '</g>';
     svg += g;
@@ -7692,7 +7768,8 @@ function layoutRadialMindmap(root){
     const w = NODE_W(level, node.name), h = NODE_H(level);
     const hasKids = !!(node.children && node.children.length>0);
     const open = hasKids && isOpen(path);
-    const extraH = node.img ? 32 : 0; // 有图时垂直多占 32px
+    const imgCount = (node.images && node.images.length) || (node.img ? 1 : 0);
+    const extraH = imgCount > 0 ? 36 : 0; // 有图时垂直多留 36px 给缩略图条
     let y;
     if(hasKids && open){
       const ys = [];
@@ -7707,7 +7784,7 @@ function layoutRadialMindmap(root){
       cursor += h + ROW_GAP;
     }
     if(extraH){ cursor += extraH; }
-    nodes.push({ node:node, path:path, level:level, x:x, y:y, w:w, h:h, hasKids:hasKids, open:open });
+    nodes.push({ node:node, path:path, level:level, x:x, y:y, w:w, h:h, hasKids:hasKids, open:open, imgCount:imgCount });
     return y;
   }
   layout(root, '', 0);
@@ -7802,12 +7879,12 @@ function mmShowActions(path, level){
   const isRoot = (lv < 0);
   const items = [];
   if(!isRoot){
-    const _nodeImg = !!(node && node.img);
+    const _imgCount = (node && node.images && node.images.length) ? node.images.length : 0;
     items.push({ ico:'＋', title:'添加子节点', desc:'为这个节点新增一个子级', fn:function(){ closeMmActions(); addMindmapChild(path||sub); } });
     items.push({ ico:'✏️', title:'重命名', desc:'修改这个节点的名称', fn:function(){ closeMmActions(); editMindmapNode(path||sub); } });
-    items.push({ ico:'🖼', title:_nodeImg?'更换图片':'插入图片', desc:'节点下方插入一张例题图（≤2MB，会自动缩到 320px）', fn:function(){ closeMmActions(); mmSetNodeImg(path); } });
-    if(_nodeImg){
-      items.push({ ico:'🗑', title:'删除图片', desc:'移除该节点的图片缩略图', danger:true, fn:function(){ closeMmActions(); mmDelNodeImg(path); } });
+    items.push({ ico:'🖼', title:_imgCount?('图片相册（'+_imgCount+'）'):'插入图片', desc:_imgCount?'查看/添加/管理该节点的例题图相册':'节点下方插入例题图（可多张，每张≤2MB）', fn:function(){ closeMmActions(); mmShowImagesManager(path); } });
+    if(_imgCount){
+      items.push({ ico:'🗑', title:'清空图片', desc:'删除该节点所有图片', danger:true, fn:function(){ closeMmActions(); mmClearNodeImages(path); } });
     }
     items.push({ ico:'📚', title:'跳到「我的题库」刷这题点', desc:'用本节点名称筛题，立刻开始', fn:function(){ closeMmActions(); mmJumpToBank(path); } });
     items.push({ ico:'📊', title:'设置错题数', desc:'关联错题后会显示橙色徽章', fn:function(){ closeMmActions(); mmEditErr(sub, path); } });
@@ -7941,6 +8018,212 @@ function mmDelNodeImg(path){
   saveMindmapTreeToStore(root);
   renderMindmap();
   if(typeof toast==='function') toast('已删除图片');
+}
+
+// ===== 多图相册管理（替换单图 node.img 逻辑） =====
+function mmShowImagesManager(path){
+  const r = getNodeByPath(path);
+  const node = r.node;
+  if(!node){ if(typeof toast==='function') toast('节点不存在'); return; }
+  const name = (node.name||'(未命名)');
+  let ov = document.getElementById('mmImgsOverlay');
+  if(!ov){
+    ov = document.createElement('div');
+    ov.id = 'mmImgsOverlay';
+    ov.className = 'mm-imgs-overlay';
+    ov.addEventListener('click', function(e){ if(e.target===ov) closeMmImagesManager(); });
+    document.body.appendChild(ov);
+  }
+  function render(){
+    const imgs = (node.images && node.images.length) ? node.images : [];
+    let grid = '<div class="mm-imgs-grid">';
+    imgs.forEach(function(im, i){
+      grid += '<div class="mm-img-card" onclick="mmShowImgView(\''+escapeAttr(path)+'\','+i+')">'
+        + '<img src="'+escapeAttr(im.src)+'" alt=""/>'
+        + '<span class="mm-img-idx">'+ (i+1) +'</span>'
+        + (im.note ? '<div class="mm-img-note">'+escapeHtml(im.note)+'</div>' : '')
+        + '<button class="mm-img-del" onclick="event.stopPropagation();mmDelImgAt(\''+escapeAttr(path)+'\','+i+')">✕</button>'
+        + '</div>';
+    });
+    grid += '<div class="mm-imgs-add" onclick="mmAddImagesToNode(\''+escapeAttr(path)+'\')">＋ 添加图片</div>';
+    grid += '</div>';
+    ov.innerHTML =
+      '<div class="mm-imgs-sheet">'
+      + '<div class="mm-imgs-bar"></div>'
+      + '<div class="mm-imgs-title">🖼 '+escapeHtml(name)+' · 图片相册（'+imgs.length+'）</div>'
+      + '<div class="mm-imgs-desc">点击图片看大图与标注 · 可放多张例题图（每张≤2MB，自动缩到 320px）</div>'
+      + grid
+      + '<div class="mm-img-actbar"><button class="btn" style="background:linear-gradient(135deg,var(--pink-btn,#D86B83),var(--pink-deep,#C95B7E));color:#fff;border:none;border-radius:10px;padding:10px;font-weight:700;cursor:pointer" onclick="closeMmImagesManager()">完成</button></div>'
+      + '</div>';
+  }
+  render();
+  ov.classList.add('show');
+}
+function closeMmImagesManager(){
+  const ov = document.getElementById('mmImgsOverlay');
+  if(ov) ov.classList.remove('show');
+}
+function mmAddImagesToNode(path){
+  let input = document.getElementById('mmImgsFileInput');
+  if(!input){
+    input = document.createElement('input');
+    input.type = 'file'; input.id = 'mmImgsFileInput'; input.accept = 'image/*'; input.multiple = true; input.style.display = 'none';
+    document.body.appendChild(input);
+    input.addEventListener('change', function(){
+      const files = Array.prototype.slice.call(input.files||[]);
+      const p = input.getAttribute('data-mm-path');
+      input.value = '';
+      input.removeAttribute('data-mm-path');
+      if(!files.length || !p) return;
+      mmCompressAndAddImages(p, files, 0);
+    });
+  }
+  input.setAttribute('data-mm-path', path);
+  input.click();
+}
+function mmCompressAndAddImages(path, files, idx){
+  if(idx >= files.length){ if(typeof toast==='function') toast('图片已添加 ✓'); return; }
+  const f = files[idx];
+  if(f.size > 2*1024*1024){ if(typeof toast==='function') toast('「'+(f.name||'图片')+'」超过 2MB 已跳过'); mmCompressAndAddImages(path, files, idx+1); return; }
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    const img = new Image();
+    img.onload = function(){
+      const maxSide = 320;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if(w>maxSide || h>maxSide){ if(w>=h){ h = Math.round(h*maxSide/w); w = maxSide; } else { w = Math.round(w*maxSide/h); h = maxSide; } }
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      const out = c.toDataURL('image/png');
+      const root = getMindmapData();
+      const segs = path.split('.');
+      let cur = root;
+      for(let i=0;i<segs.length;i++){ cur = cur.children && cur.children[parseInt(segs[i],10)]; if(!cur) return; }
+      if(!Array.isArray(cur.images)) cur.images = [];
+      cur.images.push({ src: out, name:'', note:'', ts: Date.now() });
+      saveMindmapTreeToStore(root);
+      renderMindmap();
+      const ov = document.getElementById('mmImgsOverlay');
+      if(ov && ov.classList.contains('show')) mmShowImagesManager(path);
+      mmCompressAndAddImages(path, files, idx+1);
+    };
+    img.src = String(ev.target.result||'');
+  };
+  reader.readAsDataURL(f);
+}
+function mmDelImgAt(path, i){
+  const root = getMindmapData();
+  const segs = path.split('.');
+  let cur = root;
+  for(let k=0;k<segs.length;k++){ cur = cur.children && cur.children[parseInt(segs[k],10)]; if(!cur) return; }
+  if(!cur.images || !cur.images[i]) return;
+  if(typeof confirm==='function' && !confirm('删除这张图片？')) return;
+  cur.images.splice(i,1);
+  if(cur.images.length===0){ delete cur.images; delete cur.img; }
+  saveMindmapTreeToStore(root);
+  renderMindmap();
+  closeMmImgView();
+  mmShowImagesManager(path);
+}
+function mmClearNodeImages(path){
+  if(typeof confirm==='function' && !confirm('清空该节点的所有图片？')) return;
+  const root = getMindmapData();
+  const segs = path.split('.');
+  let cur = root;
+  for(let k=0;k<segs.length;k++){ cur = cur.children && cur.children[parseInt(segs[k],10)]; if(!cur) return; }
+  delete cur.images;
+  delete cur.img;
+  saveMindmapTreeToStore(root);
+  renderMindmap();
+}
+// 大图查看 + 标注 + 排序
+let mmImgViewState = null;
+function mmShowImgView(path, i){
+  const root = getMindmapData();
+  const segs = path.split('.');
+  let cur = root;
+  for(let k=0;k<segs.length;k++){ cur = cur.children && cur.children[parseInt(segs[k],10)]; if(!cur) return; }
+  const imgs = (cur.images && cur.images.length) ? cur.images : [];
+  if(i<0 || i>=imgs.length) return;
+  mmImgViewState = { path:path, idx:i };
+  let ov = document.getElementById('mmImgViewOverlay');
+  if(!ov){
+    ov = document.createElement('div');
+    ov.id = 'mmImgViewOverlay'; ov.className = 'mm-imgview-overlay';
+    ov.addEventListener('click', function(e){ if(e.target===ov) closeMmImgView(); });
+    document.body.appendChild(ov);
+  }
+  function render(){
+    const im = imgs[mmImgViewState.idx];
+    const total = imgs.length;
+    ov.innerHTML =
+      '<button class="mm-imgview-close" onclick="closeMmImgView()">✕</button>'
+      + (total>1 ? '<button class="mm-imgview-nav mm-imgview-prev" onclick="mmImgViewMove(-1)">‹</button>' : '')
+      + (total>1 ? '<button class="mm-imgview-nav mm-imgview-next" onclick="mmImgViewMove(1)">›</button>' : '')
+      + '<img class="mm-imgview-img" src="'+escapeAttr(im.src)+'" alt=""/>'
+      + '<div class="mm-imgview-tools">'
+      + '<input id="mmImgNote" value="'+escapeAttr(im.note||'')+'" placeholder="给这张图加个标注（如：例题/易错点）" style="flex:1;min-width:140px;max-width:320px;padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);color:#fff;font-size:13px" oninput="mmImgViewState&&(mmImgViewState.dirty=this.value)" />'
+      + '<button class="btn" style="background:#fff;color:#C95B7E;border:none;border-radius:10px;padding:8px 14px;font-weight:700;cursor:pointer" onclick="mmSaveImgNote()">保存标注</button>'
+      + '<button class="btn" style="background:rgba(255,255,255,.16);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-weight:700;cursor:pointer" onclick="mmDelImgAt(\''+escapeAttr(path)+'\','+mmImgViewState.idx+')">删除</button>'
+      + '</div>';
+  }
+  render();
+  ov.classList.add('show');
+}
+function closeMmImgView(){
+  const ov = document.getElementById('mmImgViewOverlay');
+  if(ov) ov.classList.remove('show');
+}
+function mmImgViewMove(d){
+  if(!mmImgViewState) return;
+  const root = getMindmapData();
+  const segs = mmImgViewState.path.split('.');
+  let cur = root;
+  for(let k=0;k<segs.length;k++){ cur = cur.children && cur.children[parseInt(segs[k],10)]; if(!cur) return; }
+  const imgs = cur.images||[];
+  const ni = mmImgViewState.idx + d;
+  if(ni<0 || ni>=imgs.length) return;
+  const t = imgs[mmImgViewState.idx]; imgs[mmImgViewState.idx] = imgs[ni]; imgs[ni] = t;
+  mmImgViewState.idx = ni;
+  saveMindmapTreeToStore(root);
+  renderMindmap();
+  const ov = document.getElementById('mmImgViewOverlay');
+  if(ov && ov.classList.contains('show')){
+    const segs2 = mmImgViewState.path.split('.');
+    let c2 = getMindmapData();
+    for(let k=0;k<segs2.length;k++){ c2 = c2.children && c2.children[parseInt(segs2[k],10)]; if(!c2) break; }
+    const list = (c2 && c2.images) ? c2.images : [];
+    const im = list[mmImgViewState.idx];
+    if(im){
+      const total = list.length;
+      ov.innerHTML =
+        '<button class="mm-imgview-close" onclick="closeMmImgView()">✕</button>'
+        + (total>1 ? '<button class="mm-imgview-nav mm-imgview-prev" onclick="mmImgViewMove(-1)">‹</button>' : '')
+        + (total>1 ? '<button class="mm-imgview-nav mm-imgview-next" onclick="mmImgViewMove(1)">›</button>' : '')
+        + '<img class="mm-imgview-img" src="'+escapeAttr(im.src)+'" alt=""/>'
+        + '<div class="mm-imgview-tools">'
+        + '<input id="mmImgNote" value="'+escapeAttr(im.note||'')+'" placeholder="给这张图加个标注（如：例题/易错点）" style="flex:1;min-width:140px;max-width:320px;padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.12);color:#fff;font-size:13px" oninput="mmImgViewState&&(mmImgViewState.dirty=this.value)" />'
+        + '<button class="btn" style="background:#fff;color:#C95B7E;border:none;border-radius:10px;padding:8px 14px;font-weight:700;cursor:pointer" onclick="mmSaveImgNote()">保存标注</button>'
+        + '<button class="btn" style="background:rgba(255,255,255,.16);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-weight:700;cursor:pointer" onclick="mmDelImgAt(\''+escapeAttr(mmImgViewState.path)+'\','+mmImgViewState.idx+')">删除</button>'
+        + '</div>';
+    }
+  }
+}
+function mmSaveImgNote(){
+  if(!mmImgViewState) return;
+  const val = (document.getElementById('mmImgNote') ? document.getElementById('mmImgNote').value : (mmImgViewState.dirty||'')) || '';
+  const root = getMindmapData();
+  const segs = mmImgViewState.path.split('.');
+  let cur = root;
+  for(let k=0;k<segs.length;k++){ cur = cur.children && cur.children[parseInt(segs[k],10)]; if(!cur) return; }
+  if(cur.images && cur.images[mmImgViewState.idx]){
+    cur.images[mmImgViewState.idx].note = val;
+    saveMindmapTreeToStore(root);
+    renderMindmap();
+    closeMmImgView();
+    mmShowImagesManager(mmImgViewState.path);
+    if(typeof toast==='function') toast('已保存标注 ✓');
+  }
 }
 
 // 跳题库（叶子/任意节点 → 用节点名作为筛选关键字 + showPage('bank')）
@@ -19440,6 +19723,7 @@ function pickTomatoTodo(){
           if(sel.options[i].value===modName){ sel.selectedIndex=i; break; }
         }
       }
+      updateTomatoJumpBtn();
       return;
     }
   }
@@ -19465,6 +19749,65 @@ function onTomatoTaskInput(){
   tomatoTodoId = ''; // 自定义输入即视为不复用某条待办
   const pick = document.getElementById('tomatoTodoPick');
   if(pick && inp.value.trim()!=='') pick.value = '';
+  syncTomatoModuleFromTask(); // 自动识别模块关键词，联动「正在攻克」+ 跳转按钮
+}
+
+// ---- 番茄钟：任务文本自动识别模块关键词，联动「正在攻克」+ 一键跳转 ----
+const TOMATO_MOD_ALIAS = [
+  { key:'图形推理', words:['图形推理','图推','图形'] },
+  { key:'判断推理', words:['判断推理','判断'] },
+  { key:'资料分析', words:['资料分析','资料'] },
+  { key:'言语理解', words:['言语理解','言语'] },
+  { key:'数量关系', words:['数量关系','数量'] },
+  { key:'常识判断', words:['常识判断','常识'] },
+  { key:'时政热点', words:['时政热点','时政'] },
+  { key:'申论', words:['申论'] }
+];
+function detectTomatoModule(text){
+  text = (text||'').trim();
+  if(!text) return '';
+  for(let i=0;i<TOMATO_MOD_ALIAS.length;i++){
+    const a = TOMATO_MOD_ALIAS[i];
+    for(let j=0;j<a.words.length;j++){
+      if(text.indexOf(a.words[j])>=0) return a.key;
+    }
+  }
+  return '';
+}
+function syncTomatoModuleFromTask(){
+  const inp = document.getElementById('tomatoTaskInput');
+  if(!inp) return;
+  const mod = detectTomatoModule(inp.value);
+  if(mod){
+    const sel = document.getElementById('tomatoModule');
+    if(sel){
+      for(let i=0;i<sel.options.length;i++){ if(sel.options[i].value===mod){ sel.selectedIndex=i; break; } }
+    }
+  }
+  updateTomatoJumpBtn();
+}
+function updateTomatoJumpBtn(){
+  const sel = document.getElementById('tomatoModule');
+  const btn = document.getElementById('tomatoJumpBtn');
+  if(!sel || !btn) return;
+  const mod = sel.value;
+  if(mod && mod!=='综合/其他'){
+    const nm = document.getElementById('tomatoJumpName');
+    if(nm) nm.textContent = mod;
+    btn.style.display = 'inline-block';
+  } else {
+    btn.style.display = 'none';
+  }
+}
+function jumpTomatoModule(){
+  const sel = document.getElementById('tomatoModule');
+  if(!sel) return;
+  const mod = sel.value;
+  if(!mod || mod==='综合/其他'){ if(typeof toast==='function') toast('请先选择或输入模块～'); return; }
+  if(typeof pickBankMod==='function') pickBankMod(mod, null);
+  if(typeof gBankKp!=='undefined') gBankKp = '';
+  if(typeof showPage==='function') showPage('bank');
+  if(typeof toast==='function') toast('已跳到「'+mod+'」题库，开始攻克吧 ⚡');
 }
 
 // ---- 右下角浮窗 ----
