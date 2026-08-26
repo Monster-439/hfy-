@@ -7595,7 +7595,7 @@ function renderMindmap(){
   let svg = '';
   // 连线（任意层级，仅当父级展开时画）
   layout.edges.forEach(function(e){
-    svg += '<path d="'+svgCurve(e.x1,e.y1,e.x2,e.y2)+'" stroke="'+COL_CURVE+'" stroke-width="2.2" fill="none" opacity="0.9"/>';
+    svg += '<path d="'+svgCurve(e.x1,e.y1,e.x2,e.y2)+'" stroke="'+COL_CURVE+'" stroke-width="2.5" fill="none" opacity="1" stroke-linecap="round" stroke-linejoin="round"/>';
   });
   // 通用绘制函数
   function svgRect(x, y, w, h, fill, stroke){
@@ -7646,6 +7646,8 @@ function renderMindmap(){
       // 紧贴节点正右侧、与节点同 Y 中心对齐
       const stripX0 = nd.x + nd.w/2 + 8;
       const imgYc = cy;
+      // 归属虚线（节点右边缘 → 缩略图条左边缘），表明图归属于该节点
+      g += '<line x1="'+(nd.x + nd.w/2 + 1)+'" y1="'+cy+'" x2="'+(stripX0 - 1)+'" y2="'+cy+'" stroke="'+stroke+'" stroke-width="1.4" stroke-dasharray="4,3" opacity="0.65"/>';
       g += '<g data-mm-img-strip="'+escapeAttr(nd.path)+'" style="cursor:pointer" onclick="event.stopPropagation();mmShowImagesManager(\''+escapeAttr(nd.path)+'\')">';
       const pad = 4;
       g += '<rect x="'+(stripX0-pad)+'" y="'+(imgYc-th/2-pad)+'" width="'+(stripW+pad*2)+'" height="'+(th+pad*2)+'" rx="9" ry="9" fill="rgba(216,107,131,0.05)" stroke="rgba(216,107,131,0.32)" stroke-width="1" stroke-dasharray="4,3"/>';
@@ -7736,11 +7738,16 @@ function renderMindmap(){
     }
   }catch(_){ }
 }
-// ----- SVG 布局辅助：三次贝塞尔曲线（COL_STEP 收紧后 R 也调小，避免 S 形） -----
+// ----- SVG 布局辅助：水平-竖直-水平 三段折线（短距离也清晰可见，避免贝塞尔在紧凑布局下曲线消失） -----
 function svgCurve(x1,y1,x2,y2){
-  const gap = Math.abs(x2-x1);
-  const R = Math.max(8, Math.min(22, gap*0.4));
-  return 'M '+x1+' '+y1+' C '+(x1+R)+' '+y1+' '+(x2-R)+' '+y2+' '+x2+' '+y2;
+  const dx = x2 - x1;
+  if(Math.abs(dx) < 1) return 'M '+x1+' '+y1+' L '+x2+' '+y2;
+  const R = Math.min(40, Math.max(16, Math.abs(dx)/2 - 8));
+  return 'M '+x1+' '+y1
+    + ' L '+(x1+R)+' '+y1
+    + ' L '+(x1+R)+' '+y2
+    + ' L '+(x2-R)+' '+y2
+    + ' L '+x2+' '+y2;
 }
 // ----- SVG 布局算法（递归，支持任意层级；根居左，逐级向右延展） -----
 // 中文按 1 倍字宽，ASCII 按 0.55，半角符号按 0.85，最小宽度保留旧值
@@ -7944,9 +7951,9 @@ function mmAddParentForSelected(){
   // 还原成原 path 升序（自然树序：左→右、上→下），作为新父的子
   taken.sort(function(a,b){ return a.p.localeCompare(b.p, undefined, {numeric:true}); });
   const childNodes = taken.map(function(t){ return t.node; });
-  // 计算「选中节点组的最后一个位置」：最深路径的最后一段索引
-  // 同时记录 originParent（用于无法定位时的兜底插回）
-  let tailParent = null, tailIdx = -1;
+  // 计算「选中节点组的第一个位置」：最深路径的最后一段索引 → 用 MIN（让 newNode 插在选中组最浅节点位置，替代其父级位置）
+  // 这样 newNode 出现在原选中节点组的起始位置、它的 children = [原选中节点们]，视觉上父在左、子在右
+  let headParent = null, headIdx = Infinity;
   taken.forEach(function(t){
     if(!t.p) return;
     const ss = t.p.split('.');
@@ -7954,16 +7961,16 @@ function mmAddParentForSelected(){
     for(let i=0;i<ss.length-1;i++){ pa = pa.children && pa.children[parseInt(ss[i],10)]; }
     if(!pa || !pa.children) return;
     const curIdx = parseInt(ss[ss.length-1], 10);
-    if(curIdx > tailIdx){ tailIdx = curIdx; tailParent = pa; }
+    if(curIdx < headIdx){ headIdx = curIdx; headParent = pa; }
   });
-  if(!tailParent){
+  if(!headParent){
     if(typeof toast==='function') toast('合并失败，未识别到选中节点的父级');
     return;
   }
-  // 新父节点插到「选中节点组的右侧下一个位置」，让 newNode 出现在 A B 之后（汇总在右侧）
-  const insertAt = tailIdx + 1;
+  // 新父节点插到「选中节点组的最浅位置」（即原选中节点第一个的位置），newNode.children = 原选中节点们
+  const insertAt = isFinite(headIdx) ? headIdx : 0;
   const newNode = { name: name, children: childNodes };
-  tailParent.children.splice(insertAt, 0, newNode);
+  headParent.children.splice(insertAt, 0, newNode);
   saveMindmapTreeToStore(root);
   mmSelectedPaths.clear();
   mmMultiSelectMode = false;
@@ -10164,15 +10171,19 @@ function getQuestions(module, type){
       (e.questions||[]).forEach(function(q){ extra.push(q); });
     }
   });
-  // 合并「我的错题」中带完整题干的题目（手动录入/题本关联）—— 与题库同体系，刷题也能刷到错题
+  // 合并「我的错题」：① 带完整题干的题目（手动录入/题本关联）—— 与题库同体系；② 仅含照片的图形推理错题 —— 也进题池，刷题时只展示照片+空 ABCD
   (store.errors||[]).forEach(function(e){
-    if(e && e.module === module && Array.isArray(e.options) && e.options.length>=2 && typeof e.answer==='number' && e.answer>=0){
-      const hasPhoto = Array.isArray(e.photos) && e.photos.length>0;
+    if(!e || e.module !== module) return;
+    const hasPhoto = Array.isArray(e.photos) && e.photos.length>0;
+    const hasFull = Array.isArray(e.options) && e.options.length>=2 && typeof e.answer==='number' && e.answer>=0;
+    // 仅含照片的错题（如图推整图题），也合并进来；选项置 4 个「未填写」让刷题流程完整
+    if(hasFull || hasPhoto){
+      const options = hasFull ? e.options : ['未填写','未填写','未填写','未填写'];
       const qText = e.question || e.content || (hasPhoto ? '（图片错题，请看下方图片）' : '(错题回顾)');
       extra.push({
         q: qText,
-        options: e.options,
-        answer: e.answer,
+        options: options,
+        answer: hasFull ? e.answer : -1,
         explain: e.summary || '',
         explainStruct: e.parts || null,
         _fromError: e.id,
@@ -10180,7 +10191,8 @@ function getQuestions(module, type){
         _errContent: e.content || '',
         _errQuestion: e.question || '',
         _errParts: e.parts || null,
-        _errSummary: e.summary || ''
+        _errSummary: e.summary || '',
+        _errPhotoOnly: !hasFull && hasPhoto  // 标记：这是「纯图片错题」，用户看完图可选「跳过」
       });
     }
   });
@@ -13819,66 +13831,148 @@ function renderErrors(){
     list.innerHTML = bookBanner + '<div class="empty-state"><span class="emoji">❌</span>暂无错题记录</div>';
     return;
   }
-  list.innerHTML = bookBanner + errors.map(e=>{
-    // 完整结构：题干优先（question），否则 content
-    const hasFull = !!(e.options && e.options.some(function(s){ return !!s; }) && (e.answer>=0));
-    const qText = e.question && e.question.trim() ? e.question : e.content;
-    let html = '<div class="error-item" style="flex-direction:column;align-items:stretch;">'
-      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">'
-        + '<span class="type-tag">' + escapeHtml(e.module||'') + '</span>'
-        + (e.kp ? '<span class="err-kp" title="点此在思维导图里定位这个知识点" style="cursor:pointer;display:inline-block;font-size:10px;color:#7A5BA8;background:#F1EAF9;border-radius:8px;padding:1px 7px;" onclick="mmLocateKp(\'' + escapeAttr(e.kp) + '\')">📎 ' + escapeHtml(e.kp) + '</span>' : '')
-        + '<span style="font-size:11px;color:var(--text-sub);">' + escapeHtml(e.date||'') + '</span>'
-        + (e.srcLabel ? '<span class="err-src" style="display:inline-block;font-size:10px;color:#4A3B40;background:var(--pink-btn);border-radius:8px;padding:1px 7px;">' + escapeHtml(e.srcLabel) + '</span>' : '')
-        + '<span class="del" style="margin-left:auto;" onclick="deleteError(\'' + e.id + '\')">✕</span>'
-      + '</div>'
-      + '<div class="content">'
-        + '<div class="q">' + escapeHtml(qText||'').replace(/\n/g,'<br>') + '</div>';
-    // 选项 + 答案
-    if(hasFull){
-      const letters = ['A','B','C','D'];
-      html += '<div class="err-opts" style="margin-top:8px;">';
-      (e.options||[]).forEach(function(opt, idx){
-        if(!opt) return;
-        const isAns = (idx === e.answer);
-        html += '<div class="err-opt" style="display:flex;align-items:flex-start;gap:6px;padding:4px 8px;border-radius:8px;margin-top:4px;font-size:12px;background:' + (isAns ? '#E9F7EC' : 'var(--bg-soft)') + ';border:1px solid ' + (isAns ? '#7BC896' : 'transparent') + ';">'
-          + '<span style="font-weight:700;color:' + (isAns ? '#2D7A4F' : '#999') + ';">' + letters[idx] + (isAns ? ' ✓' : '') + '</span>'
-          + '<span style="flex:1;line-height:1.6;">' + escapeHtml(opt).replace(/\n/g,'<br>') + '</span>'
-          + '</div>';
-      });
-      html += '</div>';
-    }
-    // 各选项解析
-    if(e.parts && e.parts.some(function(s){ return !!s; })){
-      const letters2 = ['A','B','C','D'];
-      html += '<div style="margin-top:6px;font-size:12px;color:var(--text-sub);line-height:1.7;">';
-      (e.parts||[]).forEach(function(p, idx){
-        if(!p) return;
-        html += '<div style="padding:3px 0;"><b style="color:' + (idx===e.answer ? '#2D7A4F' : '#A86BC4') + ';">' + letters2[idx] + (idx===e.answer ? '（对）' : '（错）') + '：</b>' + escapeHtml(p).replace(/\n/g,'<br>') + '</div>';
-      });
-      html += '</div>';
-    }
-    // 总论
-    if(e.summary){
-      html += '<div class="qe" style="margin-top:6px;font-size:12px;color:var(--text-sub);line-height:1.6;background:#FFF7F9;border-radius:8px;padding:6px 8px;"><b>📋 总论：</b>' + escapeHtml(e.summary).replace(/\n/g,'<br>') + '</div>';
-    }
-    // 老 explain 兜底
-    if(!e.summary && e.explain){
-      html += '<div class="qe" style="margin-top:6px;font-size:12px;color:var(--text-sub);line-height:1.6;background:#FFF7F9;border-radius:8px;padding:6px 8px;"><b>解析：</b>' + escapeHtml(e.explain).replace(/\n/g,'<br>') + '</div>';
-    }
-    html += '</div>';
-    // 图片
-    if(e.photos && e.photos.length>0){
-      html += '<div class="error-photos" style="margin-top:8px;">' + e.photos.map(src=>'<div class="error-photo"><img src="'+src+'" alt="错题"></div>').join('') + '</div>';
-    }
-    html += '</div>';
-    return html;
-  }).join('');
+
+  // ---------- 新版：按科目折叠分组（仿"我的题库"样式） ----------
+  const BANK_MODULES_LOCAL = (typeof BANK_MODULES!=='undefined' && BANK_MODULES.length) ? BANK_MODULES
+    : ['常识判断','言语理解','数量关系','判断推理','资料分析','图形推理','时政热点','申论'];
+  const BANK_ICONS_LOCAL = (typeof BANK_ICONS!=='undefined') ? BANK_ICONS : {};
+
+  // 顶部 tab 栏：全部 + 各科目
+  let html = bookBanner + '<li class="manual-tabs-wrap"><div class="manual-tabs">';
+  const totalAll = errors.length;
+  html += '<button type="button" class="manual-tab' + (filter==='all'?' active':'') + '" onclick="document.getElementById(\'errorFilter\').value=\'all\';renderErrors();">'
+    + '📚 全部 <span class="manual-tab-cnt">' + totalAll + '</span></button>';
+  // 模块 tab 跟随现有 errorFilter
+  const errByMod = {};
+  errors.forEach(function(e){
+    const m = e.module || '未分类';
+    if(!errByMod[m]) errByMod[m] = 0;
+    errByMod[m]++;
+  });
+  BANK_MODULES_LOCAL.forEach(function(m){
+    if(!errByMod[m]) return;
+    const icon = BANK_ICONS_LOCAL[m] || '📂';
+    html += '<button type="button" class="manual-tab' + (filter===m?' active':'') + '" onclick="document.getElementById(\'errorFilter\').value=\'' + m + '\';renderErrors();">'
+      + icon + ' ' + escapeHtml(m) + ' <span class="manual-tab-cnt">' + errByMod[m] + '</span></button>';
+  });
+  if(errByMod['未分类'] && filter!=='未分类'){
+    html += '<button type="button" class="manual-tab" onclick="document.getElementById(\'errorFilter\').value=\'未分类\';renderErrors();">'
+      + '📦 未分类 <span class="manual-tab-cnt">' + errByMod['未分类'] + '</span></button>';
+  }
+  html += '</div></li>';
+
+  // 按科目分组（保留 filter 之外的全局分组用于"All"视图）
+  const groups = {};
+  errors.forEach(function(e){
+    const m = e.module || '未分类';
+    if(!groups[m]) groups[m] = [];
+    groups[m].push(e);
+  });
+  const order = [];
+  BANK_MODULES_LOCAL.forEach(function(m){ if(groups[m] && groups[m].length) order.push(m); });
+  if(groups['未分类'] && groups['未分类'].length) order.push('未分类');
+
+  order.forEach(function(m){
+    const items = groups[m] || [];
+    const groupIcon = (m === '未分类' ? '📦' : (BANK_ICONS_LOCAL[m] || '📂'));
+    const photoCount = items.filter(function(e){ return Array.isArray(e.photos) && e.photos.length>0; }).length;
+    html += '<li class="manual-group">'
+      + '<details class="manual-group-box" open>'
+      +   '<summary class="manual-group-sum">'
+      +     '<span class="mg-icon">' + groupIcon + '</span>'
+      +     '<span class="mg-name">' + escapeHtml(m) + '</span>'
+      +     '<span class="mg-stat">' + items.length + ' 道' + (photoCount? ' · 📷 ' + photoCount : '') + '</span>'
+      +     '<span class="mg-arrow">▾</span>'
+      +   '</summary>'
+      +   '<ul class="manual-group-list">';
+    items.forEach(function(e){ html += renderErrorItem(e); });
+    html +=     '</ul>'
+      + '</details>'
+      + '</li>';
+  });
+
+  list.innerHTML = html;
 
   // 同步各题型页面错题
   Object.keys(TOPICS).forEach(key=>{
     const el = document.getElementById('error-'+key);
     if(el) renderTopicErrors(key, TOPICS[key].name);
   });
+}
+
+// 单道错题卡片（仿 renderManualItem：details 折叠，summary 显示模块+来源+题干摘要）
+function renderErrorItem(e){
+  const hasFull = !!(e.options && e.options.some(function(s){ return !!s; }) && (e.answer>=0));
+  const qText = (e.question && e.question.trim()) ? e.question : (e.content || '');
+  const qSummary = qText.replace(/\s+/g,' ').trim();
+  const qShort = qSummary.length > 38 ? (qSummary.substring(0,38) + '…') : qSummary;
+  const hasPhoto = Array.isArray(e.photos) && e.photos.length > 0;
+  // 题干完整
+  let html = '<li class="manual-item" data-id="' + e.id + '">'
+    +   '<details>'
+    +     '<summary class="mi-summary">'
+    +       '<span class="mi-mod">' + escapeHtml(e.module || '未分类') + '</span>'
+    +       (e.kp ? '<span class="mi-kp">🧠 ' + escapeHtml(e.kp) + '</span>' : '')
+    +       '<span class="mi-q-short">' + escapeHtml(qShort) + '</span>'
+    +       (hasPhoto ? '<span class="mi-kp" style="background:#FFF0EA;color:#c0552b">📷 ' + e.photos.length + '</span>' : '')
+    +       '<span class="mi-acts-summary">'
+    +         '<button type="button" class="btn btn-sm mi-act-view">👁 详情</button>'
+    +         '<button type="button" class="btn btn-sm btn-danger" onclick="event.stopPropagation();event.preventDefault();if(confirm(\'确定删除此错题？\'))deleteError(\'' + e.id + '\')" style="margin-left:4px">✕</button>'
+    +       '</span>'
+    +     '</summary>'
+    +     '<div class="mi-detail">'
+    +       '<div class="mi-q-full">' + escapeHtml(qText).replace(/\n/g,'<br>') + '</div>';
+  // 选项 + 答案
+  if(hasFull){
+    const letters = ['A','B','C','D'];
+    html += '<ol class="mi-opts" style="margin-top:8px;">';
+    (e.options||[]).forEach(function(opt, idx){
+      if(!opt) return;
+      const isAns = (idx === e.answer);
+      html += '<li class="' + (isAns?'mi-opt-ans':'') + '">'
+        + '<span class="mi-opt-letter">' + letters[idx] + '</span>'
+        + '<span>' + escapeHtml(opt).replace(/\n/g,'<br>') + '</span>'
+        + (isAns?'<span class="mi-opt-tag">✅ 正确</span>':'')
+        + '</li>';
+    });
+    html += '</ol>';
+    html += '<div class="mi-a">✅ 答案：<b>' + letters[e.answer] + '</b></div>';
+  } else if(hasPhoto) {
+    html += '<div class="mi-a" style="color:var(--text-sub);">📌 纯图片错题（看图回忆当时错点）</div>';
+  }
+  // 各选项解析（默认折叠内联）
+  if(e.parts && e.parts.some(function(s){ return !!s; })){
+    const letters2 = ['A','B','C','D'];
+    html += '<div class="mi-x" style="margin-top:6px;"><span class="mi-x-tag">📋 各选项分析</span><div class="mi-x-body" style="margin-top:4px;font-size:12px;line-height:1.7;color:var(--text-sub);">';
+    (e.parts||[]).forEach(function(p, idx){
+      if(!p) return;
+      const tagColor = (hasFull && idx===e.answer) ? '#2D7A4F' : '#A86BC4';
+      html += '<div style="padding:2px 0;"><b style="color:' + tagColor + '">' + letters2[idx] + (hasFull && idx===e.answer?'（对）':'（错）') + '：</b>' + escapeHtml(p).replace(/\n/g,'<br>') + '</div>';
+    });
+    html += '</div></div>';
+  }
+  // 总论
+  if(e.summary){
+    html += '<div class="mi-x"><span class="mi-x-tag">📋 总论</span><div class="mi-x-body">' + escapeHtml(e.summary).replace(/\n/g,'<br>') + '</div></div>';
+  } else if(!hasFull && !hasPhoto && e.explain){
+    html += '<div class="mi-x"><span class="mi-x-tag">📋 解析</span><div class="mi-x-body">' + escapeHtml(e.explain).replace(/\n/g,'<br>') + '</div></div>';
+  }
+  // 图片（缩放显示，max-width:180px / max-height:240px / object-fit:contain）
+  if(hasPhoto){
+    html += '<div class="mi-x" style="margin-top:8px;"><span class="mi-x-tag">📷 错题原图（' + e.photos.length + ' 张）</span>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;max-height:340px;overflow:auto;padding:6px;background:#FAF7F2;border-radius:8px;">'
+      + e.photos.map(function(src,i){
+        return '<img src="' + src + '" onclick="window.open(\'' + src + '\',\'_blank\')" style="max-width:180px;max-height:240px;border-radius:8px;border:1px solid #E5D6C8;cursor:zoom-in;background:#fff;object-fit:contain" />';
+      }).join('')
+      + '</div></div>';
+  }
+  // 来源 + 日期
+  html += '<div style="margin-top:6px;font-size:11px;color:var(--text-sub);display:flex;flex-wrap:wrap;gap:10px">'
+    + (e.srcLabel ? '<span>📌 ' + escapeHtml(e.srcLabel) + '</span>' : '')
+    + (e.date ? '<span>📅 ' + escapeHtml(e.date) + '</span>' : '')
+    + '</div>';
+  html += '</div></details></li>';
+  return html;
 }
 
 // ====================================================
