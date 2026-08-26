@@ -2920,13 +2920,8 @@ body.drawer-open .nav-cloud{display:none;}
 <div class="page" id="page-reasoning">
   <div class="stat-row" id="stats-reasoning"></div>
   <div class="card">
-    <div class="card-title"><span class="dot"></span>三大题型专项刷题（图形推理已独立为顶级板块，下方直达入口）</div>
+    <div class="card-title"><span class="dot"></span>三大题型专项刷题</div>
     <div class="drill-list" id="drill-reasoning"></div>
-  </div>
-  <div class="card" style="background:linear-gradient(135deg,#fef7f4,#fdebe6);border:1.5px dashed #f5b7a3;">
-    <div class="card-title" style="color:#c0552b;"><span class="dot" style="background:#f5a380;"></span>📍 图形推理已独立成顶级板块</div>
-    <p style="font-size:13px;color:#7d4a3c;line-height:1.7;margin-bottom:10px;">按照「把图形推理从判断推理中拆出来」的最新调整，图形推理拥有独立的考点入口、独立的思维导图、独立的刷题数据。建议把更多刷题时间放到那边的专项里 📈</p>
-    <button class="btn" onclick="showPage('figure')" style="background:linear-gradient(135deg,#f5a380,#e85a4f);">🔺 进入「图形推理」独立板块</button>
   </div>
   <div class="grid-2">
     <div class="card">
@@ -19585,12 +19580,28 @@ function addFocus(minutes, modOverride, opts){
         const p = store.plans[t].find(x=>x.id===td.planId);
         if(p && !p.done){ p.done = true; }
       }
-      // 兼容 src='plan'：每日计划页生成的 todo 关联的是 p.todoId===td.id
-      if(td && td.done && td.src==='plan' && store.plans[t]){
-        const pp = store.plans[t].find(function(x){ return x.todoId===td.id; });
-        if(pp && !pp.done){ pp.done = true; }
+  // 兼容 src='plan'：每日计划页生成的 todo 关联的是 p.todoId===td.id
+  if(td && td.done && td.src==='plan' && store.plans[t]){
+    const pp = store.plans[t].find(function(x){ return x.todoId===td.id; });
+    if(pp && !pp.done){ pp.done = true; }
+  }
+  // 兜底：按 courseId/qbookId/文本模糊匹配，把同源计划也勾掉（覆盖 link 字段缺失的情况）
+  if(td && td.done && store.plans[t]){
+    const _norm = s => (s||'').replace(/^[^\u4e00-\u9fa5a-zA-Z0-9]+/,'').trim();
+    const tdTxt = _norm(td.text);
+    store.plans[t].forEach(function(p){
+      if(p.done) return;
+      let link = false;
+      if(td.src==='course' && td.courseId && p.courseId===td.courseId) link = true;
+      if(td.src==='qbook' && td.qbookId && p.qbookId===td.qbookId) link = true;
+      if(!link && tdTxt){
+        const pTxt = _norm(p.text);
+        if(pTxt && (pTxt===tdTxt || pTxt.indexOf(tdTxt)>=0 || tdTxt.indexOf(pTxt)>=0)) link = true;
       }
-      // 联动：番茄完成 → 题本 / 课程进度自动 +1
+      if(link) p.done = true;
+    });
+  }
+  // 联动：番茄完成 → 题本 / 课程进度自动 +1
       if(td && td.src==='qbook' && td.qbookId){
         ensureQuestionBooks();
         const b = qbookById(td.qbookId);
@@ -19861,9 +19872,31 @@ function autoPickTodayTodo(){
 function onTomatoTaskInput(){
   const inp = document.getElementById('tomatoTaskInput');
   tomatoTask = inp.value.trim();
-  tomatoTodoId = ''; // 自定义输入即视为不复用某条待办
   const pick = document.getElementById('tomatoTodoPick');
-  if(pick && inp.value.trim()!=='') pick.value = '';
+  const typed = tomatoTask;
+  // 先尝试把输入文本匹配到今日未完成待办，匹配上就联动「番茄完成」自动勾选
+  let matchedId = '';
+  if(typed){
+    const today = todayKey();
+    const pending = (store.todos||[]).filter(td => !td.done && td.date === today);
+    // 优先级1：精确文本相等（去前后空格与前缀 emoji）
+    const norm = s => (s||'').replace(/^[^\u4e00-\u9fa5a-zA-Z0-9]+/,'').trim();
+    let m = pending.find(td => norm(td.text) === typed);
+    // 优先级2：互相包含（含前缀 emoji 也算）
+    if(!m) m = pending.find(td => {
+      const t1 = norm(td.text), t2 = typed;
+      return t1 && t2 && (t1.indexOf(t2)>=0 || t2.indexOf(t1)>=0);
+    });
+    if(m){
+      matchedId = m.id;
+      if(pick){
+        const optExists = [].slice.call(pick.options).some(o => o.value === m.id);
+        if(optExists){ pick.value = m.id; }
+      }
+    }
+  }
+  tomatoTodoId = matchedId; // 没匹配上才为空（自定义）
+  if(pick && typed !== '' && !matchedId) pick.value = '';
   syncTomatoModuleFromTask(); // 自动识别模块关键词，联动「正在攻克」+ 跳转按钮
 }
 
