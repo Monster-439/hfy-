@@ -21014,6 +21014,9 @@ function showSplash(){
 function enterWorkbench(){
   const sp = document.getElementById('splash');
   if(sp) sp.classList.remove('show');
+  // 关闭 splash 后渲染首页主区（之前漏了这步，导致主区一直空白）
+  if(typeof renderHome==='function') renderHome();
+  if(typeof setActiveNav==='function') setActiveNav('home');
 }
 
 
