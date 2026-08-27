@@ -3136,7 +3136,7 @@ body.drawer-open .nav-cloud{display:none;}
     <div class="card-title"><span class="dot"></span>打卡时长设置</div>
     <p style="font-size:12px;color:var(--text-sub);margin-bottom:10px;">点击日历日期选择打卡，直接输入学习时长（分钟），可精确填写（如 30、45、90）。<b style="color:var(--pink-btn);">若当天已打过卡，再次确认会在已有时长上「累加」，不会覆盖。</b></p>
     <div class="duration-picker">
-      <label>选中日期：<span id="selectedDateLabel" style="font-weight:700;color:var(--pink-btn);">请点击日期</span></label>
+      <div>选中日期：<span id="selectedDateLabel" style="font-weight:700;color:var(--pink-btn);">请点击日期</span></div>
       <div class="duration-custom"><input id="ckMinutes" class="ck-hours-input" type="number" min="1" max="1440" step="5" value="60" oninput="onCkMinutesInput()" /><span class="ck-hours-unit">分钟</span></div>
       <div id="ckAddHint" class="ck-add-hint" style="display:none;"></div>
     </div>
@@ -3311,11 +3311,11 @@ body.drawer-open .nav-cloud{display:none;}
     <div class="card-title"><span class="dot"></span>添加试卷记录</div>
     <div class="exam-form">
       <div class="form-group">
-        <label>试卷名称</label>
+        <label for="examName">试卷名称</label>
         <input type="text" id="examName" placeholder="如：2024国考行测真题">
       </div>
       <div class="form-group">
-        <label>试卷类型</label>
+        <label for="examType">试卷类型</label>
         <select id="examType">
           <option value="行测">行测</option>
           <option value="申论">申论</option>
@@ -3323,27 +3323,27 @@ body.drawer-open .nav-cloud{display:none;}
         </select>
       </div>
       <div class="form-group">
-        <label>做题日期</label>
+        <label for="examDate">做题日期</label>
         <input type="date" id="examDate">
       </div>
       <div class="form-group">
-        <label>做题时长(分钟)</label>
+        <label for="examTime">做题时长(分钟)</label>
         <input type="number" id="examTime" placeholder="如：120" min="0">
       </div>
       <div class="form-group">
-        <label>总分</label>
+        <label for="examTotalScore">总分</label>
         <input type="number" id="examTotalScore" placeholder="如：100" min="0">
       </div>
       <div class="form-group">
-        <label>得分</label>
+        <label for="examScore">得分</label>
         <input type="number" id="examScore" placeholder="如：72" min="0">
       </div>
       <div class="form-group full">
-        <label>各板块得分情况（用逗号分隔，如：常识8/10,言语30/40,判断25/35,数量5/10,资料12/15）</label>
+        <label for="examSections">各板块得分情况（用逗号分隔，如：常识8/10,言语30/40,判断25/35,数量5/10,资料12/15）</label>
         <input type="text" id="examSections" placeholder="板块名得分/满分,板块名得分/满分...">
       </div>
       <div class="form-group full">
-        <label>错题与遗忘知识点备注</label>
+        <label for="examNotes">错题与遗忘知识点备注</label>
         <textarea id="examNotes" rows="2" placeholder="记录错题原因、遗忘的知识点、需重点复习的内容..."></textarea>
       </div>
     </div>
@@ -13944,12 +13944,12 @@ function renderErrorItem(e){
     +       (e.kp ? '<span class="mi-kp">🧠 ' + escapeHtml(e.kp) + '</span>' : '')
     +       '<span class="mi-q-short">' + escapeHtml(qShort) + '</span>'
     +       (hasPhoto ? '<span class="mi-kp" style="background:#FFF0EA;color:#c0552b">📷 ' + e.photos.length + '</span>' : '')
-    +       '<span class="mi-acts-summary">'
-    +         '<button type="button" class="btn btn-sm mi-act-view">👁 详情</button>'
-    +         '<button type="button" class="btn btn-sm btn-danger" onclick="event.stopPropagation();event.preventDefault();if(confirm(\'确定删除此错题？\'))deleteError(\'' + e.id + '\')" style="margin-left:4px">✕</button>'
-    +       '</span>'
     +     '</summary>'
     +     '<div class="mi-detail">'
+    +       '<div class="mi-acts-detail" style="margin:6px 0 8px;display:flex;gap:6px;justify-content:flex-end;">'
+    +         '<button type="button" class="btn btn-sm mi-act-view">👁 详情</button>'
+    +         '<button type="button" class="btn btn-sm btn-danger" onclick="event.stopPropagation();event.preventDefault();if(confirm(\'确定删除此错题？\'))deleteError(\'' + e.id + '\')" style="margin-left:4px">✕</button>'
+    +       '</div>'
     +       '<div class="mi-q-full">' + escapeHtml(qText).replace(/\n/g,'<br>') + '</div>';
   // 选项 + 答案
   if(hasFull){
@@ -16478,9 +16478,6 @@ function renderManualItem(it){
     +       '<span class="mi-mod">' + escHtml(it.module || '未分类') + '</span>'
     +       (it.kp ? '<span class="mi-kp">🧠 ' + escHtml(it.kp) + '</span>' : '')
     +       '<span class="mi-q-short">' + escHtml(qShort) + '</span>'
-    +       '<span class="mi-acts-summary">'
-    +         '<button type="button" class="btn btn-sm mi-act-view">👁 答案</button>'
-    +       '</span>'
     +     '</summary>'
     +     '<div class="mi-detail">'
     +       '<div class="mi-q-full">' + escHtml(it.q) + '</div>'
@@ -16488,6 +16485,7 @@ function renderManualItem(it){
     +       ansLine
     +       explainBlock
     +       '<div class="mi-acts-detail">'
+    +         '<button type="button" class="btn btn-sm mi-act-view">👁 答案</button>'
     +         '<button class="btn btn-sm btn-edit" onclick="editManual(\'' + it.id + '\')">✏️ 编辑</button>'
     +         '<button class="btn btn-sm btn-danger" onclick="removeManual(\'' + it.id + '\')">🗑 删除</button>'
     +       '</div>'
