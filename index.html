@@ -13829,6 +13829,9 @@ function deleteError(id){
   renderErrors();
 }
 
+// BANK_MODULES 上移：必须在 renderErrors 之前声明，否则 14008 行顶层 renderErrors() 调用会撞 TDZ（const/let 声明前不可访问，typeof 也无效）
+const BANK_MODULES = ['常识判断','时政热点','言语理解','判断推理','图形推理','数量关系','资料分析'];
+
 function renderErrors(){
   const filter = document.getElementById('errorFilter').value;
   let errors = [...store.errors].reverse();
@@ -14324,7 +14327,6 @@ function startImportDrill(sec){
 // ====================================================
 //  我的题库（导入 PDF 题库 + 手动录入题目）
 // ====================================================
-const BANK_MODULES = ['常识判断','时政热点','言语理解','判断推理','图形推理','数量关系','资料分析'];
 const BANK_ICONS = {
   '常识判断':'📚',
   '时政热点':'📰',
