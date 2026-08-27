@@ -7614,7 +7614,8 @@ function renderMindmap(){
   let svg = ''; let nodeSvg = ''; let edgeSvg = '';
   // 连线（任意层级，仅当父级展开时画）—— 先累积到 edgeSvg，最后再拼到节点之上
   layout.edges.forEach(function(e){
-    edgeSvg += '<path d="'+svgCurve(e.x1,e.y1,e.x2,e.y2)+'" stroke="'+COL_CURVE+'" stroke-width="2.5" fill="none" opacity="1" stroke-linecap="round" stroke-linejoin="round"/>';
+    const isImgEdge = e.isImgEdge;
+    edgeSvg += '<path d="'+svgCurve(e.x1,e.y1,e.x2,e.y2)+'" stroke="'+(isImgEdge?'#D86B83':COL_CURVE)+'" stroke-width="'+(isImgEdge?'1.8':'2.5')+'" fill="none" opacity="'+(isImgEdge?'0.85':'1')+'" stroke-linecap="round" stroke-linejoin="round"'+(isImgEdge?' stroke-dasharray="4,3"':'')+'/>';
   });
   // 通用绘制函数
   function svgRect(x, y, w, h, fill, stroke){
@@ -7631,6 +7632,21 @@ function renderMindmap(){
   }
   // 节点（按层级着色；任意有子节点且层级>=1 的节点都可折叠）
   layout.nodes.forEach(function(nd){
+    // 【修复 BUG③】虚拟图片子节点：粉虚线边框包图片，整体不再贴在父节点右侧当缩略图
+    if(nd.virtual === 'img'){
+      const im = nd.img;
+      const src = im && (im.src || im.dataUrl);
+      if(!src) return;
+      const ix = nd.x - nd.w/2;
+      const iy = nd.y - nd.h/2;
+      nodeSvg += '<g data-mm-vimg="'+escapeAttr(nd.path)+'" data-mm-parent="'+escapeAttr(nd.parentPath||'')+'" style="cursor:pointer" onclick="event.stopPropagation();mmShowImagesManager(\''+escapeAttr(nd.parentPath||'')+'\')">'
+        + '<rect x="'+ix+'" y="'+iy+'" width="'+nd.w+'" height="'+nd.h+'" rx="9" ry="9" fill="#FFF5F0" stroke="#D86B83" stroke-width="1.6" stroke-dasharray="5,3"/>'
+        + '<rect x="'+(ix+4)+'" y="'+(iy+4)+'" width="'+(nd.w-8)+'" height="'+(nd.h-14)+'" rx="6" ry="6" fill="#fff" stroke="rgba(216,107,131,0.4)" stroke-width="1"/>'
+        + '<image href="'+escapeAttr(src)+'" x="'+(ix+5)+'" y="'+(iy+5)+'" width="'+(nd.w-10)+'" height="'+(nd.h-16)+'" preserveAspectRatio="xMidYMid meet" style="pointer-events:none"/>'
+        + '<text x="'+nd.x+'" y="'+(iy+nd.h-2)+'" text-anchor="middle" font-size="9" font-weight="600" fill="#a0552b" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif" style="pointer-events:none">📷 错题原图</text>'
+        + '</g>';
+      return;
+    }
     const n = nd.node, lvl = nd.level;
     let fill, stroke, textColor, tSize, tWeight;
     if(lvl===0){ fill=COL_ROOT_FILL; stroke=COL_ROOT_STROKE; textColor=COL_ROOT_TEXT; tSize=14; tWeight=800; }
@@ -7641,7 +7657,6 @@ function renderMindmap(){
     const drawFill   = isSel ? '#EEF4FF' : fill;
     const drawStroke = isSel ? '#3B82F6' : stroke;
     const drawStrokeW= isSel ? 3 : 1.5;
-    const hasImg = nd.imgCount > 0;
     const baseH = nd.h;
     const yShift = 0;
     const cy = nd.y + yShift;
@@ -7655,39 +7670,20 @@ function renderMindmap(){
     }
     g += svgText(nd.x + textDx, cy, n.name||(lvl===0?data.name:'(未命名)'), textColor, tSize, tWeight)
       + svgErrBadge(nd.x, cy, mmGetErr(sub, nd.path), nd.w);
-    // 节点图片预览（多图相册：清晰大图，挂在节点正右侧，横向并排；超过用 +N 提示）
-    if(hasImg){
-      const imgs = (n.images && n.images.length) ? n.images : [{src: n.img}];
-      const tw = 96, th = 60, gap = 6, badgeW = 22;
-      const show = imgs.slice(0, 2);
-      const more = imgs.length - show.length;
-      const stripW = show.length * tw + (show.length - 1) * gap + (more > 0 ? badgeW : 0);
-      // 紧贴节点正右侧、与节点同 Y 中心对齐
-      const stripX0 = nd.x + nd.w/2 + 8;
-      const imgYc = cy;
-      // 归属虚线（节点右边缘 → 缩略图条左边缘），表明图归属于该节点
-      g += '<line x1="'+(nd.x + nd.w/2 + 1)+'" y1="'+cy+'" x2="'+(stripX0 - 1)+'" y2="'+cy+'" stroke="'+stroke+'" stroke-width="1.4" stroke-dasharray="4,3" opacity="0.65"/>';
-      g += '<g data-mm-img-strip="'+escapeAttr(nd.path)+'" style="cursor:pointer" onclick="event.stopPropagation();mmShowImagesManager(\''+escapeAttr(nd.path)+'\')">';
-      const pad = 4;
-      g += '<rect x="'+(stripX0-pad)+'" y="'+(imgYc-th/2-pad)+'" width="'+(stripW+pad*2)+'" height="'+(th+pad*2)+'" rx="9" ry="9" fill="rgba(216,107,131,0.05)" stroke="rgba(216,107,131,0.32)" stroke-width="1" stroke-dasharray="4,3"/>';
-      let cxs = stripX0 + tw/2;
-      for(let i=0;i<show.length;i++){
-        const im = show[i];
-        g += '<rect x="'+(cxs-tw/2-1)+'" y="'+(imgYc-th/2-1)+'" width="'+(tw+2)+'" height="'+(th+2)+'" rx="7" ry="7" fill="#fff" stroke="'+stroke+'" stroke-width="1.2"/>';
-        g += '<image href="'+escapeAttr(im.src)+'" x="'+(cxs-tw/2)+'" y="'+(imgYc-th/2)+'" width="'+tw+'" height="'+th+'" preserveAspectRatio="xMidYMid meet" style="pointer-events:none"/>';
-        cxs += tw + gap;
-      }
-      if(more>0){
-        const bx = cxs - gap + badgeW/2;
-        g += '<circle cx="'+bx+'" cy="'+imgYc+'" r="11" fill="#D86B83" stroke="#fff" stroke-width="1.5"/>';
-        g += '<text x="'+bx+'" y="'+(imgYc+4)+'" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif" style="pointer-events:none">+'+more+'</text>';
-      }
-      g += '</g>';
+    // 【修复 BUG③】删除节点正右侧的内联缩略图条——图片现在作为虚拟子节点渲染到右侧（由 layoutRadialMindmap 处理）
+    // 这里只在右上角显示图片数量徽标
+    if(nd.imgCount > 0){
+      const bx = nd.x + nd.w/2 - 8;
+      const by = cy - nd.h/2 - 6;
+      g += '<g style="cursor:pointer" onclick="event.stopPropagation();mmShowImagesManager(\''+escapeAttr(nd.path)+'\')">'
+        + '<circle cx="'+bx+'" cy="'+by+'" r="9" fill="#D86B83" stroke="#fff" stroke-width="1.5"/>'
+        + '<text x="'+bx+'" y="'+(by+3.5)+'" text-anchor="middle" font-size="10" font-weight="800" fill="#fff" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif">'+nd.imgCount+'</text>'
+        + '</g>';
     }
     g += '</g>';
     nodeSvg += g;
   });
-  // 连线最后绘制，覆盖在节点与图片缩略图之上，避免被带图节点的缩略图条遮住（Bug②：右侧子节点连线缺失）
+  // 连线最后绘制，覆盖在节点与图片虚拟子节点之上，避免被任何图形遮住
   svg = nodeSvg + edgeSvg;
   // ----- 外壳 HTML -----
   let html = '<div style="padding:14px 14px 40px;background:#F7F7F8;min-height:100vh">';
@@ -7784,13 +7780,14 @@ function mmEstimateTextWidth(s, fontSize){
   }
   return w * fontSize;
 }
+// 虚拟「图片子节点」尺寸（与 L2 一致的列宽 + 更高的高度容纳图片）
+const MM_IMG_W = 110, MM_IMG_H = 78;
 function layoutRadialMindmap(root){
   const ROOT_X = 110, COL_STEP = 150;
   // 节点宽：根据 node.name 自适应，至少保留原固定宽度
   const NODE_FONT = function(level){ return level===0?13:(level===1?12:11.5); };
   const NODE_W = function(level, name){
     const min = level===0?128:(level===1?96:78);
-    const hasImgPad = false; // 这里只算文本宽度；图额外撑高
     return Math.max(min, Math.round(mmEstimateTextWidth(name||'', NODE_FONT(level))) + 32);
   };
   const NODE_H = function(level){ return level===0?38:(level===1?30:26); };
@@ -7800,46 +7797,71 @@ function layoutRadialMindmap(root){
   const nodes = [], edges = [];
   let cursor = TOP_PAD;
   function colX(level){ return ROOT_X + level*COL_STEP; }
-  // 递归布局：先计算子节点位置，再让父节点居中于子节点
+  // 递归布局：先计算子节点位置，再让父节点居中于子节点（真实 children + 虚拟图片子节点）
   function layout(node, path, level){
     const x = colX(level);
     const w = NODE_W(level, node.name), h = NODE_H(level);
-    const hasKids = !!(node.children && node.children.length>0);
-    const open = hasKids && isOpen(path);
-    const imgCount = (node.images && node.images.length) || (node.img ? 1 : 0);
-    const extraH = 0; // 缩略图改挂在节点右侧，不再额外占垂直空间
+    const hasRealKids = !!(node.children && node.children.length>0);
+    const hasImgs = !!(node.images && node.images.length>0);
+    const open = hasRealKids && isOpen(path);
+    const imgCount = hasImgs ? node.images.length : 0;
     let y;
-    if(hasKids && open){
+    if(hasRealKids && open){
       const ys = [];
+      // 先排真实子节点
       (node.children||[]).forEach(function(c, i){
         const cp = path ? (path+'.'+i) : (''+i);
         ys.push(layout(c, cp, level+1));
       });
+      // 【修复 BUG③】虚拟图片子节点：作为节点的「子节点」渲染到右侧（与真实子节点同列，不再贴节点右侧当缩略图条）
+      if(hasImgs){
+        node.images.forEach(function(im, i){
+          const subIdx = node.children.length + i;
+          const cp = path ? (path+'.'+subIdx) : (''+subIdx);
+          const iy = cursor + MM_IMG_H/2;
+          cursor += MM_IMG_H + ROW_GAP;
+          nodes.push({ virtual:'img', img:im, parentPath:path, path:cp, level:level+1, x:colX(level+1), y:iy, w:MM_IMG_W, h:MM_IMG_H, hasKids:false, open:false, imgCount:0, realParent:node });
+          ys.push(iy);
+        });
+      }
       y = (Math.min.apply(null,ys) + Math.max.apply(null,ys))/2;
       cursor += BRANCH_GAP;
     } else {
-      y = cursor + h/2;
-      cursor += h + ROW_GAP;
+      // 没有真实子节点时，图片作为仅有的子节点占垂直空间
+      if(hasImgs){
+        const ys = [];
+        node.images.forEach(function(im, i){
+          const subIdx = node.children ? (node.children.length + i) : i;
+          const cp = path ? (path+'.'+subIdx) : (''+subIdx);
+          const iy = cursor + MM_IMG_H/2;
+          cursor += MM_IMG_H + ROW_GAP;
+          nodes.push({ virtual:'img', img:im, parentPath:path, path:cp, level:level+1, x:colX(level+1), y:iy, w:MM_IMG_W, h:MM_IMG_H, hasKids:false, open:false, imgCount:0, realParent:node });
+          ys.push(iy);
+        });
+        y = (Math.min.apply(null,ys) + Math.max.apply(null,ys))/2;
+        cursor += BRANCH_GAP;
+      } else {
+        y = cursor + h/2;
+        cursor += h + ROW_GAP;
+      }
     }
-    if(extraH){ cursor += extraH; }
-    nodes.push({ node:node, path:path, level:level, x:x, y:y, w:w, h:h, hasKids:hasKids, open:open, imgCount:imgCount });
+    nodes.push({ node:node, path:path, level:level, x:x, y:y, w:w, h:h, hasKids:hasRealKids, open:open, imgCount:imgCount });
     return y;
   }
   layout(root, '', 0);
-  // 连线：每个非根节点连到其父节点（父级展开时才画）
+  // 连线：每个非根节点连到其父节点（父级展开时才画）——虚拟图片节点同样画连线
   nodes.forEach(function(nd){
     if(!nd.path) return;
     const segs = nd.path.split('.');
     const parentPath = segs.slice(0, segs.length-1).join('.');
     const parent = nodes.find(function(n){ return n.path===parentPath; });
     if(parent && parent.open){
-      edges.push({ x1: parent.x + parent.w/2, y1: parent.y, x2: nd.x - nd.w/2, y2: nd.y });
+      edges.push({ x1: parent.x + parent.w/2, y1: parent.y, x2: nd.x - nd.w/2, y2: nd.y, isImgEdge: nd.virtual==='img' });
     }
   });
   const maxLevel = nodes.reduce(function(m,n){ return Math.max(m,n.level); }, 0);
-  // 预估图缩略图条占的水平空间：单图 96、最多 2 张 + 间距 + 徽章 ≈ 220
-  const STRIP_MAX_W = 220;
-  const width = ROOT_X + (maxLevel+1)*COL_STEP + STRIP_MAX_W + 30;
+  // 预估宽度：到最深列 + 一列图片宽度（不再加 STRIP_MAX_W，因为图片现在是独立节点不贴父节点）
+  const width = ROOT_X + (maxLevel+1)*COL_STEP + MM_IMG_W + 30;
   const height = Math.max(cursor + BOT_PAD, 220);
   return { nodes: nodes, edges: edges, width: width, height: height, rootNode: nodes[0] };
 }
@@ -7946,57 +7968,87 @@ function mmAddParentForSelected(){
   if(!name) return;
   mmCaptureScroll();
   const root = getMindmapData();
-  // 倒序（先取深层、同层大的索引，避免 splice 时索引漂移）
-  const allPaths = Array.from(mmSelectedPaths).slice().sort(function(a,b){
+  // 工具：从 path 在当前树中取节点引用
+  function findByPath(path){
+    if(!path) return root;
+    const segs = path.split('.');
+    let cur = root;
+    for(let i=0;i<segs.length;i++){
+      const idx = parseInt(segs[i], 10);
+      if(!cur.children || !cur.children[idx]) return null;
+      cur = cur.children[idx];
+    }
+    return cur;
+  }
+  // 工具：两 path 数组求最长公共前缀
+  function commonPrefix(paths){
+    if(!paths.length) return [];
+    const first = paths[0].split('.');
+    const out = [];
+    for(let i=0;i<first.length;i++){
+      let same = true;
+      for(let j=1;j<paths.length;j++){
+        const segs = paths[j].split('.');
+        if(i>=segs.length || segs[i] !== first[i]){ same = false; break; }
+      }
+      if(!same) break;
+      out.push(first[i]);
+    }
+    return out;
+  }
+  const selectedPaths = Array.from(mmSelectedPaths);
+  // 1) 把每个选中的节点从其原父级移除，存到 collected（保留原始 path 供排序）
+  const collected = [];
+  // 先按"深层在前、同层按路径倒序"排，避免 splice 后索引漂移
+  selectedPaths.sort(function(a,b){
     return b.split('.').length - a.split('.').length || b.localeCompare(a, undefined, {numeric:true});
   });
-  const taken = [];
-  allPaths.forEach(function(p){
+  selectedPaths.forEach(function(p){
     if(!p) return;
     const segs = p.split('.');
-    let parent = root;
-    for(let i=0;i<segs.length-1;i++){
-      parent = parent.children && parent.children[parseInt(segs[i],10)];
-      if(!parent) return;
-    }
+    const parentPath = segs.slice(0, -1).join('.');
+    const parent = findByPath(parentPath);
     if(!parent || !parent.children) return;
     const idx = parseInt(segs[segs.length-1], 10);
     if(idx < 0 || idx >= parent.children.length) return;
-    const node = parent.children.splice(idx, 1)[0];
-    if(node) taken.push({ node: node, p: p });
+    collected.push({ node: parent.children.splice(idx, 1)[0], origPath: p });
   });
-  if(taken.length < 2){
+  if(collected.length < 2){
     if(typeof toast==='function') toast('合并失败，未识别到选中节点');
     return;
   }
-  // 还原成原 path 升序（自然树序：左→右、上→下），作为新父的子
-  taken.sort(function(a,b){ return a.p.localeCompare(b.p, undefined, {numeric:true}); });
-  const childNodes = taken.map(function(t){ return t.node; });
-  // 计算「选中节点组的第一个位置」：最深路径的最后一段索引 → 用 MIN（让 newNode 插在选中组最浅节点位置，替代其父级位置）
-  // 这样 newNode 出现在原选中节点组的起始位置、它的 children = [原选中节点们]，视觉上父在左、子在右
-  let headParent = null, headIdx = Infinity;
-  taken.forEach(function(t){
-    if(!t.p) return;
-    const ss = t.p.split('.');
-    let pa = root;
-    for(let i=0;i<ss.length-1;i++){ pa = pa.children && pa.children[parseInt(ss[i],10)]; }
-    if(!pa || !pa.children) return;
-    const curIdx = parseInt(ss[ss.length-1], 10);
-    if(curIdx < headIdx){ headIdx = curIdx; headParent = pa; }
+  // 2) 按原 path 升序还原成视觉顺序（树序：左→右、上→下）
+  collected.sort(function(a,b){ return a.origPath.localeCompare(b.origPath, undefined, {numeric:true}); });
+  const childNodes = collected.map(function(c){ return c.node; });
+  // 3) 计算最近公共祖先 (LCA)：选区所在的最深公共父节点路径
+  const lcaSeg = commonPrefix(selectedPaths);
+  const lcaPath = lcaSeg.slice(0, -1).join('.'); // 去掉最后一段（叶子层），剩下的就是 LCA 的 path
+  const lca = findByPath(lcaPath) || root;
+  // 4) 在 LCA.children 中，找到「原选中节点的最浅位置」作为 newNode 插入点
+  //    —— 用原 LCA 处最小 idx，让 newNode 出现在选中组的最浅位置（左侧 / 上方）
+  let insertAt = lca.children.length; // 默认追加到末尾
+  let found = false;
+  // 收集 selectedPaths 在 LCA 下的 idx（只取直接在 LCA 下的节点；如果 LCA 不是直接父，则用 0）
+  const childIndices = [];
+  selectedPaths.forEach(function(p){
+    const segs = p.split('.');
+    const parentPath = segs.slice(0, -1).join('.');
+    if(parentPath !== lcaPath) return;
+    childIndices.push(parseInt(segs[segs.length-1], 10));
   });
-  if(!headParent){
-    if(typeof toast==='function') toast('合并失败，未识别到选中节点的父级');
-    return;
+  if(childIndices.length){
+    insertAt = Math.min.apply(null, childIndices);
+    found = true;
   }
-  // 新父节点插到「选中节点组的最浅位置」（即原选中节点第一个的位置），newNode.children = 原选中节点们
-  const insertAt = isFinite(headIdx) ? headIdx : 0;
+  // 兜底：如果 LCA.children 为空（极少见），追加到末尾
+  if(!found && lca.children.length === 0){ insertAt = 0; }
   const newNode = { name: name, children: childNodes };
-  headParent.children.splice(insertAt, 0, newNode);
+  lca.children.splice(insertAt, 0, newNode);
   saveMindmapTreeToStore(root);
   mmSelectedPaths.clear();
   mmMultiSelectMode = false;
   renderMindmap();
-  if(typeof toast==='function') toast('已新建上级「'+name+'」（含 '+taken.length+' 个子节点）');
+  if(typeof toast==='function') toast('已新建上级「'+name+'」（含 '+collected.length+' 个子节点）');
 }
 function mmShowActions(path, level){
   mmCurrentActions = { path:path, level:level };
@@ -11231,6 +11283,7 @@ function renderQuestion(){
   // 错题原貌：照片 + 原内容（当来源是错题记录时显示，方便回顾当时拍照/手写的内容）
   const errPhotos = Array.isArray(q._errPhotos) ? q._errPhotos : [];
   const errOriginal = (q._errQuestion && q._errQuestion !== q.q) ? q._errQuestion : (q._errContent || '');
+  const isPhotoOnly = !!q._errPhotoOnly || (q._fromError && errPhotos.length>0 && Array.isArray(q.options) && q.options.every(function(o){ return !o || o==='未填写' || String(o).trim()===''; }));
   const errMetaParts = [];
   if(q._fromError){
     const e = (store.errors||[]).find(function(x){ return x.id===q._fromError; });
@@ -11240,22 +11293,30 @@ function renderQuestion(){
       if(e.date) errMetaParts.push('📅 ' + e.date);
     }
   }
+  // 【修复 BUG①】纯图片错题的照片大图优先渲染在最顶部，便于"看图回忆"
   const errPhotosHtml = errPhotos.length ? `
-    <div class="err-photos" style="margin:0 0 12px;background:linear-gradient(135deg,#fff7f3,#fff0ea);border:1px solid #f5d3c4;border-radius:14px;padding:10px;">
-      <div style="font-size:12px;color:#c0552b;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px">📷 错题原貌（${errPhotos.length} 张）<span style="font-weight:400;color:#9a7b6f;font-size:11px;margin-left:auto">点击放大</span></div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;max-height:340px;overflow:auto">
-        ${errPhotos.map(function(src,i){ return '<img data-idx="'+i+'" src="'+src+'" onclick="openErrPhoto(this.src,this.dataset.idx,'+JSON.stringify(errPhotos)+')" style="max-width:180px;max-height:280px;border-radius:10px;border:1px solid #f5d3c4;cursor:zoom-in;background:#fff" />'; }).join('')}
+    <div class="err-photos" style="margin:0 0 12px;background:linear-gradient(135deg,#fff7f3,#fff0ea);border:1.5px dashed #f5b3a4;border-radius:14px;padding:12px;">
+      <div style="font-size:12px;color:#c0552b;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px">📷 错题原貌（${errPhotos.length} 张）<span style="font-weight:400;color:#9a7b6f;font-size:11px;margin-left:auto">点击放大查看</span></div>
+      <div style="display:flex;flex-direction:column;gap:10px;max-height:50vh;overflow:auto">
+        ${errPhotos.map(function(src,i){ return '<img data-idx="'+i+'" src="'+src+'" onclick="openErrPhoto(this.src,this.dataset.idx,'+JSON.stringify(errPhotos)+')" style="width:100%;max-width:520px;max-height:50vh;border-radius:10px;border:1px solid #f5d3c4;cursor:zoom-in;background:#fff;object-fit:contain" />'; }).join('')}
       </div>
     </div>` : '';
   const errOriginalHtml = errOriginal ? `
     <div style="margin:0 0 10px;padding:8px 12px;background:#f6f3ff;border-left:3px solid #a89bd4;border-radius:8px;font-size:13px;color:#5b4f7a;white-space:pre-line;line-height:1.6">📝 录入时的内容：${escHtml(errOriginal)}</div>` : '';
   const errMetaHtml = errMetaParts.length ? `
     <div style="margin:0 0 10px;font-size:11px;color:#999;display:flex;flex-wrap:wrap;gap:10px">${errMetaParts.map(function(t){return '<span>'+escHtml(t)+'</span>';}).join('')}</div>` : '';
+  // 【修复 BUG①】纯图片错题：替换 4 个「未填写」占位为提示卡 + 单按钮"确认/跳过"
+  const photoOnlyHint = isPhotoOnly ? `
+    <div style="margin:0 0 14px;padding:14px 16px;background:linear-gradient(135deg,#fff5f0,#fff0e8);border:1.5px dashed #e8a18e;border-radius:14px;text-align:center">
+      <div style="font-size:14px;font-weight:700;color:#c0552b;margin-bottom:4px">📷 这是纯图片错题</div>
+      <div style="font-size:12px;color:#a06b5b;line-height:1.6">请看上方图片回忆当时错点，<br/>答不上来可直接「跳过」</div>
+    </div>` : '';
   document.getElementById('quizBody').innerHTML = `
     ${errPhotosHtml}
     ${errMetaHtml}
     <div class="quiz-q" style="white-space:pre-line"><span class="q-tag">${quizState.type}</span>${q.q}</div>
     ${errOriginalHtml}
+    ${photoOnlyHint}
     <div class="quiz-options">
       ${q.options.map((opt,i)=>`
         <div class="quiz-option" onclick="selectOption(${i})" data-idx="${i}">
@@ -16520,7 +16581,10 @@ function bankAllQuestions(){
   });
   // 合并「我的错题」中带完整结构的题目（题干+≥2选项+答案）—— 与题库同池，刷题也能刷到错题
   (store.errors||[]).forEach(function(e){
-    if(e && e.module && Array.isArray(e.options) && e.options.length>=2 && typeof e.answer==='number' && e.answer>=0){
+    if(!e || !e.module) return;
+    const hasFull = Array.isArray(e.options) && e.options.length>=2 && typeof e.answer==='number' && e.answer>=0;
+    const hasPhoto = Array.isArray(e.photos) && e.photos.length>0;
+    if(hasFull){
       all.push({
         q: e.question || e.content || '(错题回顾)',
         options: e.options,
@@ -16529,6 +16593,26 @@ function bankAllQuestions(){
         explainStruct: e.parts || null,
         module: e.module,
         kp: e.kp || ''
+      });
+    } else if(hasPhoto){
+      // 【修复 BUG①】纯图片错题（如图形推理整图题）也合并进题池，附带 _errPhotos 等元数据
+      // 让 renderQuestion 能渲染「错题原貌」照片；选项填 4 个「未填写」+ answer=-1，标记 _errPhotoOnly
+      const qText = e.question || e.content || (/^图|^图推|^图形|图推|图形|资料/.test(e.module||'') ? '（图片错题，请看下方图片）' : '(错题回顾)');
+      all.push({
+        q: qText,
+        options: ['未填写','未填写','未填写','未填写'],
+        answer: -1,
+        explain: e.summary || '',
+        explainStruct: e.parts || null,
+        module: e.module,
+        kp: e.kp || '',
+        _fromError: e.id,
+        _errPhotos: e.photos || [],
+        _errContent: e.content || '',
+        _errQuestion: e.question || '',
+        _errParts: e.parts || null,
+        _errSummary: e.summary || '',
+        _errPhotoOnly: true
       });
     }
   });
