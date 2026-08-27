@@ -3396,6 +3396,10 @@ body.drawer-open .nav-cloud{display:none;}
     <div class="card-title"><span class="dot"></span>添加错题（支持拍照与语音）</div>
 
     <!-- 1) 快捷单行录入（兼容老习惯） -->
+    <div id="errorEditBanner" style="display:none;margin:0 0 8px;padding:8px 12px;background:linear-gradient(135deg,#FFF5F0,#FFEFE5);border:1.5px solid #e8a18e;border-radius:10px;font-size:12px;color:#9a4a2a;align-items:center;gap:10px">
+      <span>✏️ 正在编辑错题：<b id="errorEditBannerLabel"></b></span>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="cancelErrorEdit()" style="margin-left:auto">✕ 取消编辑</button>
+    </div>
     <div class="error-input-area">
       <textarea id="errorInput" placeholder="快速记录：粘贴题目/拍照上传/口述内容…（下方可补充完整结构）"></textarea>
     </div>
@@ -8788,7 +8792,7 @@ function mmApplyImportedTree(tree, target){
   if(!tree){ if(typeof toast==='function') toast('未能解析出节点'); return; }
   function count(n){ if(!n) return 0; return 1 + (n.children||[]).reduce(function(s,c){ return s+count(c); }, 0); }
   const cnt = count(tree);
-  if(cnt<=1){ if(typeof toast==='function') toast('请检查格式，至少要有 1 个根节点 + 子节点'); return; }
+  if(cnt<=1){ if(typeof toast==='function') toast('解析成功但节点过少（' + cnt + '）：请确认导图含「中心主题 + 至少 1 个子节点」。中心主题="' + (tree && tree.name ? tree.name : '(空)') + '"'); return; }
   if(target === 'new'){
     const newName = (document.getElementById('mmImportNewName').value||'').trim();
     if(!newName){ if(typeof toast==='function') toast('请输入新科目名'); return; }
@@ -8823,8 +8827,28 @@ function mmApplyImportedTree(tree, target){
 
 // ----- Xmind 导入（解析 .xmind 里的 content.json / content.xml） -----
 function xmindJsonToTree(text){
-  const obj = JSON.parse(text);
-  const rootTopic = obj.rootTopic || obj;
+  let obj;
+  try { obj = JSON.parse(text); } catch(e){ throw new Error('content.json 不是合法 JSON：'+e.message); }
+  // 兼容多种顶层结构（现代 Xmind 2020+ 的 content.json 顶层是数组，包裹多个 sheet）：
+  //   ① 直接数组     [{ id, class, title, rootTopic: {...} }, ...]
+  //   ② 对象 rootTopic  { rootTopic: {...} }
+  //   ③ sheets 包裹    { sheets: [{ rootTopic: {...} }, ...] }
+  //   ④ 顶层本身就是 topic（罕见）：{ title/text/label, children: ... }
+  let rootTopic = null;
+  if(Array.isArray(obj)){
+    for(let i=0;i<obj.length;i++){
+      const it = obj[i];
+      if(it && it.rootTopic){ rootTopic = it.rootTopic; break; }
+      if(it && it.title && (it.children || it.attached || it.detached)){ rootTopic = it; break; }
+    }
+  } else if(obj && obj.rootTopic){
+    rootTopic = obj.rootTopic;
+  } else if(obj && Array.isArray(obj.sheets) && obj.sheets[0] && obj.sheets[0].rootTopic){
+    rootTopic = obj.sheets[0].rootTopic;
+  } else if(obj && (obj.title != null || obj.text != null || obj.label != null)){
+    rootTopic = obj;
+  }
+  if(!rootTopic) throw new Error('找不到 rootTopic（content.json 顶层既不是数组也不是 rootTopic 对象）');
   function conv(t){
     if(!t) return { name:'', children:[] };
     // 兼容多种 title 字段：title / text / label（旧版 Xmind 用 text，新版用 title，少量版本用 label）
@@ -14040,8 +14064,10 @@ function addError(){
   const finalQuestion = question.trim() || (hasFull ? '' : realContent);
   const finalContent = hasFull ? (realContent === '(图片错题)' ? '' : realContent) : realContent;
 
-  store.errors.push({
-    id:'err'+Date.now()+'_'+Math.floor(Math.random()*1000),
+  // 方案D：编辑模式 —— 若 _editingErrorId 存在，则替换 store.errors 中的对应条目
+  const editingId = store._editingErrorId;
+  const newErr = {
+    id: editingId || ('err'+Date.now()+'_'+Math.floor(Math.random()*1000)),
     module,
     content: finalContent,
     photos: [...currentPhotos],
@@ -14062,7 +14088,19 @@ function addError(){
     kp: kp || undefined,
     // 方案C：选项级配图（与 opts 4 个位置一一对应）
     optionPhotos: errorOptPhotos.slice(),
-  });
+  };
+  if(editingId){
+    const idx = store.errors.findIndex(function(x){ return x.id === editingId; });
+    if(idx >= 0){
+      // 保留原 date / src / bookId 等元数据（避免被覆盖）
+      newErr.date = store.errors[idx].date || newErr.date;
+      store.errors[idx] = newErr;
+    } else {
+      store.errors.push(newErr);
+    }
+  } else {
+    store.errors.push(newErr);
+  }
   saveStore();
   document.getElementById('errorInput').value = '';
   // 重置完整结构
@@ -14080,7 +14118,82 @@ function addError(){
 
   // 连续添加：不清 _pendingQbookErr，让用户能在同一题本下连续录入多道错题
   if(typeof renderErrors==='function') renderErrors();
-  toast('错题已保存'+(pending?' · 已关联《'+(pending.bName||'题本')+'》':(hasFull?' · 完整录入':'')));
+  // 退出编辑态 + 更新 banner
+  if(editingId){ store._editingErrorId = ''; }
+  if(typeof updateErrorEditBanner==='function') updateErrorEditBanner();
+  toast(editingId ? '✏️ 错题已修改' : ('错题已保存'+(pending?' · 已关联《'+(pending.bName||'题本')+'》':(hasFull?' · 完整录入':''))));
+}
+
+// 方案D：错题编辑 —— 载入某条错题到表单，修改后保存即替换原条目
+function editError(id){
+  if(!store.errors) store.errors = [];
+  const e = store.errors.find(function(x){ return x.id === id; });
+  if(!e){ if(typeof toast==='function') toast('找不到该错题'); return; }
+  // 进入编辑态
+  store._editingErrorId = id;
+  // 填表单
+  const setVal = (el, v)=>{ if(el) el.value = v; };
+  setVal(document.getElementById('errorInput'), e.content || '');
+  setVal(document.getElementById('errorModule'), e.module || '常识判断');
+  // 触发 onchange 以刷新知识点下拉
+  const modSel = document.getElementById('errorModule');
+  if(modSel) modSel.dispatchEvent(new Event('change'));
+  setVal(document.getElementById('errorQuestion'), e.question || '');
+  const opts = Array.isArray(e.options) ? e.options.slice() : ['','','',''];
+  while(opts.length<4) opts.push('');
+  setVal(document.getElementById('errorOptA'), opts[0] || '');
+  setVal(document.getElementById('errorOptB'), opts[1] || '');
+  setVal(document.getElementById('errorOptC'), opts[2] || '');
+  setVal(document.getElementById('errorOptD'), opts[3] || '');
+  setVal(document.getElementById('errorAnswer'), (typeof e.answer === 'number' && e.answer >= 0) ? e.answer : -1);
+  const parts = Array.isArray(e.parts) ? e.parts : [];
+  for(let i=0;i<4;i++) setVal(document.getElementById('errorExplain'+i), parts[i] || '');
+  setVal(document.getElementById('errorExplainSummary'), e.summary || '');
+  setVal(document.getElementById('errorKp'), e.kp || '');
+  // 题图
+  currentPhotos = Array.isArray(e.photos) ? e.photos.slice() : [];
+  renderErrorPhotos();
+  // 选项图（方案C）
+  errorOptPhotos = Array.isArray(e.optionPhotos) ? e.optionPhotos.slice() : ['','','',''];
+  while(errorOptPhotos.length<4) errorOptPhotos.push('');
+  renderErrorOptPhotos();
+  // 自动展开完整结构面板
+  const panel = document.getElementById('errorFullPanel');
+  if(panel) panel.style.display = 'block';
+  // 更新 banner
+  updateErrorEditBanner();
+  // 滚到表单
+  try{ document.getElementById('errorInput').scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){}
+  if(typeof toast==='function') toast('✏️ 已载入该错题，修改后点「保存错题」即替换原条目');
+}
+function cancelErrorEdit(){
+  store._editingErrorId = '';
+  const setVal = (id, v)=>{ const el = document.getElementById(id); if(el) el.value = v; };
+  setVal('errorInput',''); setVal('errorQuestion','');
+  setVal('errorOptA',''); setVal('errorOptB',''); setVal('errorOptC',''); setVal('errorOptD','');
+  setVal('errorAnswer','-1');
+  for(let i=0;i<4;i++) setVal('errorExplain'+i, '');
+  setVal('errorExplainSummary',''); setVal('errorKp','');
+  currentPhotos = []; renderErrorPhotos();
+  errorOptPhotos = ['','','','']; renderErrorOptPhotos();
+  updateErrorEditBanner();
+  if(typeof toast==='function') toast('已取消编辑');
+}
+function updateErrorEditBanner(){
+  const banner = document.getElementById('errorEditBanner');
+  if(!banner) return;
+  const editingId = store._editingErrorId;
+  if(editingId){
+    const e = (store.errors||[]).find(function(x){ return x.id === editingId; });
+    const label = document.getElementById('errorEditBannerLabel');
+    if(label){
+      const shortQ = (e ? ((e.question||e.content||'').replace(/\s+/g,' ').trim().substring(0,30) || '(无题干)') : editingId);
+      label.textContent = (e ? (e.module || '未分类') : '') + ' · ' + shortQ;
+    }
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
 }
 
 // 离开错题记录页（跳到其他页）时清掉暂存，避免被错误继承到无关错题
@@ -14220,6 +14333,7 @@ function renderErrorItem(e){
     +     '<div class="mi-detail">'
     +       '<div class="mi-acts-detail" style="margin:6px 0 8px;display:flex;gap:6px;justify-content:flex-end;">'
     +         '<button type="button" class="btn btn-sm mi-act-view">👁 详情</button>'
+    +         '<button type="button" class="btn btn-sm" onclick="event.stopPropagation();event.preventDefault();editError(\'' + e.id + '\')" title="修改此题的题干/选项/解析/图片" style="margin-left:4px">✏️ 编辑</button>'
     +         '<button type="button" class="btn btn-sm btn-danger" onclick="event.stopPropagation();event.preventDefault();if(confirm(\'确定删除此错题？\'))deleteError(\'' + e.id + '\')" style="margin-left:4px">✕</button>'
     +       '</div>'
     +       '<div class="mi-q-full">' + escapeHtml(qText).replace(/\n/g,'<br>') + '</div>';
