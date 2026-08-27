@@ -7611,10 +7611,10 @@ function renderMindmap(){
   const RX = 8;
   const svgW = layout.width, svgH = layout.height;
   // ----- SVG 元素拼接 -----
-  let svg = '';
-  // 连线（任意层级，仅当父级展开时画）
+  let svg = ''; let nodeSvg = ''; let edgeSvg = '';
+  // 连线（任意层级，仅当父级展开时画）—— 先累积到 edgeSvg，最后再拼到节点之上
   layout.edges.forEach(function(e){
-    svg += '<path d="'+svgCurve(e.x1,e.y1,e.x2,e.y2)+'" stroke="'+COL_CURVE+'" stroke-width="2.5" fill="none" opacity="1" stroke-linecap="round" stroke-linejoin="round"/>';
+    edgeSvg += '<path d="'+svgCurve(e.x1,e.y1,e.x2,e.y2)+'" stroke="'+COL_CURVE+'" stroke-width="2.5" fill="none" opacity="1" stroke-linecap="round" stroke-linejoin="round"/>';
   });
   // 通用绘制函数
   function svgRect(x, y, w, h, fill, stroke){
@@ -7685,8 +7685,10 @@ function renderMindmap(){
       g += '</g>';
     }
     g += '</g>';
-    svg += g;
+    nodeSvg += g;
   });
+  // 连线最后绘制，覆盖在节点与图片缩略图之上，避免被带图节点的缩略图条遮住（Bug②：右侧子节点连线缺失）
+  svg = nodeSvg + edgeSvg;
   // ----- 外壳 HTML -----
   let html = '<div style="padding:14px 14px 40px;background:#F7F7F8;min-height:100vh">';
   // 顶部标题
@@ -10196,7 +10198,8 @@ function getQuestions(module, type){
     // 仅含照片的错题（如图推整图题），也合并进来；选项置 4 个「未填写」让刷题流程完整
     if(hasFull || hasPhoto){
       const options = hasFull ? e.options : ['未填写','未填写','未填写','未填写'];
-      const qText = e.question || e.content || (hasPhoto ? '（图片错题，请看下方图片）' : '(错题回顾)');
+      // 【修复 BUG①】qText 兜底更友好：模块=图形推理/资料分析时显示「（图片题…）」，避免孤零零的「(错题回顾)」
+      const qText = e.question || e.content || (hasPhoto ? '（图片错题，请看下方图片）' : ((/^图形|^资料|^图推|图推|图形|资料/.test(module||'')) ? '（图片错题，请添加图片或题干）' : '(错题回顾)'));
       extra.push({
         q: qText,
         options: options,
@@ -13753,9 +13756,16 @@ function addError(){
   }
   const summary = (document.getElementById('errorExplainSummary') || {}).value || '';
   const kp = (document.getElementById('errorKp') || {}).value || '';
-  const hasFull = !!(question.trim() || opts.some(function(s){ return !!s; }) || (answer>=0) || parts.some(function(s){ return !!s; }) || summary.trim() || kp);
-
+  // 【修复 BUG①】hasFull 收紧：只填 kp/summary/答案索引不算「完整题」，避免进题池后选项全是「未填写」
+  // 完整题的判定必须是题干 / 选项 / 答案三选一有实际内容（kp/summary 只是补充）
+  const hasFull = !!(question.trim() || opts.some(function(s){ return !!s; }) || (answer>=0) || parts.some(function(s){ return !!s; }) || summary.trim());
+  // 至少要有：文字内容 / 图片 / 完整结构之一
   if(!content && currentPhotos.length===0 && !hasFull){ toast('请输入错题内容、拍照或展开填写完整结构'); return; }
+  // 【修复 BUG①】图形推理/图推题本质是「整图题」，必须拍一张整图或填题干，否则刷题时看不到题目
+  if(/图推|图形/.test(module) && currentPhotos.length===0 && !question.trim()){
+    toast('📷 图形推理题请先拍一张整图（或填写题干），否则刷题时看不到题目');
+    return;
+  }
 
   // 联动：从题本卡片「关联错题」进来的话，会暂存 _pendingQbookErr
   const pending = store._pendingQbookErr || null;
