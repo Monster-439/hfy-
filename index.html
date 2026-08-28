@@ -7925,7 +7925,9 @@ function layoutRadialMindmap(root){
     const parentPath = segs.slice(0, segs.length-1).join('.');
     const parent = nodes.find(function(n){ return n.path===parentPath; });
     if(parent && parent.open){
-      edges.push({ x1: parent.x + parent.w/2, y1: parent.y, x2: nd.x - nd.w/2, y2: nd.y, isImgEdge: nd.virtual==='img' });
+      // 【修复 BUG⑤】连线起止点改用节点框的「外缘」而非中心，
+      //   让 svgCurve 的水平段完全在父框外/子框外，水平段不再横穿父节点框。
+      edges.push({ x1: parent.x + parent.w, y1: parent.y, x2: nd.x, y2: nd.y, isImgEdge: nd.virtual==='img' });
     }
   });
   const maxLevel = nodes.reduce(function(m,n){ return Math.max(m,n.level); }, 0);
