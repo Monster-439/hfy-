@@ -7467,17 +7467,25 @@ function populateKpDropdown(scope, targetId){
   scope = scope || '__all';
   const SUB2KEY = { '常识判断':'common','时政热点':'politics','言语理解':'verbal','判断推理':'reasoning','图形推理':'figure','数量关系':'quantity','资料分析':'data','申论':'shenlun' };
   const selVal = (id)=>{ const e=document.getElementById(id); return e?e.value:''; };
-  const currentSubKey = SUB2KEY[selVal('manModule')] || SUB2KEY[selVal('errorModule')] || '';
+  // 【修复 BUG②】每个下拉框按自己所属面板的模块取 currentSubKey，
+  //   避免 manModule 残留值污染 errorKp（曾导致「图形推理」下显示「常识判断」知识点）
+  function currentSubKeyFor(id){
+    if(id === 'errorKp') return SUB2KEY[selVal('errorModule')] || '';
+    if(id === 'manKp')   return SUB2KEY[selVal('manModule')]   || '';
+    if(id === 'bankKpFilter') return SUB2KEY[selVal('bankPdfModuleSel')] || '';
+    return SUB2KEY[selVal('manModule')] || SUB2KEY[selVal('errorModule')] || '';
+  }
   const targets = targetId ? [targetId] : ['manKp','bankKpFilter','errorKp'];
   const wantAll = (scope === '__all');
   const wantCurrent = (scope === '__current');
   const fixedSub = (!wantAll && !wantCurrent) ? scope : '';
-  const groups = (function(){
+  // __all / 外部传具体 sub（fixedSub）——共用同一份 groups；
+  // __current ——每个 id 各自按自己所属面板模块过滤
+  const sharedGroups = (fixedSub || wantAll) ? (function(){
     const all = collectMindmapGroupedNames();
     if(fixedSub) return all.filter(function(g){ return g.sub === fixedSub; });
-    if(wantCurrent && currentSubKey) return all.filter(function(g){ return g.sub === currentSubKey; });
     return all;
-  })();
+  })() : null;
   targets.forEach(function(id){
     const sel = document.getElementById(id);
     if(!sel) return;
@@ -7488,6 +7496,12 @@ function populateKpDropdown(scope, targetId){
       // 手动录入 / 错题面板：加「显示全部」快捷回退
       html += '<option value="__show_all__">📋 显示全部科目（跨学科选题）</option>';
     }
+    const groups = sharedGroups ? sharedGroups : (function(){
+      const useSub = currentSubKeyFor(id);
+      const all = collectMindmapGroupedNames();
+      if(useSub) return all.filter(function(g){ return g.sub === useSub; });
+      return all;
+    })();
     if(groups.length === 0){
       const msg = wantAll ? '暂无知识点，请先在思维导图里添加节点' : '当前学科暂无节点，点上方「显示全部」跨学科选题，或去「知识体系导图」添加';
       html += '<option value="" disabled>' + msg + '</option>';
@@ -7507,7 +7521,11 @@ function populateKpDropdown(scope, targetId){
   const tip = document.getElementById('bankKpScopeTip');
   if(tip){
     if(wantAll){ tip.textContent = '全部科目'; }
-    else if(wantCurrent){ const m = (typeof MINDMAP_DATA!=='undefined' && MINDMAP_DATA[currentSubKey]) ? MINDMAP_DATA[currentSubKey].name : '当前学科'; tip.textContent = m; }
+    else if(wantCurrent){
+      const firstSub = currentSubKeyFor(targets[0]);
+      const m = (typeof MINDMAP_DATA!=='undefined' && MINDMAP_DATA[firstSub]) ? MINDMAP_DATA[firstSub].name : '当前学科';
+      tip.textContent = m;
+    }
   }
 }
 var gBankKp = '';
