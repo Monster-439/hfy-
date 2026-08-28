@@ -7371,7 +7371,12 @@ function toggleQbookChapters(id){
 // ====================================================
 function getActiveMindmapSubject(){
   const key = localStorage.getItem('mm_active_subject');
+  // 内置科目
   if(MINDMAP_DATA[key]) return key;
+  // 自导入科目（写入 store.mindmapCustom）
+  try{
+    if(typeof store !== 'undefined' && store && store.mindmapCustom && store.mindmapCustom[key]) return key;
+  }catch(_){ /* store 尚未就绪（早期调用） */ }
   return 'verbal';
 }
 function setActiveMindmapSubject(key){
@@ -7610,10 +7615,21 @@ function saveMindmapTreeToStore(root){
 }
 function resetMindmapSubject(){
   const sub = getActiveMindmapSubject();
-  if(typeof confirm==='function' && !confirm('重置 '+MINDMAP_DATA[sub].name+' 思维导图为默认？你的修改会丢失。')) return;
+  const isBuiltin = !!MINDMAP_DATA[sub];
+  const displayName = isBuiltin
+    ? (MINDMAP_DATA[sub].name || sub)
+    : ((store && store.mindmapCustom && store.mindmapCustom[sub] && store.mindmapCustom[sub].name) || sub);
+  const msg = isBuiltin
+    ? ('重置「'+displayName+'」思维导图为默认？你的修改会丢失。')
+    : ('删除自导入科目「'+displayName+'」及其全部内容？此操作不可撤销。');
+  if(typeof confirm==='function' && !confirm(msg)) return;
   if(store.mindmapCustom) delete store.mindmapCustom[sub];
+  // 自导入科目被删后，若它正好是当前激活科目，清掉 mm_active_subject 让 fallback 切到 verbal
+  if(!isBuiltin && localStorage.getItem('mm_active_subject') === sub){
+    localStorage.removeItem('mm_active_subject');
+  }
   saveStore(); renderMindmap();
-  if(typeof toast==='function') toast('已重置为默认导图');
+  if(typeof toast==='function') toast(isBuiltin ? '已重置为默认导图' : '已删除自导入科目「'+displayName+'」');
 }
 function renderMindmap(){
   const el = document.getElementById('page-mindmap');
@@ -7622,6 +7638,8 @@ function renderMindmap(){
   const sub = getActiveMindmapSubject();
   const data = MINDMAP_DATA[sub] || MINDMAP_DATA.verbal;
   const root = getMindmapData();
+  // 自定义科目兜底名（data 是 verbal 兜底，对自导入科目不准）
+  const subjectDisplayName = data.name || ((store && store.mindmapCustom && store.mindmapCustom[sub] && store.mindmapCustom[sub].name) || sub);
   const layout = layoutRadialMindmap(root);
   const notes = (store.mindmapNotes && store.mindmapNotes[sub]) || '';
   const openMap = (store && store.mindmapOpen) ? store.mindmapOpen : (store.mindmapOpen = {});
@@ -7697,7 +7715,7 @@ function renderMindmap(){
     if(canFold){
       g += '<text x="'+(nd.x - nd.w/2 + 11)+'" y="'+(cy+4)+'" text-anchor="middle" font-size="13" font-weight="800" fill="'+(lvl===1?COL_L1_TEXT:COL_L2_TEXT)+'" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif" style="cursor:pointer" onclick="event.stopPropagation();toggleMindmapNode(\''+escapeAttr(nd.path)+'\')">'+foldSym+'</text>';
     }
-    g += svgText(nd.x + textDx, cy, n.name||(lvl===0?data.name:'(未命名)'), textColor, tSize, tWeight)
+    g += svgText(nd.x + textDx, cy, n.name||(lvl===0?subjectDisplayName:'(未命名)'), textColor, tSize, tWeight)
       + svgErrBadge(nd.x, cy, mmGetErr(sub, nd.path), nd.w);
     // 【修复 BUG③】删除节点正右侧的内联缩略图条——图片现在作为虚拟子节点渲染到右侧（由 layoutRadialMindmap 处理）
     // 这里只在右上角显示图片数量徽标
