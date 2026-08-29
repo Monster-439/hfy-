@@ -3433,9 +3433,54 @@ body.drawer-open .nav-cloud{display:none;}
           <option value="2">C</option>
           <option value="3">D</option>
         </select>
+        <span id="errorAnsMultiWrap" style="display:none;gap:6px;align-items:center;font-size:12px;">
+          <span class="bank-mod-tip">正确答案(可多选)</span>
+          <label><input type="checkbox" class="err-ans-multi" value="0">A</label>
+          <label><input type="checkbox" class="err-ans-multi" value="1">B</label>
+          <label><input type="checkbox" class="err-ans-multi" value="2">C</label>
+          <label><input type="checkbox" class="err-ans-multi" value="3">D</label>
+        </span>
         <select id="errorKp" class="manual-sel" onchange="onManKpChange(this)"><option value="">（知识点 · 关联思维导图，选填）</option></select>
         <button type="button" class="btn btn-ghost btn-sm" onclick="mmPickKpTree('errorKp')">🌳 树状选</button>
         <button type="button" class="btn btn-ghost btn-sm" onclick="mmFillKpFree('errorKp')">✏️ 自定义</button>
+      </div>
+      <div class="manual-row err-meta-row">
+        <select id="errorBook" class="manual-sel" title="归入哪个小本子"><option value="">（归入本子 · 可不选）</option></select>
+        <select id="errorQType" class="manual-sel" onchange="onErrorQTypeChange()">
+          <option value="单选">题型 · 单选</option>
+          <option value="多选">题型 · 多选</option>
+          <option value="判断">题型 · 判断</option>
+        </select>
+        <select id="errorLevel" class="manual-sel">
+          <option value="">难度 · 未评</option>
+          <option value="简单">简单</option>
+          <option value="中等">中等</option>
+          <option value="困难">困难</option>
+        </select>
+        <select id="errorReason" class="manual-sel">
+          <option value="">错因 · 未填</option>
+          <option value="概念不清">概念不清</option>
+          <option value="审题失误">审题失误</option>
+          <option value="计算错误">计算错误</option>
+          <option value="方法不会">方法不会</option>
+          <option value="粗心大意">粗心大意</option>
+        </select>
+      </div>
+      <div class="manual-row err-meta-row">
+        <select id="errorSrcDetail" class="manual-sel">
+          <option value="手动录入">来源 · 手动录入</option>
+          <option value="题库演练">题库演练</option>
+          <option value="PDF真题">PDF真题</option>
+          <option value="拍照">拍照</option>
+          <option value="语音">语音</option>
+        </select>
+        <span class="err-meta-lb">错</span>
+        <input id="errorWrongCount" type="number" min="1" max="99" step="1" value="1" class="manual-sel err-cnt" title="错误次数">
+        <span class="err-meta-lb">次</span>
+        <span class="err-meta-lb">复习</span>
+        <input id="errorNextReview" type="date" class="manual-sel" title="下次复习日（自动同步到「记忆复习」）">
+        <label class="err-master-chk"><input type="checkbox" id="errorMastered" onchange="onErrorMasteredChange()"> 已掌握</label>
+        <input id="errorMasteredDate" type="date" class="manual-sel" title="掌握日期（勾选已掌握自动填今天）" style="display:none">
       </div>
       <div class="manual-row">
         <span class="bank-mod-tip">题干留空时，会用上方「快速记录」区的内容作为兜底；按学科筛节点</span>
@@ -3460,6 +3505,10 @@ body.drawer-open .nav-cloud{display:none;}
         <div class="meb-row"><span class="meb-k" id="errorEk2">C</span><textarea id="errorExplain2" class="manual-area meb-in" placeholder="为什么 C 对/错（选填）"></textarea></div>
         <div class="meb-row"><span class="meb-k" id="errorEk3">D</span><textarea id="errorExplain3" class="manual-area meb-in" placeholder="为什么 D 对/错（选填）"></textarea></div>
         <div class="meb-row meb-row-sum"><span class="meb-k">总</span><textarea id="errorExplainSummary" class="manual-area meb-in" placeholder="总论/题干梳理（选填）"></textarea></div>
+      </div>
+      <div class="err-note-block">
+        <div class="meb-title">📝 我的反思笔记（与上面「总论」分开：总论记标准解析，这里记你为什么错、下次怎么避坑）</div>
+        <textarea id="errorNote" class="manual-area" placeholder="例：把「同比」看成「环比」了——以后圈关键词；这题的定位公式没背熟，回资料分析第 3 节重看"></textarea>
       </div>
     </div>
   </div>
@@ -4180,6 +4229,8 @@ function defaultStore(){
     achievements: {}, // 成就墙：已解锁成就 {id: 解锁日期}
     gacha: { tickets:0, pulled:[], coll:{} }, // 抽卡养花：扭蛋币数 / 抽卡历史 / 已收集图鉴
     ebbinghaus: { items: [] }, // 艾宾浩斯复习计划 [{id,srcDate,module,stage,interval,dueDate,done,doneDate}]
+    errorBooks: [],  // 错题本（小本子）[{id,name,color,icon,createdAt,order}] 为空时首次运行按科目预建
+    errors: [],      // 错题 [{id,module,content,photos,date,...,book,qType,level,wrongReason,wrongCount,srcDetail,mastered,masteredDate,note,nextReview,answer:[]}]
     flashcards: [],    // 知识闪卡 [{id,module,front,back,created,level,lastReview}]（level:掌握度0-5）
     inspiration: { custom: [] }, // 用户自己记录的灵感 {id,module,text,date}
     diary: {},         // 每晚日记 {date: {mood, meaningful, wish, feeling, thanks, ts}}
@@ -5076,6 +5127,72 @@ function migrateEbbinghaus(){
   store.ebbinghaus._init = true;
   try{ saveStore(); }catch(e){}
 }
+// ====================================================
+//  错题本（小本子）数据模型 + 老数据迁移
+// ====================================================
+const ERROR_BOOK_COLORS = ['#7F77DD','#D85A30','#1D9E75','#378ADD','#BA7517','#D4537E','#639922'];
+const ERROR_BOOK_ICONS  = ['📘','📗','📕','📙','📔','📒','📚'];
+const ERR_QTYPES  = ['单选','多选','判断'];
+const ERR_LEVELS  = ['简单','中等','困难'];
+const ERR_REASONS = ['概念不清','审题失误','计算错误','方法不会','粗心大意'];
+const ERR_SOURCES = ['题库演练','PDF真题','手动录入','拍照','语音'];
+// 首次运行预建的本子（与录入下拉的科目一致），可改名/改色/删除/新建
+const PRESET_BOOK_NAMES = ['常识判断','时政热点','言语理解','图形推理','判断推理','数量关系','资料分析'];
+// 错题本视图：当前打开的本子 id（空=书架总览）
+let _errorsBookView = '';
+
+function ensureErrorBooks(){
+  if(!Array.isArray(store.errorBooks)) store.errorBooks = [];
+  if(store.errorBooks.length) return false;
+  const t = todayKey();
+  store.errorBooks = PRESET_BOOK_NAMES.map(function(name, i){
+    return { id:'ebk_'+i+'_'+name, name:name,
+             color:ERROR_BOOK_COLORS[i % ERROR_BOOK_COLORS.length],
+             icon:ERROR_BOOK_ICONS[i % ERROR_BOOK_ICONS.length],
+             createdAt:t, order:i, preset:true };
+  });
+  return true;
+}
+function errorBookById(id){
+  if(!id) return null;
+  return (store.errorBooks||[]).find(function(x){ return x.id===id; }) || null;
+}
+function errorBookIdByModule(module){
+  const b = (store.errorBooks||[]).find(function(x){ return x.name === module; });
+  return b ? b.id : '';
+}
+// 老数据迁移：answer 数字→数组；补新字段默认值；老错题按 module 归入同名预建本
+// 注意：level/reason 迁移时留空（不硬塞「中等」），只有用户主动选过才显示标签
+function migrateErrorFields(){
+  ensureErrorBooks();
+  if(!Array.isArray(store.errors)) store.errors = [];
+  let changed = false;
+  store.errors.forEach(function(e){
+    if(!e) return;
+    // 兼容：若某条被旧版迁移成了数组，先还原成数字（刷题引擎按数字判定答案）
+    if(Array.isArray(e.answer)){ e.answer = (e.answer.length ? e.answer[0] : -1); changed = true; }
+    if(e.qType === undefined){ e.qType = '单选'; changed = true; }
+    if(!Array.isArray(e.answerArr)){ e.answerArr = []; changed = true; }
+    if(e.level === undefined){ e.level = ''; changed = true; }
+    if(e.wrongReason === undefined){ e.wrongReason = ''; changed = true; }
+    if(typeof e.wrongCount !== 'number'){ e.wrongCount = 1; changed = true; }
+    if(e.srcDetail === undefined){
+      e.srcDetail = (e.src==='qbook') ? '题库演练' : ((Array.isArray(e.photos) && e.photos.length) ? '拍照' : '手动录入');
+      changed = true;
+    }
+    if(typeof e.mastered !== 'boolean'){ e.mastered = false; changed = true; }
+    if(e.masteredDate === undefined){ e.masteredDate = ''; changed = true; }
+    if(e.note === undefined){ e.note = ''; changed = true; }
+    if(e.nextReview === undefined){ e.nextReview = ''; changed = true; }
+    if(!e.book){
+      const bid = errorBookIdByModule(e.module);
+      if(bid){ e.book = bid; changed = true; }
+    }
+  });
+  if(changed){ try{ saveStore(); }catch(err){} }
+  return changed;
+}
+
 function dueReviewCount(){
   return (store.ebbinghaus.items||[]).filter(function(it){ return !it.done && it.dueDate<=todayKey(); }).length;
 }
@@ -9150,7 +9267,7 @@ function onPageShow(page){
   if(page==='checkin') renderCheckin();
   if(page==='stats') renderStats();
   if(page==='exam') renderExam();
-  if(page==='error'){ renderErrors(); populateKpDropdown('__current','errorKp'); populateKpDropdown('__current','manKp'); }
+  if(page==='error'){ renderErrors(); populateErrorBookSelect(); populateKpDropdown('__current','errorKp'); populateKpDropdown('__current','manKp'); }
   if(TOPICS[page]) renderTopic(page);
   if(IMPORT_SECTIONS.indexOf(page)>=0) renderImports(page);
   if(page==='bank') renderBank();
@@ -11520,6 +11637,11 @@ function submitAnswer(){
     if(hasAnswer){
       correct = (quizState.selected === q.answer);
       if(correct) quizState.correctCount++;
+      // 关联错题：答错自动 +1 错误次数
+      if(!correct && q._fromError){
+        const _er = (store.errors||[]).find(function(x){ return x.id===q._fromError; });
+        if(_er){ _er.wrongCount = (typeof _er.wrongCount==='number' && _er.wrongCount>0) ? _er.wrongCount+1 : 1; try{ saveStore(); }catch(_){} }
+      }
       // 标记选项
       document.querySelectorAll('.quiz-option').forEach((el,i)=>{
         if(i===q.answer) el.classList.add('correct');
@@ -14131,8 +14253,6 @@ function addError(){
     (document.getElementById('errorOptC') || {}).value || '',
     (document.getElementById('errorOptD') || {}).value || '',
   ].map(function(s){ return (''+s).trim(); });
-  const answerSel = document.getElementById('errorAnswer');
-  const answer = answerSel ? parseInt(answerSel.value, 10) : -1;
   const parts = [];
   for(let i=0;i<4;i++){
     const e = document.getElementById('errorExplain'+i);
@@ -14140,6 +14260,28 @@ function addError(){
   }
   const summary = (document.getElementById('errorExplainSummary') || {}).value || '';
   const kp = (document.getElementById('errorKp') || {}).value || '';
+  // 升级字段
+  const qType = (document.getElementById('errorQType') || {}).value || '单选';
+  let answer, answerArr;
+  if(qType === '多选'){
+    answerArr = Array.prototype.slice.call(document.querySelectorAll('.err-ans-multi'))
+      .filter(function(c){ return c.checked; }).map(function(c){ return parseInt(c.value,10); })
+      .sort(function(a,b){ return a-b; });
+    answer = -1;
+  } else {
+    const av = parseInt((document.getElementById('errorAnswer')||{}).value, 10);
+    answer = (av >= 0) ? av : -1; answerArr = [];
+  }
+  const bookSel = (document.getElementById('errorBook') || {}).value || '';
+  const book = bookSel || errorBookIdByModule(module) || (store.errorBooks[0] && store.errorBooks[0].id) || '';
+  const level = (document.getElementById('errorLevel') || {}).value || '';
+  const wrongReason = (document.getElementById('errorReason') || {}).value || '';
+  const srcDetail = (document.getElementById('errorSrcDetail') || {}).value || '手动录入';
+  const wrongCount = parseInt((document.getElementById('errorWrongCount')||{}).value, 10) || 1;
+  const nextReview = (document.getElementById('errorNextReview') || {}).value || '';
+  const mastered = !!(document.getElementById('errorMastered') && document.getElementById('errorMastered').checked);
+  const masteredDate = mastered ? ((document.getElementById('errorMasteredDate')||{}).value || todayKey()) : '';
+  const note = (document.getElementById('errorNote') || {}).value || '';
   // 【修复 BUG①】hasFull 收紧：只填 kp/summary/答案索引不算「完整题」，避免进题池后选项全是「未填写」
   // 完整题的判定必须是题干 / 选项 / 答案三选一有实际内容（kp/summary 只是补充）
   const hasFull = !!(question.trim() || opts.some(function(s){ return !!s; }) || (answer>=0) || parts.some(function(s){ return !!s; }) || summary.trim());
@@ -14184,7 +14326,18 @@ function addError(){
     // 完整结构字段
     question: finalQuestion,
     options: opts,
-    answer: (typeof answer === 'number' && answer >= 0) ? answer : undefined,
+    answer: (typeof answer === 'number' && answer >= 0) ? answer : -1,
+    answerArr: (answerArr && answerArr.length) ? answerArr : [],
+    qType: qType,
+    book: book,
+    level: level,
+    wrongReason: wrongReason,
+    wrongCount: (typeof wrongCount==='number' && wrongCount>0) ? wrongCount : 1,
+    srcDetail: srcDetail,
+    mastered: mastered,
+    masteredDate: masteredDate,
+    note: note.trim() || '',
+    nextReview: nextReview,
     parts: parts,
     summary: summary.trim() || undefined,
     kp: kp || undefined,
@@ -14204,6 +14357,8 @@ function addError(){
     store.errors.push(newErr);
   }
   saveStore();
+  // 复习日 → 记忆复习队列（双向同步）
+  try{ syncNextReviewToEbb(newErr); }catch(_){}
   document.getElementById('errorInput').value = '';
   // 重置完整结构
   const setVal = (id, v)=>{ const e=document.getElementById(id); if(e) e.value = v; };
@@ -14213,6 +14368,14 @@ function addError(){
   for(let i=0;i<4;i++) setVal('errorExplain'+i, '');
   setVal('errorExplainSummary','');
   setVal('errorKp','');
+  // 重置升级字段
+  setVal('errorBook','');
+  setVal('errorQType','单选'); onErrorQTypeChange();
+  setVal('errorLevel',''); setVal('errorReason',''); setVal('errorSrcDetail','手动录入');
+  setVal('errorWrongCount','1'); setVal('errorNextReview','');
+  const mk = document.getElementById('errorMastered'); if(mk){ mk.checked=false; }
+  setVal('errorMasteredDate',''); setVal('errorNote','');
+  document.querySelectorAll('.err-ans-multi').forEach(function(c){ c.checked=false; });
   currentPhotos = [];
   renderErrorPhotos();
   errorOptPhotos = ['', '', '', ''];
@@ -14252,6 +14415,21 @@ function editError(id){
   for(let i=0;i<4;i++) setVal(document.getElementById('errorExplain'+i), parts[i] || '');
   setVal(document.getElementById('errorExplainSummary'), e.summary || '');
   setVal(document.getElementById('errorKp'), e.kp || '');
+  // 升级字段回填
+  setVal(document.getElementById('errorBook'), e.book || '');
+  setVal(document.getElementById('errorQType'), e.qType || '单选');
+  if(typeof onErrorQTypeChange==='function') onErrorQTypeChange();
+  setVal(document.getElementById('errorLevel'), e.level || '');
+  setVal(document.getElementById('errorReason'), e.wrongReason || '');
+  setVal(document.getElementById('errorSrcDetail'), e.srcDetail || '手动录入');
+  setVal(document.getElementById('errorWrongCount'), (typeof e.wrongCount==='number' && e.wrongCount>0) ? e.wrongCount : 1);
+  setVal(document.getElementById('errorNextReview'), e.nextReview || '');
+  setVal(document.getElementById('errorMasteredDate'), e.masteredDate || '');
+  setVal(document.getElementById('errorNote'), e.note || '');
+  const mk2 = document.getElementById('errorMastered'); if(mk2) mk2.checked = !!e.mastered;
+  const arr = (Array.isArray(e.answerArr) && e.answerArr.length) ? e.answerArr : (typeof e.answer==='number' && e.answer>=0 ? [e.answer] : []);
+  document.querySelectorAll('.err-ans-multi').forEach(function(c){ c.checked = (arr.indexOf(parseInt(c.value,10))>=0); });
+  if(arr.length===1 && e.qType!=='多选') setVal(document.getElementById('errorAnswer'), arr[0]);
   // 题图
   currentPhotos = Array.isArray(e.photos) ? e.photos.slice() : [];
   renderErrorPhotos();
@@ -14330,104 +14508,201 @@ const BANK_ICONS = {
 
 function renderErrors(){
   const filter = document.getElementById('errorFilter').value;
-  let errors = [...store.errors].reverse();
-  if(filter!=='all') errors = errors.filter(e=>e.module===filter);
-  // 联动：重做错题 — 按 bookId 过滤
-  let bookBanner = '';
+  const list = document.getElementById('errorAllList');
+
+  // 联动：重做错题（来自题本）— 独立分支，按 bookId 过滤
   if(_errorsBookFilter){
     const bf = _errorsBookFilter;
-    errors = errors.filter(function(e){ return e.bookId===bf || (e.key && e.key.indexOf(bf+'|')===0); });
+    let errors = (store.errors||[]).filter(function(e){ return e.bookId===bf || (e.key && e.key.indexOf(bf+'|')===0); }).reverse();
+    if(filter!=='all') errors = errors.filter(function(e){ return e.module===filter; });
     const b = (typeof qbookById==='function') ? qbookById(bf) : null;
     const bName = b ? (b.name||'该题本') : '该题本';
-    bookBanner = '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;margin-bottom:10px;background:var(--bg-soft);border-radius:8px;border:1px solid var(--border-soft);"><span style="font-size:13px;font-weight:700;color:var(--pink-deep)">🔁 重做错题：'+(bName||'该题本')+'</span><span style="font-size:11px;color:var(--text-sub)">'+errors.length+' 道</span><span style="margin-left:auto;font-size:11px;color:var(--pink-btn);cursor:pointer;text-decoration:underline" onclick="clearBookErrorsFilter()">显示全部错题</span></div>';
+    let html = '<div class="eb-back"><button type="button" class="btn btn-sm" onclick="clearBookErrorsFilter()">← 返回书架</button>'
+      + '<span class="eb-back-name">🔁 重做：'+escapeHtml(bName)+'</span><span class="eb-back-cnt">'+errors.length+' 道</span></div>';
+    if(errors.length===0) html += '<div class="empty-state"><span class="emoji">❌</span>暂无错题</div>';
+    else { html += '<ul class="manual-group-list">'; errors.forEach(function(e){ html += renderErrorItem(e); }); html += '</ul>'; }
+    list.innerHTML = html; syncTopicErrors(); return;
   }
 
-  const list = document.getElementById('errorAllList');
-  if(errors.length===0){
-    list.innerHTML = bookBanner + '<div class="empty-state"><span class="emoji">❌</span>暂无错题记录</div>';
-    return;
+  // 本子内视图
+  if(_errorsBookView){
+    const b = errorBookById(_errorsBookView);
+    let errors = (store.errors||[]).filter(function(e){ return e.book===_errorsBookView; }).reverse();
+    if(filter!=='all') errors = errors.filter(function(e){ return e.module===filter; });
+    let html = '<div class="eb-back"><button type="button" class="btn btn-sm" onclick="closeBookView()">← 返回书架</button>'
+      + (b? ' <span class="eb-back-name">'+escapeHtml(b.name)+'</span>' : '')
+      + ' <span class="eb-back-cnt">'+errors.length+' 道</span></div>';
+    if(errors.length===0){
+      html += '<div class="empty-state"><span class="emoji">❌</span>这本子还没有错题</div>';
+    } else {
+      html += '<ul class="manual-group-list">';
+      errors.forEach(function(e){ html += renderErrorItem(e); });
+      html += '</ul>';
+    }
+    list.innerHTML = html; syncTopicErrors(); return;
   }
 
-  // ---------- 新版：按科目折叠分组（仿"我的题库"样式） ----------
-  const BANK_MODULES_LOCAL = (typeof BANK_MODULES!=='undefined' && BANK_MODULES.length) ? BANK_MODULES
-    : ['常识判断','言语理解','数量关系','判断推理','资料分析','图形推理','时政热点','申论'];
-  const BANK_ICONS_LOCAL = (typeof BANK_ICONS!=='undefined') ? BANK_ICONS : {};
-
-  // 顶部 tab 栏：全部 + 各科目
-  let html = bookBanner + '<li class="manual-tabs-wrap"><div class="manual-tabs">';
-  const totalAll = errors.length;
-  html += '<button type="button" class="manual-tab' + (filter==='all'?' active':'') + '" onclick="document.getElementById(\'errorFilter\').value=\'all\';renderErrors();">'
-    + '📚 全部 <span class="manual-tab-cnt">' + totalAll + '</span></button>';
-  // 模块 tab 跟随现有 errorFilter
-  const errByMod = {};
-  errors.forEach(function(e){
-    const m = e.module || '未分类';
-    if(!errByMod[m]) errByMod[m] = 0;
-    errByMod[m]++;
+  // 书架总览：每本一个卡片（书脊色条 + 封面统计）
+  const books = (store.errorBooks||[]).slice().sort(function(a,b){ return (a.order||0)-(b.order||0); });
+  let html = '<div class="eb-toolbar">'
+    + '<button type="button" class="btn btn-sm" onclick="showNewBookModal()">➕ 新建本子</button>'
+    + '<span class="eb-tip">点本子进内页 · 每课一本，按科目预建，可改名/改色/删除</span></div>';
+  html += '<div class="eb-shelf">';
+  books.forEach(function(b){
+    const items = (store.errors||[]).filter(function(e){ return e.book===b.id; });
+    const unmastered = items.filter(function(e){ return !e.mastered; }).length;
+    const due = items.filter(function(e){ return e.nextReview && e.nextReview<=todayKey() && !e.mastered; }).length;
+    const color = b.color || '#c9a4e0';
+    html += '<div class="eb-book" style="--bk:'+color+'" onclick="openBookView(\''+b.id+'\')">'
+      +   '<div class="eb-book-spine"></div>'
+      +   '<div class="eb-book-cover">'
+      +     '<div class="eb-book-icon">'+(b.icon||'📔')+'</div>'
+      +     '<div class="eb-book-name">'+escapeHtml(b.name)+'</div>'
+      +     '<div class="eb-book-stats">'+items.length+' 道 · 未掌握 '+unmastered+(due?' · 🔔 待复习 '+due:'')+'</div>'
+      +     '<div class="eb-book-acts">'
+      +       '<button type="button" title="改名/改色/换图标" onclick="event.stopPropagation();editBook(\''+b.id+'\')">✏️</button>'
+      +       (b.preset?'':'<button type="button" title="删除本子" onclick="event.stopPropagation();delBook(\''+b.id+'\')">🗑</button>')
+      +     '</div>'
+      +   '</div>'
+      + '</div>';
   });
-  BANK_MODULES_LOCAL.forEach(function(m){
-    if(!errByMod[m]) return;
-    const icon = BANK_ICONS_LOCAL[m] || '📂';
-    html += '<button type="button" class="manual-tab' + (filter===m?' active':'') + '" onclick="document.getElementById(\'errorFilter\').value=\'' + m + '\';renderErrors();">'
-      + icon + ' ' + escapeHtml(m) + ' <span class="manual-tab-cnt">' + errByMod[m] + '</span></button>';
-  });
-  if(errByMod['未分类'] && filter!=='未分类'){
-    html += '<button type="button" class="manual-tab" onclick="document.getElementById(\'errorFilter\').value=\'未分类\';renderErrors();">'
-      + '📦 未分类 <span class="manual-tab-cnt">' + errByMod['未分类'] + '</span></button>';
-  }
-  html += '</div></li>';
-
-  // 按科目分组（保留 filter 之外的全局分组用于"All"视图）
-  const groups = {};
-  errors.forEach(function(e){
-    const m = e.module || '未分类';
-    if(!groups[m]) groups[m] = [];
-    groups[m].push(e);
-  });
-  const order = [];
-  BANK_MODULES_LOCAL.forEach(function(m){ if(groups[m] && groups[m].length) order.push(m); });
-  if(groups['未分类'] && groups['未分类'].length) order.push('未分类');
-
-  order.forEach(function(m){
-    const items = groups[m] || [];
-    const groupIcon = (m === '未分类' ? '📦' : (BANK_ICONS_LOCAL[m] || '📂'));
-    const photoCount = items.filter(function(e){ return Array.isArray(e.photos) && e.photos.length>0; }).length;
-    html += '<li class="manual-group">'
-      + '<details class="manual-group-box" open>'
-      +   '<summary class="manual-group-sum">'
-      +     '<span class="mg-icon">' + groupIcon + '</span>'
-      +     '<span class="mg-name">' + escapeHtml(m) + '</span>'
-      +     '<span class="mg-stat">' + items.length + ' 道' + (photoCount? ' · 📷 ' + photoCount : '') + '</span>'
-      +     '<span class="mg-arrow">▾</span>'
-      +   '</summary>'
-      +   '<ul class="manual-group-list">';
-    items.forEach(function(e){ html += renderErrorItem(e); });
-    html +=     '</ul>'
-      + '</details>'
-      + '</li>';
-  });
-
+  html += '</div>';
   list.innerHTML = html;
-
-  // 同步各题型页面错题
-  Object.keys(TOPICS).forEach(key=>{
+  syncTopicErrors();
+}
+function syncTopicErrors(){
+  Object.keys(TOPICS).forEach(function(key){
     const el = document.getElementById('error-'+key);
     if(el) renderTopicErrors(key, TOPICS[key].name);
   });
 }
+function openBookView(id){ _errorsBookView = id; renderErrors(); }
+function closeBookView(){ _errorsBookView = ''; renderErrors(); }
+
+// ---------- 错题本（小本子）管理 + 字段联动 ----------
+// 注：ERROR_BOOK_COLORS / ERROR_BOOK_ICONS 已在上方数据模型区（line 5133）声明，此处不再重复 const，避免同名重复声明导致整页脚本 SyntaxError。
+
+// 录入表单：本子下拉填充（来自 store.errorBooks）
+function populateErrorBookSelect(){
+  const sel = document.getElementById('errorBook');
+  if(!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">（归入本子 · 可不选）</option>'
+    + (store.errorBooks||[]).slice().sort(function(a,b){ return (a.order||0)-(b.order||0); }).map(function(b){
+        return '<option value="'+b.id+'">📔 '+escapeHtml(b.name)+'</option>';
+      }).join('');
+  if(cur) sel.value = cur;
+}
+// 题型切换：多选显示多选答案勾选，单/判断用单选下拉
+function onErrorQTypeChange(){
+  const qt = (document.getElementById('errorQType')||{}).value;
+  const wrap = document.getElementById('errorAnsMultiWrap');
+  const single = document.getElementById('errorAnswer');
+  if(qt==='多选'){
+    if(wrap) wrap.style.display = 'inline-flex';
+    if(single) single.style.display = 'none';
+  } else {
+    if(wrap) wrap.style.display = 'none';
+    if(single) single.style.display = '';
+  }
+}
+// 勾选已掌握：自动填今天为掌握日期；取消则清空
+function onErrorMasteredChange(){
+  const mk = document.getElementById('errorMastered');
+  const md = document.getElementById('errorMasteredDate');
+  if(!mk || !md) return;
+  if(mk.checked){ md.style.display=''; if(!md.value) md.value = todayKey(); }
+  else { md.style.display='none'; md.value=''; }
+}
+// 下次复习日 ↔ 记忆复习队列（双向同步：以错题为准）
+function syncNextReviewToEbb(err){
+  if(!err || !err.id) return;
+  if(!store.ebbinghaus) store.ebbinghaus = {items:[]};
+  const items = store.ebbinghaus.items;
+  const existing = items.find(function(x){ return x.id === err.id; });
+  if(err.nextReview){
+    if(existing){ existing.dueDate = err.nextReview; existing.done = false; existing.module = err.module || '错题'; }
+    else { items.push({ id: err.id, srcDate: err.date || todayKey(), module: err.module || '错题', stage: 0, interval: 0, dueDate: err.nextReview, done: false, doneDate: '', fromError: true }); }
+  } else if(existing && existing.fromError){
+    store.ebbinghaus.items = items.filter(function(x){ return x.id !== err.id; });
+  }
+  try{ saveStore(); }catch(_){}
+}
+// 新建 / 编辑本子（模态）
+function showNewBookModal(){
+  _bookEditId = '';
+  _openBookModal('', '新本子', ERROR_BOOK_COLORS[0], ERROR_BOOK_ICONS[0]);
+}
+function editBook(id){
+  const b = errorBookById(id); if(!b) return;
+  _bookEditId = id;
+  _openBookModal(b.name, '编辑本子', b.color||ERROR_BOOK_COLORS[0], b.icon||ERROR_BOOK_ICONS[0]);
+}
+function _openBookModal(name, title, color, icon){
+  let html = '<div class="modal-mask" onclick="if(event.target===this)closeBookModal()">'
+    + '<div class="modal-card" style="max-width:340px">'
+    + '<div class="modal-title">'+title+'</div>'
+    + '<div class="manual-row" style="margin-top:10px"><input id="bkName" class="manual-in" placeholder="本子名称（如 花生13期图推）" value="'+escapeHtml(name)+'"></div>'
+    + '<div class="manual-row" style="margin-top:8px"><span class="err-meta-lb">颜色</span><span id="bkColors" class="bk-swatches"></span></div>'
+    + '<div class="manual-row" style="margin-top:8px"><span class="err-meta-lb">图标</span><span id="bkIcons" class="bk-icons"></span></div>'
+    + '<div class="modal-acts" style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">'
+    +   '<button class="btn btn-ghost btn-sm" onclick="closeBookModal()">取消</button>'
+    +   '<button class="btn btn-sm" onclick="saveBookModal()">保存</button>'
+    + '</div></div></div>';
+  const mask = document.getElementById('bookModal') || (function(){ const d=document.createElement('div'); d.id='bookModal'; document.body.appendChild(d); return d; })();
+  mask.innerHTML = html; mask.style.display = 'block';
+  // 颜色样本
+  const cs = document.getElementById('bkColors');
+  _bookColor = color; _bookIcon = icon;
+  cs.innerHTML = ERROR_BOOK_COLORS.map(function(c){ return '<span class="bk-sw" data-c="'+c+'" style="background:'+c+';'+(c===color?'box-shadow:0 0 0 2px #6b4fa8;':'')+'"></span>'; }).join('');
+  cs.querySelectorAll('.bk-sw').forEach(function(s){ s.onclick = function(){ _bookColor = s.dataset.c; cs.querySelectorAll('.bk-sw').forEach(function(x){ x.style.boxShadow=''; }); s.style.boxShadow='0 0 0 2px #6b4fa8'; }; });
+  const ic = document.getElementById('bkIcons');
+  ic.innerHTML = ERROR_BOOK_ICONS.map(function(e){ return '<span class="bk-ic" data-i="'+e+'">'+(e==icon?'📔':e)+'</span>'; }).join('');
+  ic.querySelectorAll('.bk-ic').forEach(function(s){ s.onclick = function(){ _bookIcon = s.dataset.i; ic.querySelectorAll('.bk-ic').forEach(function(x){ x.style.background=''; }); s.style.background='#efe6f7'; }; });
+}
+function closeBookModal(){ const m=document.getElementById('bookModal'); if(m) m.style.display='none'; }
+function saveBookModal(){
+  const name = (document.getElementById('bkName')||{}).value || ''.trim();
+  if(!name){ toast('请填写本子名称'); return; }
+  if(_bookEditId){
+    const b = errorBookById(_bookEditId);
+    if(b){ b.name = name; b.color = _bookColor; b.icon = _bookIcon; }
+  } else {
+    const id = 'ebk_u_'+Date.now();
+    const order = (store.errorBooks||[]).length;
+    store.errorBooks.push({ id:id, name:name, color:_bookColor, icon:_bookIcon, createdAt:todayKey(), order:order, preset:false });
+  }
+  saveStore(); closeBookModal(); renderErrors();
+}
+function delBook(id){
+  const b = errorBookById(id); if(!b || b.preset) return;
+  if(!confirm('删除本子「'+b.name+'」？本子里的错题不会被删，会自动归入「未归类」。')) return;
+  const fallback = (store.errorBooks||[])[0];
+  store.errors.forEach(function(e){ if(e.book===id && fallback) e.book = fallback.id; });
+  store.errorBooks = (store.errorBooks||[]).filter(function(x){ return x.id!==id; });
+  if(_errorsBookView===id) _errorsBookView='';
+  saveStore(); renderErrors();
+}
+let _bookEditId = '', _bookColor = ERROR_BOOK_COLORS[0], _bookIcon = ERROR_BOOK_ICONS[0];
 
 // 单道错题卡片（仿 renderManualItem：details 折叠，summary 显示模块+来源+题干摘要）
 function renderErrorItem(e){
-  const hasFull = !!(e.options && e.options.some(function(s){ return !!s; }) && (e.answer>=0));
+  // 答案索引（多选走 answerArr，单选/判断走 answer 数字）
+  const ansArr = (Array.isArray(e.answerArr) && e.answerArr.length) ? e.answerArr
+    : (typeof e.answer==='number' && e.answer>=0 ? [e.answer] : []);
+  const isMulti = (e.qType==='多选') && ansArr.length>1;
+  const hasFull = !!(e.options && e.options.some(function(s){ return !!s; }) && ansArr.length>0);
   const qText = (e.question && e.question.trim()) ? e.question : (e.content || '');
   const qSummary = qText.replace(/\s+/g,' ').trim();
   const qShort = qSummary.length > 38 ? (qSummary.substring(0,38) + '…') : qSummary;
   const hasPhoto = Array.isArray(e.photos) && e.photos.length > 0;
   // 题干完整
-  let html = '<li class="manual-item" data-id="' + e.id + '">'
+  let html = '<li class="manual-item' + (e.mastered?' mi-mastered':'') + '" data-id="' + e.id + '">'
     +   '<details>'
     +     '<summary class="mi-summary">'
     +       '<span class="mi-mod">' + escapeHtml(e.module || '未分类') + '</span>'
+    +       (e.mastered ? '<span class="mi-kp" style="background:#E4F5E9;color:#2D7A4F">✅ 已掌握</span>' : '')
+    +       (e.nextReview && e.nextReview<=todayKey() && !e.mastered ? '<span class="mi-kp" style="background:#FFF3DA;color:#B7791F">🔔 待复习 '+e.nextReview+'</span>' : '')
     +       (e.kp ? '<span class="mi-kp">🧠 ' + escapeHtml(e.kp) + '</span>' : '')
     +       '<span class="mi-q-short">' + escapeHtml(qShort) + '</span>'
     +       (hasPhoto ? '<span class="mi-kp" style="background:#FFF0EA;color:#c0552b">📷 ' + e.photos.length + '</span>' : '')
@@ -14445,7 +14720,7 @@ function renderErrorItem(e){
     html += '<ol class="mi-opts" style="margin-top:8px;">';
     (e.options||[]).forEach(function(opt, idx){
       if(!opt) return;
-      const isAns = (idx === e.answer);
+      const isAns = (ansArr.indexOf(idx) >= 0);
       html += '<li class="' + (isAns?'mi-opt-ans':'') + '">'
         + '<span class="mi-opt-letter">' + letters[idx] + '</span>'
         + '<span>' + escapeHtml(opt).replace(/\n/g,'<br>') + '</span>'
@@ -14453,7 +14728,7 @@ function renderErrorItem(e){
         + '</li>';
     });
     html += '</ol>';
-    html += '<div class="mi-a">✅ 答案：<b>' + letters[e.answer] + '</b></div>';
+    html += '<div class="mi-a">✅ 答案：<b>' + ansArr.map(function(i){ return letters[i]; }).join('、') + '</b>' + (isMulti?'（多选）':'') + '</div>';
   } else if(hasPhoto) {
     html += '<div class="mi-a" style="color:var(--text-sub);">📌 纯图片错题（看图回忆当时错点）</div>';
   }
@@ -14463,8 +14738,8 @@ function renderErrorItem(e){
     html += '<div class="mi-x" style="margin-top:6px;"><span class="mi-x-tag">📋 各选项分析</span><div class="mi-x-body" style="margin-top:4px;font-size:12px;line-height:1.7;color:var(--text-sub);">';
     (e.parts||[]).forEach(function(p, idx){
       if(!p) return;
-      const tagColor = (hasFull && idx===e.answer) ? '#2D7A4F' : '#A86BC4';
-      html += '<div style="padding:2px 0;"><b style="color:' + tagColor + '">' + letters2[idx] + (hasFull && idx===e.answer?'（对）':'（错）') + '：</b>' + escapeHtml(p).replace(/\n/g,'<br>') + '</div>';
+      const tagColor = (hasFull && ansArr.indexOf(idx)>=0) ? '#2D7A4F' : '#A86BC4';
+      html += '<div style="padding:2px 0;"><b style="color:' + tagColor + '">' + letters2[idx] + (hasFull && ansArr.indexOf(idx)>=0?'（对）':'（错）') + '：</b>' + escapeHtml(p).replace(/\n/g,'<br>') + '</div>';
     });
     html += '</div></div>';
   }
@@ -14483,6 +14758,24 @@ function renderErrorItem(e){
       }).join('')
       + '</div></div>';
   }
+  // 升级字段标签：题型/难度/错因/来源/错误次数/下次复习/掌握日期
+  const tags = [];
+  if(e.qType) tags.push('🏷 '+e.qType);
+  if(e.level) tags.push('⚡ '+e.level);
+  if(e.wrongReason) tags.push('❗ '+e.wrongReason);
+  if(e.srcDetail) tags.push('📍 '+e.srcDetail);
+  if(typeof e.wrongCount==='number') tags.push('🔁 错 '+e.wrongCount+' 次');
+  if(e.nextReview) tags.push('📆 复习 '+e.nextReview);
+  if(e.masteredDate) tags.push('🎉 掌握于 '+e.masteredDate);
+  if(tags.length){
+    html += '<div class="mi-tags" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">'
+      + tags.map(function(t){ return '<span class="mi-tag">'+escapeHtml(t)+'</span>'; }).join('')
+      + '</div>';
+  }
+  // 我的反思笔记（与总论分开）
+  if(e.note){
+    html += '<div class="mi-x"><span class="mi-x-tag">📝 我的反思</span><div class="mi-x-body">' + escapeHtml(e.note).replace(/\n/g,'<br>') + '</div></div>';
+  }
   // 来源 + 日期
   html += '<div style="margin-top:6px;font-size:11px;color:var(--text-sub);display:flex;flex-wrap:wrap;gap:10px">'
     + (e.srcLabel ? '<span>📌 ' + escapeHtml(e.srcLabel) + '</span>' : '')
@@ -14500,6 +14793,7 @@ function renderErrorItem(e){
 document.getElementById('examDate').value = todayKey();
 renderHome();
 migrateEbbinghaus();
+try{ migrateErrorFields(); }catch(e){ console.error('[boot] migrateErrorFields 出错(已忽略):', e); }
 applyTheme(store.colorTheme || 'sakura');
 applyDarkMode();
 renderCountdowns();
@@ -22140,6 +22434,37 @@ function renderQuizComplete(){
 /* 深色模式：周报标题用浅色，图表轴网格变暗 */
 [data-theme="dark"] .wr-stat .wr-val,[data-theme="dark"] .wr-tip .wr-tip-title{color:var(--pink-soft);}
 [data-theme="dark"] .wr-tab.active{color:#fff;box-shadow:0 3px 10px rgba(0,0,0,.35);}
+
+/* ===== 错题本（小本子）书架 ===== */
+.eb-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+.eb-tip{font-size:12px;color:var(--text-sub);}
+.eb-shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;}
+.eb-book{position:relative;display:flex;cursor:pointer;border-radius:14px;overflow:hidden;background:var(--card-bg);border:1px solid var(--border);box-shadow:0 6px 18px var(--pink-overlay);transition:transform .2s,box-shadow .2s;min-height:128px;}
+.eb-book:hover{transform:translateY(-4px);box-shadow:0 12px 26px var(--pink-shadow-soft);}
+.eb-book-spine{width:14px;background:var(--bk,#c9a4e0);flex:0 0 14px;border-radius:14px 0 0 14px;}
+.eb-book-cover{flex:1;padding:12px 12px 10px;display:flex;flex-direction:column;gap:6px;background:linear-gradient(135deg, #fff 0%, var(--bk,#c9a4e0) 320%);}
+.eb-book-icon{font-size:30px;line-height:1;}
+.eb-book-name{font-weight:700;font-size:15px;color:var(--text-main);}
+.eb-book-stats{font-size:11px;color:var(--text-sub);margin-top:auto;}
+.eb-book-acts{position:absolute;top:8px;right:8px;display:flex;gap:4px;opacity:0;transition:opacity .15s;}
+.eb-book:hover .eb-book-acts{opacity:1;}
+.eb-book-acts button{border:0;background:rgba(255,255,255,.8);border-radius:8px;width:26px;height:26px;cursor:pointer;font-size:13px;}
+.eb-back{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+.eb-back-name{font-weight:700;color:var(--pink-deep);}
+.eb-back-cnt{font-size:12px;color:var(--text-sub);}
+.mi-mastered{opacity:.72;}
+.mi-tags{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;}
+.mi-tag{font-size:11px;padding:3px 9px;border-radius:20px;background:var(--pink-soft);color:var(--pink-deep);border:1px solid var(--border);}
+/* 本子模态 */
+.modal-mask{position:fixed;inset:0;background:rgba(40,20,60,.4);display:none;align-items:center;justify-content:center;z-index:9999;}
+.modal-card{background:var(--card-bg);border-radius:16px;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.3);width:90%;}
+.modal-title{font-weight:700;font-size:16px;color:var(--text-main);}
+.modal-acts{margin-top:14px;display:flex;gap:8px;justify-content:flex-end;}
+.bk-swatches,.bk-icons{display:inline-flex;gap:6px;flex-wrap:wrap;vertical-align:middle;}
+.bk-sw{width:22px;height:22px;border-radius:50%;cursor:pointer;display:inline-block;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2);}
+.bk-ic{width:30px;height:30px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:17px;background:var(--bg-side);}
+.bk-ic:hover{background:var(--pink-soft);}
+.err-ans-multi{margin-right:2px;}
 
 </style>
 
