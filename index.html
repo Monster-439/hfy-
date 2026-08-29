@@ -2673,6 +2673,7 @@ body.drawer-open .nav-cloud{display:none;}
         <div class="nav-item" data-page="ebbinghaus"><span class="nav-icon">🧠</span>记忆复习<span class="nav-badge" id="ebBadge" style="display:none"></span></div>
         <div class="nav-item" data-page="flashcard"><span class="nav-icon">🃏</span>知识闪卡</div>
         <div class="nav-item" data-page="bank"><span class="nav-icon">🗂️</span>我的题库</div>
+        <div class="nav-item" data-page="weak"><span class="nav-icon">📉</span>薄弱项汇总</div>
       </div>
     </div>
 
@@ -2695,6 +2696,8 @@ body.drawer-open .nav-cloud{display:none;}
 
 <!-- ===== 知识闪卡 ===== -->
 <div class="page" id="page-flashcard"></div>
+<!-- ===== 薄弱项汇总 ===== -->
+<div class="page" id="page-weak"></div>
 <div class="page" id="page-report"></div>
 <div class="page" id="page-subjflower"></div>
 <div class="page" id="page-goals"></div>
@@ -4177,6 +4180,7 @@ function defaultStore(){
     checkinReasons: {}, // {date: reason} 补卡理由
     exams: [],        // [{id,name,type,date,time,totalScore,score,sections,notes}]
     errors: [],       // [{id,module,content,photos,date}]
+    weakItems: [],   // 薄弱项汇总表 [{id,kp,module,totalErr,recentErr,mastery,lastErrDate,autoErr}]
     imports: {},      // {section:[{id,name,size,data}]} 真题PDF导入
     bankPdf: [],      // 题库板块：导入的PDF题库 [{id,name,size,data,questions,answerKeyFound}]
     bankManual: [],   // 题库板块：手动录入题目 [{id,module,question,options,answer,explain}]
@@ -9278,6 +9282,7 @@ function onPageShow(page){
   if(page==='review') renderReview();
   if(page==='ebbinghaus') renderEbbinghaus();
   if(page==='flashcard') renderFlashcards();
+  if(page==='weak') renderWeakness();
   if(page==='report') renderReport();
   if(page==='subjflower') renderSubjFlower();
   if(page==='goals') renderGoals();
@@ -13942,6 +13947,182 @@ function switchExamType(type){
   renderExamChart();
 }
 
+// ========== 薄弱项汇总表（提分小仓库） ==========
+const WEAK_MODULES = ['常识判断','时政热点','言语理解','判断推理','图形推理','数量关系','资料分析'];
+const WEAK_MOD_WEIGHT = {'资料分析':1.5,'判断推理':1.3,'言语理解':1.2,'数量关系':1.0,'图形推理':1.0,'常识判断':0.8,'时政热点':0.8};
+const WEAK_MOD_KEY = {'常识判断':'common','时政热点':'politics','言语理解':'verbal','判断推理':'reasoning','图形推理':'figure','数量关系':'quantity','资料分析':'data'};
+
+function weakFmtDate(d){
+  const y = d.getFullYear();
+  const m = ('0'+(d.getMonth()+1)).slice(-2);
+  const day = ('0'+d.getDate()).slice(-2);
+  return y+'-'+m+'-'+day;
+}
+function computeWeakScore(it){
+  const recent = (it.recentErr===''||it.recentErr==null) ? 0 : Number(it.recentErr);
+  const mastery = (it.mastery===''||it.mastery==null) ? 0 : Number(it.mastery);
+  const w = (WEAK_MOD_WEIGHT[it.module]!=null) ? WEAK_MOD_WEIGHT[it.module] : 1.0;
+  return recent*2 + (100-mastery)*0.3 + w;
+}
+function priorityOf(s){ return s>=15 ? '高' : (s>=8 ? '中' : '低'); }
+
+// 从 store.errors 按 模块+知识点 实时算累计/近7天/最近日期
+function autoPullErrorStats(module, kp){
+  if(!Array.isArray(store.errors)) return {total:0, recent:0, last:''};
+  const ago = new Date(); ago.setHours(0,0,0,0); ago.setDate(ago.getDate()-7);
+  let total=0, recent=0, lastD=null;
+  store.errors.forEach(function(e){
+    if(e.module !== module) return;
+    if(kp && e.kp && e.kp !== kp) return;
+    total++;
+    if(e.date){
+      const d = new Date(e.date);
+      if(d >= ago) recent++;
+      if(!lastD || d > lastD) lastD = d;
+    }
+  });
+  return {total:total, recent:recent, last: lastD ? weakFmtDate(lastD) : ''};
+}
+// 掌握度：6 大模块自动取刷题正确率；图形推理无统计返回 null（需手动填）
+function autoMastery(module){
+  const key = WEAK_MOD_KEY[module];
+  if(!key) return null;
+  const m = store.manual && store.manual[key];
+  if(!m || !m.done) return null;
+  return Math.round(m.right / m.done * 100);
+}
+
+function renderWeakness(){
+  if(!Array.isArray(store.weakItems)) store.weakItems = [];
+  const page = document.getElementById('page-weak');
+  if(!page) return;
+  const prioOrder = {'高':0,'中':1,'低':2};
+  const rows = store.weakItems.map(function(it){
+    const s = computeWeakScore(it);
+    return {it:it, s:s, p:priorityOf(s)};
+  });
+  rows.sort(function(a,b){ return (prioOrder[a.p]-prioOrder[b.p]) || (b.s-a.s); });
+  const cnt = {'高':0,'中':0,'低':0};
+  rows.forEach(function(r){ cnt[r.p]++; });
+
+  const opt = function(sel){
+    return WEAK_MODULES.map(function(m){
+      return '<option value="'+m+'"'+(m===sel?' selected':'')+'>'+m+'</option>';
+    }).join('');
+  };
+
+  let html = '';
+  html += '<div class="sec-head"><div class="sec-title">📉 薄弱项汇总表</div>'
+        + '<div class="sec-actions">'
+        + '<button class="btn btn-sm" onclick="genWeakFromErrors()">📥 从错题记录生成</button>'
+        + '<button class="btn btn-sm btn-primary" onclick="addWeakRow()">＋ 添加知识点</button>'
+        + '</div></div>';
+  html += '<div class="weak-tip">薄弱分 = 近7天错题数×2 + (100−掌握度)×0.3 + 模块权重；优先级：≥15 高 / 8–14 中 / &lt;8 低。掌握度 6 大模块自动取刷题正确率，图形推理与手动覆盖请直接填数字。</div>';
+  html += '<div class="weak-summary">'
+        + '<span class="wk-chip wk-prio-高">🔴 高 '+cnt.高+'</span>'
+        + '<span class="wk-chip wk-prio-中">🟡 中 '+cnt.中+'</span>'
+        + '<span class="wk-chip wk-prio-低">🟢 低 '+cnt.低+'</span>'
+        + '<span class="wk-chip wk-total">共 '+rows.length+' 项</span>'
+        + '</div>';
+
+  if(rows.length===0){
+    html += '<div class="empty-state"><span class="emoji">📭</span>还没有薄弱项。点「＋ 添加知识点」手动建，或「📥 从错题记录生成」按真实错题一键铺。</div>';
+  } else {
+    html += '<div class="weak-table-wrap"><table class="weak-table" id="weakTable"><thead><tr>'
+          + '<th>知识点</th><th>所属模块</th><th>累计错题数</th><th>近7天错题数</th><th>掌握度</th><th>薄弱分</th><th>优先级</th><th>最近错题日期</th><th>操作</th>'
+          + '</tr></thead><tbody>';
+    rows.forEach(function(r){
+      const it = r.it;
+      const kpVal = escapeHtml(it.kp||'');
+      const masteryVal = (it.mastery===''||it.mastery==null)?'':it.mastery;
+      const totalVal = (it.totalErr===''||it.totalErr==null)?'':it.totalErr;
+      const recentVal = (it.recentErr===''||it.recentErr==null)?'':it.recentErr;
+      const lastVal = it.lastErrDate||'';
+      html += '<tr data-id="'+it.id+'">'
+        + '<td><input class="wk-in wk-in-kp" value="'+kpVal+'" oninput="updateWeakCell(\''+it.id+'\',\'kp\',this.value)" placeholder="如：行程问题"></td>'
+        + '<td><select class="wk-in wk-in-mod" onchange="updateWeakCell(\''+it.id+'\',\'module\',this.value)">'+opt(it.module)+'</select></td>'
+        + '<td><input class="wk-in wk-in-num" type="number" min="0" value="'+totalVal+'" oninput="updateWeakCell(\''+it.id+'\',\'totalErr\',this.value)"></td>'
+        + '<td><input class="wk-in wk-in-num" type="number" min="0" value="'+recentVal+'" oninput="updateWeakCell(\''+it.id+'\',\'recentErr\',this.value)"></td>'
+        + '<td><input class="wk-in wk-in-num" type="number" min="0" max="100" value="'+masteryVal+'" oninput="updateWeakCell(\''+it.id+'\',\'mastery\',this.value)"></td>'
+        + '<td class="wk-score">'+r.s.toFixed(1)+'</td>'
+        + '<td class="wk-prio wk-prio-'+r.p+'">'+r.p+'</td>'
+        + '<td><input class="wk-in wk-in-date" type="date" value="'+lastVal+'" oninput="updateWeakCell(\''+it.id+'\',\'lastErrDate\',this.value)"></td>'
+        + '<td class="wk-ops">'
+        +   '<button class="btn btn-xs" onclick="autoFillWeakRow(\''+it.id+'\')" title="按模块+知识点从错题记录拉取错题数/日期，未填掌握度时带出刷题正确率">🔄 自动填充</button>'
+        +   '<button class="btn btn-xs btn-danger" onclick="deleteWeakRow(\''+it.id+'\')">✕</button>'
+        + '</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  page.innerHTML = html;
+}
+
+function addWeakRow(){
+  store.weakItems.push({
+    id: 'w'+Date.now()+Math.random().toString(36).slice(2,6),
+    kp: '', module: '常识判断', totalErr: '', recentErr: '', mastery: '', lastErrDate: '', autoErr: false
+  });
+  saveStore(); renderWeakness();
+}
+function deleteWeakRow(id){
+  store.weakItems = store.weakItems.filter(function(x){ return x.id!==id; });
+  saveStore(); renderWeakness();
+}
+function updateWeakCell(id, field, val){
+  const it = store.weakItems.find(function(x){ return x.id===id; });
+  if(!it) return;
+  if(field==='mastery' || field==='totalErr' || field==='recentErr'){
+    it[field] = (val==='' || val==null) ? '' : Number(val);
+  } else {
+    it[field] = val;
+  }
+  saveStore();
+  const row = document.querySelector('#weakTable tr[data-id="'+id+'"]');
+  if(row){
+    const s = computeWeakScore(it);
+    const p = priorityOf(s);
+    const wsCell = row.querySelector('.wk-score'); if(wsCell) wsCell.textContent = s.toFixed(1);
+    const pCell = row.querySelector('.wk-prio'); if(pCell){ pCell.textContent = p; pCell.className = 'wk-prio wk-prio-'+p; }
+  }
+}
+function autoFillWeakRow(id){
+  const it = store.weakItems.find(function(x){ return x.id===id; });
+  if(!it) return;
+  const st = autoPullErrorStats(it.module, it.kp);
+  it.totalErr = st.total; it.recentErr = st.recent; it.lastErrDate = st.last;
+  const mas = autoMastery(it.module);
+  if(mas!=null && (it.mastery==='' || it.mastery==null)) it.mastery = mas;
+  it.autoErr = true;
+  saveStore(); renderWeakness();
+  toast('已按错题记录与刷题正确率自动填充');
+}
+function genWeakFromErrors(){
+  if(!Array.isArray(store.errors) || !store.errors.length){ toast('错题记录为空，无法生成'); return; }
+  const seen = {};
+  store.weakItems.forEach(function(it){ seen[it.module+'|'+(it.kp||'')] = true; });
+  const groups = {};
+  store.errors.forEach(function(e){
+    const k = e.module + '|' + (e.kp||'');
+    if(!groups[k]) groups[k] = {module:e.module, kp:e.kp||''};
+  });
+  let added = 0;
+  Object.keys(groups).forEach(function(k){
+    if(seen[k]) return;
+    const g = groups[k];
+    const st = autoPullErrorStats(g.module, g.kp);
+    const mas = autoMastery(g.module);
+    store.weakItems.push({
+      id: 'w'+Date.now()+Math.random().toString(36).slice(2,6),
+      kp: g.kp, module: g.module, totalErr: st.total, recentErr: st.recent,
+      mastery: (mas==null?'':mas), lastErrDate: st.last, autoErr: true
+    });
+    added++;
+  });
+  saveStore(); renderWeakness();
+  toast('已从错题记录生成 '+added+' 条薄弱项'+(added===0?'（均已存在，未重复）':''));
+}
+
 function renderExam(){
   renderExamList();
   renderExamChart();
@@ -14794,6 +14975,7 @@ document.getElementById('examDate').value = todayKey();
 renderHome();
 migrateEbbinghaus();
 try{ migrateErrorFields(); }catch(e){ console.error('[boot] migrateErrorFields 出错(已忽略):', e); }
+if(!Array.isArray(store.weakItems)) store.weakItems = [];
 applyTheme(store.colorTheme || 'sakura');
 applyDarkMode();
 renderCountdowns();
@@ -22465,6 +22647,32 @@ function renderQuizComplete(){
 .bk-ic{width:30px;height:30px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:17px;background:var(--bg-side);}
 .bk-ic:hover{background:var(--pink-soft);}
 .err-ans-multi{margin-right:2px;}
+/* ===== 薄弱项汇总表 ===== */
+.weak-tip{font-size:12px;color:var(--text-sub);background:var(--bg-soft);border:1px solid var(--border-soft);border-radius:10px;padding:8px 12px;margin:10px 0;line-height:1.6;}
+.weak-summary{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.wk-chip{font-size:13px;font-weight:700;padding:4px 12px;border-radius:20px;color:#fff;}
+.wk-prio-高{background:#e0524f;}
+.wk-prio-中{background:#e0a93b;}
+.wk-prio-低{background:#5bbd87;}
+.wk-total{background:#9a8bc4;color:#fff;}
+.weak-table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border);background:var(--card-bg);}
+.weak-table{border-collapse:collapse;width:100%;font-size:13px;min-width:760px;}
+.weak-table th,.weak-table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border-soft);vertical-align:middle;}
+.weak-table th{background:var(--bg-side);color:var(--text-sub);font-weight:700;position:sticky;top:0;white-space:nowrap;}
+.weak-table tr:hover td{background:var(--pink-soft);}
+.weak-table .wk-score{font-weight:800;color:var(--pink-deep);text-align:center;white-space:nowrap;}
+.weak-table .wk-prio{font-weight:800;text-align:center;white-space:nowrap;}
+.weak-table .wk-prio-高{color:#e0524f;}
+.weak-table .wk-prio-中{color:#cf9326;}
+.weak-table .wk-prio-低{color:#3fa771;}
+.wk-in{width:100%;box-sizing:border-box;border:1px solid var(--border-soft);border-radius:8px;padding:5px 7px;font-size:13px;background:var(--card-bg);color:var(--text-main);font-family:inherit;}
+.wk-in:focus{outline:none;border-color:var(--pink-btn);box-shadow:0 0 0 2px var(--pink-shadow-soft);}
+.wk-in-kp{min-width:120px;}
+.wk-in-num{width:78px;text-align:center;}
+.wk-in-mod{min-width:104px;background:var(--card-bg);}
+.wk-in-date{width:140px;}
+.wk-ops{white-space:nowrap;}
+.wk-ops .btn{margin-right:4px;}
 
 </style>
 
