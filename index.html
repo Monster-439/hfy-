@@ -20659,6 +20659,19 @@ const FOCUS_PHOTOS = [
 let focusPhoto = '';
 let focusQuote = FOCUS_QUOTES[0];
 let focusSessionActive = false;
+// 本标签页唯一 ID：用 sessionStorage 存，关标签页即失效；多标签页跑同一个番茄钟时用来认主（防双开/串扰）
+const POMO_TAB_ID = (function(){
+  try{
+    const k='__pomoTabId';
+    let id=sessionStorage.getItem(k);
+    if(!id){ id='p_'+Math.random().toString(36).slice(2,10)+Date.now().toString(36); sessionStorage.setItem(k,id); }
+    return id;
+  }catch(e){ return 'p_'+Date.now()+'_'+Math.random().toString(36).slice(2,6); }
+})();
+let pomoHeartbeatId = null; // 运行中心跳 setInterval 句柄（每 5 秒写一次 heartbeatTs，给别的标签页认"还活着"用）
+let pomoTakeoverTimer = null; // 看门狗：别人心跳停了 30 秒就接管
+const POMO_HEARTBEAT_MS = 5000;
+const POMO_OFFLINE_PICKUP_MS = 30000;
 function applyFocusPhoto(){
   const bg = document.getElementById('focusBg');
   if(!bg || !focusPhoto) return;
@@ -20703,6 +20716,18 @@ function resetTomatoBtns(){
 }
 function startTomato(){
   if(tomatoRunning) return;
+  // 防双开检测：如果别的标签页正在跑（heartbeat 在 30 秒内），本标签页不让位，必须去那边结束
+  try{
+    const cur = JSON.parse(localStorage.getItem('pomo_state')||'null');
+    if(cur && cur.running && cur.tabId && cur.tabId !== POMO_TAB_ID){
+      const age = Date.now() - (cur.heartbeatTs || cur.baseTs || 0);
+      if(age < POMO_OFFLINE_PICKUP_MS){
+        toast('🍅 检测到番茄钟正在另一窗口运行（'+Math.round(age/1000)+' 秒前心跳），请去那边结束');
+        return;
+      }
+      // 超过 30 秒没心跳 → 别的标签页大概率崩了 / 关掉了，本标签页接管（下面正常开跑，persistTomato 会覆盖 tabId）
+    }
+  }catch(e){}
   if(tomatoMode==='down'){
     if(tomatoRemaining<=0) tomatoRemaining = tomatoMin*60;
   } else {
@@ -20722,6 +20747,16 @@ function startTomato(){
   enterFocusMode();
   tomatoTimerId = setInterval(syncTomatoFromClock, 1000);
   tomatoStarted = true; persistTomato();
+  // 心跳：每 5 秒刷一次 heartbeatTs，让别的标签页判定"还活着"
+  pomoHeartbeatId = setInterval(function(){
+    try{
+      const st2 = JSON.parse(localStorage.getItem('pomo_state')||'null');
+      if(st2 && st2.tabId === POMO_TAB_ID && st2.running){
+        st2.heartbeatTs = Date.now();
+        localStorage.setItem('pomo_state', JSON.stringify(st2));
+      }
+    }catch(e){}
+  }, POMO_HEARTBEAT_MS);
   updateFloatingWidget();
 }
 function pauseTomato(){
@@ -20740,17 +20775,34 @@ function pauseTomato(){
 function resetTomato(){
   clearInterval(tomatoTimerId); tomatoRunning=false;
   focusSessionActive = false;
+  if(pomoHeartbeatId){ clearInterval(pomoHeartbeatId); pomoHeartbeatId = null; }
+  if(pomoTakeoverTimer){ clearTimeout(pomoTakeoverTimer); pomoTakeoverTimer = null; }
   if(tomatoMode==='up'){ tomatoElapsed = 0; } else { tomatoRemaining = tomatoMin*60; }
   tomatoBaseVal = (tomatoMode==='up') ? tomatoElapsed : tomatoRemaining;
   updateTomatoDisplay(); resetTomatoBtns(); syncFocusBtns();
   tomatoStarted = false; persistTomato();
   updateFloatingWidget();
+  // 写一个明确的「终止信号」让别的标签页立刻清场，然后延迟清盘（保留 200ms 给 storage 事件派发）
+  try{
+    localStorage.setItem('pomo_state', JSON.stringify({ tabId: POMO_TAB_ID, ended: true, endedAt: Date.now() }));
+    setTimeout(function(){
+      try{
+        // 只清掉自己的终止信号；如果这 200ms 内又有别的 tab 自己接管了写入了 running state，不能误删
+        const now2 = JSON.parse(localStorage.getItem('pomo_state')||'null');
+        if(now2 && now2.ended === true && now2.tabId === POMO_TAB_ID){
+          localStorage.removeItem('pomo_state');
+        }
+      }catch(e){}
+    }, 200);
+  }catch(e){}
 }
 // 番茄钟状态持久化：刷新页面后按真实时钟续算（运行中继续、暂停中保持冻结值、初始态保留选中的时长/模式）
 function persistTomato(){
   try{
     const modEl = document.getElementById('tomatoModule');
     const st = {
+      tabId: POMO_TAB_ID, // 哪个标签页在跑（多标签页防串扰）
+      heartbeatTs: Date.now(), // 最近一次心跳/落盘时间，给别的标签页判定 "还在 / 已走"
       started: tomatoStarted,
       running: tomatoRunning,
       mode: tomatoMode,
@@ -20815,6 +20867,35 @@ function restoreTomato(){
     if(pB) pB.disabled = false;
     if(eB) eB.disabled = false;
     syncFocusBtns(); updateFloatingWidget();
+    // 多标签防串扰：如果 localStorage 里记录的是别人 tab，且心跳新鲜 → 本标签页让位（不接管，不重写 tabId）
+    if(st.tabId && st.tabId !== POMO_TAB_ID){
+      const age = Date.now() - (st.heartbeatTs || st.baseTs || 0);
+      if(age < POMO_OFFLINE_PICKUP_MS){
+        clearInterval(tomatoTimerId); tomatoRunning=false;
+        focusSessionActive = false; tomatoStarted = false;
+        resetTomatoBtns(); updateTomatoDisplay(); updateFloatingWidget();
+        setTimeout(function(){
+          try{ toast('🍅 番茄钟正在另一窗口运行，本窗口已让位（请去那边结束）'); }catch(e){}
+        }, 300);
+        return;
+      }
+      // 超过 30 秒没心跳 → 别人崩了/关掉了，本标签页接管，覆写 tabId 和心跳
+      tomatoRunning = true; persistTomato();
+      pomoHeartbeatId = setInterval(function(){
+        try{
+          const st2 = JSON.parse(localStorage.getItem('pomo_state')||'null');
+          if(st2 && st2.tabId === POMO_TAB_ID && st2.running){ st2.heartbeatTs = Date.now(); localStorage.setItem('pomo_state', JSON.stringify(st2)); }
+        }catch(e){}
+      }, POMO_HEARTBEAT_MS);
+    } else {
+      // 是自己的 → 同步恢复心跳
+      pomoHeartbeatId = setInterval(function(){
+        try{
+          const st2 = JSON.parse(localStorage.getItem('pomo_state')||'null');
+          if(st2 && st2.tabId === POMO_TAB_ID && st2.running){ st2.heartbeatTs = Date.now(); localStorage.setItem('pomo_state', JSON.stringify(st2)); }
+        }catch(e){}
+      }, POMO_HEARTBEAT_MS);
+    }
   } else if(st.started){
     // 暂停态：保持冻结值不动，按钮为「可继续 / 可结束」
     tomatoRunning = false;
@@ -22154,6 +22235,43 @@ if(document.readyState === 'loading'){
 // 熄屏 / 切到后台后回到页面时，用真实时钟立即校准番茄钟（并触发到点结算）
 document.addEventListener('visibilitychange', function(){
   if(!document.hidden && tomatoRunning){ syncTomatoFromClock(); }
+});
+
+// 番茄钟：跨标签页 storage 事件监听（自己写 localStorage 不会触发，只有别的标签页写才会）
+// 解决「同时打开两个网页各跑一份番茄钟 / 一个结束另一个还显示在跑 / 刷新又复活别人残留」的问题
+window.addEventListener('storage', function(e){
+  if(e.key !== 'pomo_state') return;
+  const cur = (function(){ try{ return JSON.parse(e.newValue||'null'); }catch(_){ return null; }})();
+  // 情况 A：别的标签页发了「结束」信号 → 本窗口如果有 setInterval/UI 显示 running，立刻清场（哪怕本窗口从来没启动过 setInterval，UI 状态也会被同步刷新）
+  if(!cur || (cur.ended === true)){
+    if(tomatoRunning || tomatoStarted || tomatoTimerId || pomoHeartbeatId){
+      try{
+        clearInterval(tomatoTimerId); tomatoTimerId=null;
+        clearInterval(pomoHeartbeatId); pomoHeartbeatId=null;
+        if(pomoTakeoverTimer){ clearTimeout(pomoTakeoverTimer); pomoTakeoverTimer=null; }
+        tomatoRunning=false; tomatoStarted=false; focusSessionActive=false;
+        if(tomatoMode==='up'){ tomatoElapsed=0; } else { tomatoRemaining = tomatoMin*60; }
+        tomatoBaseVal = (tomatoMode==='up') ? tomatoElapsed : tomatoRemaining;
+        updateTomatoDisplay(); resetTomatoBtns(); syncFocusBtns(); updateFloatingWidget();
+        setTimeout(function(){ try{ toast('🪟 番茄钟已在另一窗口结束，本窗口已让位'); }catch(e){} }, 300);
+      }catch(err){}
+    }
+    return;
+  }
+  // 情况 B：别的标签页在跑且心跳新鲜 → 本窗口让位
+  if(cur.running && cur.tabId && cur.tabId !== POMO_TAB_ID){
+    const age = Date.now() - (cur.heartbeatTs || cur.baseTs || 0);
+    if(age < POMO_OFFLINE_PICKUP_MS && (tomatoRunning || tomatoStarted)){
+      try{
+        clearInterval(tomatoTimerId); tomatoTimerId=null;
+        clearInterval(pomoHeartbeatId); pomoHeartbeatId=null;
+        if(pomoTakeoverTimer){ clearTimeout(pomoTakeoverTimer); pomoTakeoverTimer=null; }
+        tomatoRunning=false; tomatoStarted=false; focusSessionActive=false;
+        updateTomatoDisplay(); resetTomatoBtns(); syncFocusBtns(); updateFloatingWidget();
+        setTimeout(function(){ try{ toast('🪟 检测到另一窗口也在跑番茄钟，本窗口自动让位，避免重复计时'); }catch(e){} }, 300);
+      }catch(err){}
+    }
+  }
 });
 
 // ---------- 文本编辑弹窗（标语 / 昵称） ----------
