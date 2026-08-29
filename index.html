@@ -505,6 +505,8 @@ body[data-color-theme="sky"]{
 .btn-outline:hover{background:var(--pink-main);}
 .btn-danger{background:#fff0f0;color:#e88; border:2px solid #fcc;box-shadow:none;}
 .btn-danger:hover{background:#fee;}
+.btn-strong{background:linear-gradient(135deg,#6b4fa8,#8566c9);color:#fff;border:2px solid #6b4fa8;box-shadow:0 4px 14px rgba(107,79,168,.32);}
+.btn-strong:hover{background:linear-gradient(135deg,#5d4493,#7959bd);box-shadow:0 6px 18px rgba(107,79,168,.42);}
 
 /* 添加试卷记录按钮 + 成绩趋势分析标签：跟随主题主色（与番茄钟一致） */
 #examAddBtn{background:var(--pink-btn);color:#fff;border-color:transparent;text-shadow:0 1px 2px var(--pink-text-shadow-softest);}
@@ -710,6 +712,8 @@ body[data-color-theme="sky"]{
 .plan-tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:8px;margin-right:4px;vertical-align:middle;line-height:1.5}
 .plan-tag.qtag{background:var(--pink-softest);color:var(--pink-deep);border:1px solid var(--pink-mid)}
 .plan-tag.ctag{background:#E8F1FB;color:#3E6FA3;border:1px solid #BBD4EE}
+.plan-tag.ttag{background:#EFE6FB;color:#7A4FC0;border:1px solid #D8C4F0}
+.plan-tag.dtag{background:#FFF0D6;color:#B98A2E;border:1px solid #F0DCA8}
 /* 智能生成学习计划弹窗 */
 .gen-weak-box{background:var(--pink-softest);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:14px;}
 .gen-weak-title{font-size:13px;font-weight:700;color:var(--text-main);margin-bottom:8px;}
@@ -3083,6 +3087,7 @@ body.drawer-open .nav-cloud{display:none;}
       </select>
       <button class="btn" onclick="addPlan()">添加计划</button>
       <button class="btn" onclick="generatePlan()" title="根据薄弱项智能生成">✨ 一键生成</button>
+      <button class="btn btn-strong" onclick="generateDailyStudyPlan(true)" title="读取错题/薄弱项/网课，按固定时段生成今日备考计划">🗓️ 每日计划自动生成</button>
     </div>
   </div>
 
@@ -4173,7 +4178,8 @@ migrateCourseTodos();   // 兼容旧版课程序列，待办里历史写的 mod=
 
 function defaultStore(){
   return {
-    plans: {},        // {date: [{id,text,module,count,done}]}
+    plans: {},        // {date: [{id,text,module,count,done,start,end,taskType,defer,status,gen,todoId}]}
+    planAutoDate: '', // 每日备考计划自动生成日期标记（防重复生成）
     monthPlan: '',     // 月计划文本（可手动编辑）
     records: {},      // {date: [{module,done,right}]}
     checkins: {},     // {date: hours}
@@ -5888,6 +5894,15 @@ function ensureGoals(){
   if(!store.goals) store.goals = defaultStore().goals;
   if(!store.goals.root) store.goals.root = { title:'上岸', emoji:'🎯', deadline:'2026-11-29', note:'' };
   if(!store.goals.milestones) store.goals.milestones = [];
+  // 老课程兼容：未设状态时按进度预填（进行中/已完成/未开始）
+  (store.goals.milestones||[]).forEach(function(m){
+    (m.courses||[]).forEach(function(c){
+      if(c.status===undefined || c.status===null || c.status===''){
+        c.status = (c.done>0) ? ((c.done < (c.total||0)) ? '进行中' : '已完成') : '未开始';
+      }
+      if(c.planFinish===undefined) c.planFinish = '';
+    });
+  });
 }
 function goalDaysLeft(dateStr){
   if(!dateStr) return null;
@@ -5904,6 +5919,21 @@ function goalDeadlineBadge(dateStr){
     return '<span style="font-size:11px;font-weight:700;color:#E5484D;background:#fde8e8;padding:3px 9px;border-radius:999px">⏰ 就是今天！</span>';
   }
   return '<span style="font-size:11px;font-weight:700;color:#b5564f;background:#f6eef0;padding:3px 9px;border-radius:999px">⏰ 已过期 '+Math.abs(d)+' 天</span>';
+}
+// 网课状态 pill（颜色区分）
+function goalStatusPill(status){
+  const map = {'未开始':['#999','#f0f0f0'],'进行中':['#5B8DD9','#E8F1FB'],'已完成':['#5A9A4E','#E8F4E1'],'延期':['#E5484D','#fde8e8']};
+  const c = map[status] || ['#999','#f0f0f0'];
+  return '<span style="font-size:10px;font-weight:700;color:'+c[0]+';background:'+c[1]+';padding:1px 7px;border-radius:8px">'+(status||'未开始')+'</span>';
+}
+// 计划完成日 badge（按剩余天数提示）
+function goalPlanFinishBadge(pf){
+  if(!pf) return '';
+  const d = goalDaysLeft(pf);
+  if(d === null) return '<span style="font-size:10px;color:#bbb">计划完成：—</span>';
+  if(d > 0) return '<span style="font-size:10px;color:#5B8DD9;background:#E8F1FB;padding:1px 7px;border-radius:8px">🎯 计划'+pf+'（剩'+d+'天）</span>';
+  if(d === 0) return '<span style="font-size:10px;color:#E5484D;background:#fde8e8;padding:1px 7px;border-radius:8px">🎯 计划今天完成</span>';
+  return '<span style="font-size:10px;color:#b5564f;background:#f6eef0;padding:1px 7px;border-radius:8px">🎯 计划超'+Math.abs(d)+'天</span>';
 }
 function milestoneProgress(ms){
   const tasks = ms.tasks || [];
@@ -6235,11 +6265,13 @@ function editGoalCourse(msId, cId){
   if(!m) return;
   let c = null;
   if(cId){ c = (m.courses||[]).find(function(x){ return x.id===cId; }); }
-  const cur = c || { name:'', platform:'', total:0, done:0, linked:null, deadline:'', lessonMin:30, note:'' };
+  const cur = c || { name:'', platform:'', total:0, done:0, linked:null, deadline:'', lessonMin:30, note:'', status:'未开始', planFinish:'' };
   let selOpts = '<option value="">不关联</option>';
   for(const key in TOPICS){
     selOpts += '<option value="'+key+'"'+(cur.linked===key?' selected':'')+'>'+TOPICS[key].name+'</option>';
   }
+  const COURSE_STATUS = ['未开始','进行中','已完成','延期'];
+  const statusOpts = COURSE_STATUS.map(function(s){ return '<option value="'+s+'"'+( (cur.status||'未开始')===s ? ' selected' : '' )+'>'+s+'</option>'; }).join('');
   const inner = '<div class="popup-sparkles"><span>📚</span><span>💜</span><span>🌸</span><span>💜</span><span>📚</span></div>'
     + '<div class="popup-ico">📚</div>'
     + '<div class="popup-title">'+(cId?'编辑课程':'添加课程')+'</div>'
@@ -6254,6 +6286,10 @@ function editGoalCourse(msId, cId){
     + '<div style="display:flex;gap:8px;margin-top:10px">'
     + '<div style="flex:1;text-align:left;font-size:13px;color:#666">每节时长(分)<input id="gCourseMin" type="number" min="0" inputmode="numeric" value="'+((cur.lessonMin||30))+'" style="width:100%;padding:9px 11px;border:2px solid var(--border-deep);border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="30"></div>'
     + '<div style="flex:1;text-align:left;font-size:13px;color:#666">截止日<input id="gCourseDeadline" type="date" value="'+escapeHtml(cur.deadline||'')+'" style="width:100%;padding:9px 11px;border:2px solid var(--border-deep);border-radius:12px;font-size:14px;box-sizing:border-box;outline:none"></div>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;margin-top:10px">'
+    + '<div style="flex:1;text-align:left;font-size:13px;color:#666">状态<select id="gCourseStatus" style="width:100%;padding:9px 11px;border:2px solid var(--border-deep);border-radius:12px;font-size:14px;box-sizing:border-box;outline:none;background:#fff">'+statusOpts+'</select></div>'
+    + '<div style="flex:1;text-align:left;font-size:13px;color:#666">计划完成日<input id="gCoursePlanFinish" type="date" value="'+escapeHtml(cur.planFinish||'')+'" style="width:100%;padding:9px 11px;border:2px solid var(--border-deep);border-radius:12px;font-size:14px;box-sizing:border-box;outline:none"></div>'
     + '</div>'
     + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">关联科目（可选，自动显示正确率）</div>'
     + '<select id="gCourseLinked" style="width:100%;padding:9px 11px;border:2px solid var(--border-deep);border-radius:12px;font-size:14px;box-sizing:border-box;outline:none;background:#fff">'+selOpts+'</select>'
@@ -6279,11 +6315,13 @@ function saveGoalCourse(msId, cId){
   const lessonMin = Math.max(1, parseInt(document.getElementById('gCourseMin').value,10)||30);
   const deadline = document.getElementById('gCourseDeadline').value || '';
   const note = (document.getElementById('gCourseNote').value||'').trim();
+  const status = document.getElementById('gCourseStatus').value || '未开始';
+  const planFinish = document.getElementById('gCoursePlanFinish').value || '';
   if(cId){
     const c = m.courses.find(function(x){ return x.id===cId; });
-    if(c){ c.name=name; c.platform=platform; c.total=total; c.done=done; c.linked=linked; c.lessonMin=lessonMin; c.deadline=deadline; c.note=note; }
+    if(c){ c.name=name; c.platform=platform; c.total=total; c.done=done; c.linked=linked; c.lessonMin=lessonMin; c.deadline=deadline; c.note=note; c.status=status; c.planFinish=planFinish; }
   } else {
-    m.courses.push({ id:'cs_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, platform:platform, total:total, done:done, linked:linked, lessonMin:lessonMin, deadline:deadline, note:note });
+    m.courses.push({ id:'cs_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, platform:platform, total:total, done:done, linked:linked, lessonMin:lessonMin, deadline:deadline, note:note, status:status, planFinish:planFinish });
   }
   saveStore(); closeGoalsPopup(); renderGoals();
 }
@@ -6500,6 +6538,14 @@ function getCourseModName(c){
     }
   }
   return '综合/其他';
+}
+// 扁平化收集所有里程碑下的网课，返回 [{m, c}]
+function getAllCourses(){
+  const out = [];
+  (store.goals.milestones||[]).forEach(function(m){
+    (m.courses||[]).forEach(function(c){ out.push({ m:m, c:c }); });
+  });
+  return out;
 }
 function renderGoals(){
   const el = document.getElementById('page-goals');
@@ -6794,6 +6840,8 @@ function renderCourses(){
     card+='</div>';
     card+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
     if(cWarn) card+=cWarn;
+    card+=goalStatusPill(c.status);
+    card+=goalPlanFinishBadge(c.planFinish);
     card+=goalDeadlineBadge(c.deadline);
     card+='</div>';
     // 按钮行：+1节 / -1节 / 今日
@@ -12057,7 +12105,7 @@ function carryTodoToToday(id){
   const plansToday = store.plans[today] || [];
   if(!td.planId || !plansToday.some(function(p){ return p.id === td.planId; })){
     if(!store.plans[today]) store.plans[today] = [];
-    const p = { id:'p'+Date.now()+Math.floor(Math.random()*1000), text:td.text, module:(td.mod||'综合/其他'), count:0, done:td.done };
+    const p = { id:'p'+Date.now()+Math.floor(Math.random()*1000), text:td.text, module:(td.mod||'综合/其他'), count:0, done:td.done, status:td.done?'已完成':'未开始', taskType:'', defer:false, gen:false };
     store.plans[today].push(p);
     p.todoId = td.id;
     td.planId = p.id;
@@ -12076,7 +12124,7 @@ function addPlan(){
   if(!text){ toast('请输入计划内容'); return; }
   const today = todayKey();
   if(!store.plans[today]) store.plans[today] = [];
-  const p = {id:'p'+Date.now(),text,module,count:0,done:false};
+  const p = {id:'p'+Date.now(),text,module,count:0,done:false,status:'未开始',taskType:'',defer:false,gen:false};
   store.plans[today].push(p);
   ensurePlanTodo(p, today); // 同步到番茄钟今日待办
   saveStore();
@@ -12092,6 +12140,7 @@ function togglePlan(id){
   const p = plans.find(x=>x.id===id);
   if(p){
     p.done = !p.done;
+    p.status = p.done ? '已完成' : '未开始';
     if(p.todoId && store.todos){
       const td = store.todos.find(x=>x.id===p.todoId);
       if(td){ td.done = p.done; td.finished = p.done ? todayKey() : ''; }
@@ -12614,7 +12663,7 @@ function addThisGenRow(btnEl){
     if(typeof toast==='function') toast('已加入过类似计划（未重复添加）');
     return;
   }
-  const p = {id:'p'+Date.now()+Math.floor(Math.random()*1000), text:text, module:mod, count:count, start:start, end:end, done:false};
+  const p = {id:'p'+Date.now()+Math.floor(Math.random()*1000), text:text, module:mod, count:count, start:start, end:end, done:false, status:'未开始', taskType:planTypeLabel(row.dataset.type), defer:false, gen:true};
   store.plans[today].push(p);
   ensurePlanTodo(p, today);
   saveStore();
@@ -12624,6 +12673,103 @@ function addThisGenRow(btnEl){
   if(typeof toast==='function') toast('✅ 已加入今日计划'+(start?' ('+start+'–'+end+')':''));
 }
 
+// 智能生成/每日备考计划中 buildDailyPlan 的 type → 中文任务类型标签
+function planTypeLabel(t){
+  return t==='course' ? '课程推进' : (t==='drill' ? '专项训练' : (t==='review' ? '复盘总结' : (t||'')));
+}
+// ===== 每日备考计划自动生成（7:30 触发 / 手动兜底） =====
+// 日期偏移：基于 todayKey()（含凌晨 8 点归昨天的规则）对称计算
+function shiftDateKey(key, delta){
+  const p = (key||todayKey()).split('-');
+  const d = new Date(Number(p[0]), Number(p[1])-1, Number(p[2]));
+  d.setDate(d.getDate()+delta);
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return d.getFullYear()+'-'+m+'-'+day;
+}
+function genDailyPlanItem(text, module, start, end, taskType, count){
+  return { id:'p'+Date.now()+'_'+Math.floor(Math.random()*1000), text:text, module:module||'综合/其他', count:count||0, start:start, end:end, done:false, status:'未开始', taskType:taskType, defer:false, gen:true };
+}
+// manual=true 表示手动点击按钮触发（会弹 toast 提示）
+function generateDailyStudyPlan(manual){
+  const today = todayKey();
+  const yKey = shiftDateKey(today, -1);
+  if(!store.plans[today]) store.plans[today] = [];
+  const arr = store.plans[today];
+  // ---- 第一步：读取数据 ----
+  const errors = store.errors||[];
+  const yesterdayNew = errors.filter(function(e){ return e.date===yKey && !e.mastered; });
+  const reviewDue = errors.filter(function(e){ return e.nextReview===today && !e.mastered; });
+  // 薄弱项：优先级=高，取薄弱分最高的前 1 个
+  const weakHigh = (store.weakItems||[])
+    .filter(function(it){ return priorityOf(computeWeakScore(it))==='高'; })
+    .sort(function(a,b){ return computeWeakScore(b)-computeWeakScore(a); });
+  const topWeak = weakHigh[0];
+  // 网课：状态=进行中，按计划完成日从近到远取前 2 门
+  const coursesActive = getAllCourses().map(function(o){ return o.c; })
+    .filter(function(c){ return (c.status||'')==='进行中'; })
+    .sort(function(a,b){ return (a.planFinish||'9999-12-31').localeCompare(b.planFinish||'9999-12-31'); });
+  const course1 = coursesActive[0];
+  const course2 = coursesActive[1];
+
+  // ---- 第三步：顺延（昨天未完成 → 今天 08–09 最前，打顺延标记）----
+  const yPlans = store.plans[yKey]||[];
+  const deferList = yPlans.filter(function(p){ return p.status!=='已完成' && !p.done; });
+  deferList.forEach(function(p){
+    arr.push({ id:'p'+Date.now()+'_d'+Math.floor(Math.random()*1000), text:p.text, module:(p.module||'综合/其他'), count:(p.count||0), start:'08:00', end:'09:00', done:false, status:'未开始', taskType:p.taskType||'', defer:true, gen:true });
+  });
+  const deferCount = deferList.length;
+
+  // ---- 第二步：生成 7 条固定时段 ----
+  // 08–09 错题重做（昨天新增×2 至少 3 道 + 复习日题）
+  const redoCount = Math.max(3, yesterdayNew.length*2) + reviewDue.length;
+  arr.push(genDailyPlanItem('错题重做：昨天新增 '+yesterdayNew.length+' 道×2 + 待复习 '+reviewDue.length+' 道', '错题', '08:00', '09:00', '错题重做', redoCount));
+  // 09–12 网课第1节
+  if(course1){
+    arr.push(genDailyPlanItem('网课推进：'+course1.name+'（第1节）', getCourseModName(course1), '09:00', '12:00', '课程推进', 1));
+  } else {
+    arr.push(genDailyPlanItem('网课推进：暂无进行中课程，改为薄弱模块自由复习', '综合/其他', '09:00', '12:00', '课程推进', 0));
+  }
+  // 14–17 网课第2节
+  if(course2){
+    arr.push(genDailyPlanItem('网课推进：'+course2.name+'（第2节）', getCourseModName(course2), '14:00', '17:00', '课程推进', 1));
+  } else {
+    arr.push(genDailyPlanItem('网课推进：第2门进行中课程缺失，安排专项刷题', '综合/其他', '14:00', '17:00', '课程推进', 0));
+  }
+  // 19–20 上午课程配套练习
+  const m1 = course1 ? getCourseModName(course1) : '综合/其他';
+  arr.push(genDailyPlanItem('上午课程配套练习（15–20道）', m1, '19:00', '20:00', '专项训练', 15));
+  // 20–21 下午课程配套练习
+  const m2 = course2 ? getCourseModName(course2) : '综合/其他';
+  arr.push(genDailyPlanItem('下午课程配套练习（15–20道）', m2, '20:00', '21:00', '专项训练', 15));
+  // 21–22 薄弱专项训练
+  if(topWeak){
+    arr.push(genDailyPlanItem('薄弱专项：'+topWeak.kp+'（10题）', topWeak.module||'综合/其他', '21:00', '22:00', '专项训练', 10));
+  } else {
+    arr.push(genDailyPlanItem('薄弱专项：按模块套题1组（15道）', '综合/其他', '21:00', '22:00', '专项训练', 15));
+  }
+  // 22–22:30 复盘+错题整理+闪卡
+  arr.push(genDailyPlanItem('复盘+错题整理+闪卡：录入当天错题/填错因/复习10张闪卡/写3句复盘', '复盘', '22:00', '22:30', '复盘总结', 1));
+
+  // ---- 第四步：保存（关联待办 + 落盘）----
+  arr.forEach(function(p){ if(!p.todoId) ensurePlanTodo(p, today); });
+  store.planAutoDate = today;
+  saveStore();
+  // 刷新当前可见页面
+  const pg = document.getElementById('page-plan');
+  if(pg && pg.classList.contains('active')) renderPlan();
+  if(typeof renderHome==='function') renderHome();
+  const total = arr.length;
+  if(manual){ toast('已生成今日备考计划（共 '+total+' 项'+(deferCount>0?'，含 '+deferCount+' 条顺延':'')+'）'); }
+  return total;
+}
+// 打开 App 自动生成：新的一天且今天还没生成过才跑（纯静态无 cron，用"首次打开"兜底 7:30 触发）
+function autoGenDailyPlanOnBoot(){
+  const t = todayKey();
+  if(store.planAutoDate===t) return;            // 今天已生成过
+  if((store.plans[t]||[]).length>0){ store.planAutoDate=t; try{saveStore();}catch(e){} return; } // 已有手动计划，不打扰
+  try { generateDailyStudyPlan(false); } catch(e){ console.error('[autoGen] 每日计划自动生成失败(已忽略):', e); }
+}
 // 一键加入全部 + 月计划 → 替代原 applyGenPlan
 function applyGenPlan(){
   const today = todayKey();
@@ -12806,13 +12952,18 @@ function renderPlan(){
     `${d.getMonth()+1}月${d.getDate()}日 周${weekDays[d.getDay()]}`;
 
   // 今日计划 = 每日计划 + 今日题本 + 今日课程 三源整合（与首页、今日待办一致）
-  const plans = store.plans[today]||[];
+  // 计划按开始时间排序（无时间段的排最后）；同时间的顺延任务置顶（生成阶段已把顺延塞到最前时段）
+  const plans = (store.plans[today]||[]).slice().sort(function(a,b){
+    const sa = (a && a.start) || '99:99', sb = (b && b.start) || '99:99';
+    if(sa===sb) return (a.defer?-1:0) - (b.defer?-1:0);
+    return sa.localeCompare(sb);
+  });
   const planCourseIds = {};
   plans.forEach(function(p){ if(p.courseId) planCourseIds[p.courseId] = true; });
   const qbookTodos = (store.todos||[]).filter(function(td){ return td.src==='qbook' && td.date===today; });
   const courseTodos = (store.todos||[]).filter(function(td){ return td.src==='course' && td.date===today && !(td.planId || planCourseIds[td.courseId]); });
   const allItems = [];
-  plans.forEach(function(p){ allItems.push({ type:'plan', id:p.id, text:p.text, meta:p.module+(p.count?' · '+p.count+'题':''), done:p.done, start:p.start, end:p.end }); });
+  plans.forEach(function(p){ allItems.push({ type:'plan', id:p.id, text:p.text, meta:p.module+(p.count?' · '+p.count+'题':''), done:p.done, start:p.start, end:p.end, taskType:p.taskType, defer:p.defer, status:p.status }); });
   qbookTodos.forEach(function(td){ allItems.push({ type:'qbook', id:td.id, text:td.text, meta:'题本', done:td.done }); });
   courseTodos.forEach(function(td){ allItems.push({ type:'course', id:td.id, text:td.text, meta:'课程', done:td.done }); });
   const doneCount = allItems.filter(function(x){ return x.done; }).length;
@@ -12831,13 +12982,15 @@ function renderPlan(){
   } else {
     list.innerHTML = allItems.map(function(it){
       const t = (it.type==='plan' && (it.start||it.end)) ? '<span class="plan-time">⏰ '+escapeHtml((it.start||'--'))+'–'+escapeHtml((it.end||'--'))+'</span>' : '';
+      const ttag = (it.type==='plan' && it.taskType) ? '<span class="plan-tag ttag">'+escapeHtml(it.taskType)+'</span>' : '';
+      const deferTag = (it.type==='plan' && it.defer) ? '<span class="plan-tag dtag">↩️顺延</span>' : '';
       const tag = it.type==='qbook' ? '<span class="plan-tag qtag">📚题本</span>' : (it.type==='course' ? '<span class="plan-tag ctag">🎓课程</span>' : '');
       const checkFn = it.type==='plan' ? "togglePlan('"+it.id+"')" : "toggleTodayItem('"+it.type+"','"+it.id+"')";
       const delFn = it.type==='plan' ? "deletePlan('"+it.id+"')" : "delTodo('"+it.id+"')";
       return `
       <div class="plan-item ${it.done?'done':''}">
         <div class="plan-check ${it.done?'checked':''}" onclick="${checkFn}"></div>
-        ${t}${tag}
+        ${t}${ttag}${deferTag}${tag}
         <span class="plan-text">${escapeHtml(it.text)}</span>
         <span class="plan-meta">${it.meta||''}</span>
         <span class="plan-del" onclick="${delFn}">✕</span>
@@ -14976,6 +15129,7 @@ renderHome();
 migrateEbbinghaus();
 try{ migrateErrorFields(); }catch(e){ console.error('[boot] migrateErrorFields 出错(已忽略):', e); }
 if(!Array.isArray(store.weakItems)) store.weakItems = [];
+if(store.planAutoDate===undefined) store.planAutoDate = '';
 applyTheme(store.colorTheme || 'sakura');
 applyDarkMode();
 renderCountdowns();
@@ -17900,7 +18054,7 @@ function genSprintPlan(exId){
   let added = 0;
   items.forEach(function(txt, idx){
     if(store.plans[today].some(function(p){ return p.text===txt; })) return;
-    store.plans[today].push({ id:'sp'+Date.now()+'_'+idx, text:txt, module:'冲刺', count:0, done:false });
+    store.plans[today].push({ id:'sp'+Date.now()+'_'+idx, text:txt, module:'冲刺', count:0, done:false, status:'未开始', taskType:'专项训练', defer:false, gen:false });
     added++;
   });
   saveStore();
@@ -21963,6 +22117,8 @@ function boot(){
   try { bindStatInteractions(); } catch(e){ console.error('[boot] bindStatInteractions 出错(已忽略):', e); }
   try { ghInit(); } catch(e){ console.error('[boot] ghInit 出错(已忽略):', e); }
   try { ensureDailyTodos(); } catch(e){ console.error('[boot] ensureDailyTodos 出错(已忽略):', e); }
+  // 每日备考计划自动生成：新的一天首次打开且未生成过则自动跑（纯静态无 cron，兜底 7:30 触发）
+  try { autoGenDailyPlanOnBoot(); } catch(e){ console.error('[boot] autoGenDailyPlanOnBoot 出错(已忽略):', e); }
   try {
     if(!store.onboard || !store.onboard.done){ startOnboarding(); }
     else { showSplash(); }
