@@ -8685,8 +8685,8 @@ function mmShowImport(){
   html += '<label><input type="radio" name="mmImportMode" value="xmind"> Xmind (.xmind)</label>';
   html += '</div>';
   html += '<textarea id="mmImportText" placeholder="示例（缩进）：&#10;言语理解与表达&#10;    逻辑填空&#10;        逻辑分析&#10;        递进关系&#10;    片段阅读&#10;..."></textarea>';
-  html += '<input type="file" id="mmImportFile" accept=".xmind" style="display:none;margin:8px 0 0;font-size:13px;">';
-  html += '<div id="mmImportFileTip" style="display:none;font-size:12px;color:var(--text-sub);margin-top:6px">选择 .xmind 文件（现代 Xmind 的 content.json / 旧版 content.xml 均可解析）</div>';
+  html += '<input type="file" id="mmImportFile" accept=".xmind" multiple style="display:none;margin:8px 0 0;font-size:13px;">';
+  html += '<div id="mmImportFileTip" style="display:none;font-size:12px;color:var(--text-sub);margin-top:6px">可多选 .xmind 文件（现代 Xmind 的 content.json / 旧版 content.xml 均可解析），每个文件自动按「中心主题」新建一个独立科目，原样保留层级</div>';
   html += '<div class="mm-import-row">';
   html += '<span>导入到：</span>';
   html += '<label><input type="radio" name="mmImportTarget" value="append" checked> 追加到当前科目</label>';
@@ -8804,12 +8804,29 @@ function mmConfirmImport(){
   if(mode === 'xmind'){
     const fi = document.getElementById('mmImportFile');
     if(!fi || !fi.files || !fi.files.length){ if(typeof toast==='function') toast('请选择 .xmind 文件'); return; }
-    if(typeof toast==='function') toast('正在解析 Xmind…');
-    parseXmindFile(fi.files[0]).then(function(res){
-      if(!res || res.error){ if(typeof toast==='function') toast(res ? res.error : '解析失败'); return; }
-      mmApplyImportedTree(res.tree, target);
-    }).catch(function(err){
-      if(typeof toast==='function') toast('Xmind 解析失败：'+(err && err.message ? err.message : err));
+    const files = Array.prototype.slice.call(fi.files);
+    if(typeof toast==='function') toast('正在解析 '+files.length+' 个 Xmind…');
+    if(!store.mindmapCustom) store.mindmapCustom = {};
+    let done = 0, okNames = [], errs = [];
+    files.forEach(function(file, idx){
+      parseXmindFile(file).then(function(res){
+        done++;
+        if(!res || res.error){ errs.push((file.name||'文件')+': '+(res?res.error:'解析失败')); }
+        else {
+          const tree = res.tree;
+          // 以导图中心主题为科目名（原样保留），重名自动加序号避免互相覆盖
+          let key = (tree && tree.name && String(tree.name).trim()) || ('导入导图'+(idx+1));
+          let base = key, suffix = 1;
+          while(store.mindmapCustom[key]){ suffix++; key = base + '(' + suffix + ')'; }
+          store.mindmapCustom[key] = { name:key, children: tree.children||[] };
+          okNames.push(key);
+        }
+        if(done === files.length) finishXmindBatch(okNames, errs);
+      }).catch(function(err){
+        done++;
+        errs.push((file.name||'文件')+': '+(err && err.message ? err.message : err));
+        if(done === files.length) finishXmindBatch(okNames, errs);
+      });
     });
     return;
   }
@@ -8826,6 +8843,17 @@ function mmConfirmImport(){
   }
   mmApplyImportedTree(tree, target);
 }
+function finishXmindBatch(okNames, errs){
+  saveStore();
+  if(okNames.length){
+    localStorage.setItem('mm_active_subject', okNames[0]);
+    if(typeof renderMindmap === 'function') renderMindmap();
+  }
+  let msg = '已导入 ' + okNames.length + ' 个导图' + (okNames.length ? '：' + okNames.join('、') : '');
+  if(errs.length) msg += '；失败 ' + errs.length + ' 个：' + errs.join('；');
+  if(typeof toast === 'function') toast(msg);
+}
+
 function mmApplyImportedTree(tree, target){
   if(!tree){ if(typeof toast==='function') toast('未能解析出节点'); return; }
   function count(n){ if(!n) return 0; return 1 + (n.children||[]).reduce(function(s,c){ return s+count(c); }, 0); }
@@ -12149,6 +12177,23 @@ function buildDailyPlan(weak, anyData){
   }
   function P(name){ return MODULE_COURSE[name] || '补弱网课'; }
 
+  // — 模块分散机制 —
+  // 同一模块在计划中默认最多出现 2 次；额外如果数据太集中会触发"补位"
+  // 让最终计划至少覆盖 4 种不同模块，再多算锦上添花
+  const usedMod = Object.create(null);
+  function modKey(a){ return (a.module||'').trim(); }
+  function tryPush(a, maxPerMod){
+    const maxN = (typeof maxPerMod === 'number') ? maxPerMod : 2;
+    const m = modKey(a);
+    if(m && (usedMod[m]||0) >= maxN) return false;
+    acts.push(a);
+    if(m) usedMod[m] = (usedMod[m]||0) + 1;
+    return true;
+  }
+  function distinctModCount(){
+    return Object.keys(usedMod).filter(function(k){return k;}).length;
+  }
+
   const acts = [];
   if(!_anyData){
     // 真没数据：给温和入门版（不是死模板，是合理的"开局建议"）
@@ -12162,44 +12207,63 @@ function buildDailyPlan(weak, anyData){
       const topErr = errRecent[0];
       const tag = topErr.module || '错题';
       const shortName = (topErr.content||'').split(' ·')[0].slice(0, 14) || '错题';
-      acts.push({intensity:'low', dur:30, type:'review', module:tag,
+      tryPush({intensity:'low', dur:30, type:'review', module:tag,
         text:'🔁 先复盘【'+shortName+'】错题（'+errRecent.length+' 条最近错题里挑 3 道重做 + 看解析）', count:Math.min(3,errRecent.length)});
     }
-    // ★ 2) custom TOP2（你最近练过且错题最多）→ 强烈建议重做
-    const topCustom = custom.slice(0, 2);
-    topCustom.forEach(function(c){
+    // ★ 2) custom TOP（你最近练过且错题最多）→ 强烈建议重做
+    //     按"用了不再加 + 最多 1 行"挑至多 2 个不同模块
+    const customPool = [];
+    custom.slice(0, 4).forEach(function(c){
       const cnt = Math.min(40, Math.max(10, c.err>0?Math.min(c.err*2,30):20));
-      acts.push({intensity:'med', dur:50, type:'drill', module:c.name,
-        text:'🎯 重做【'+c.name+'】专项 ' + cnt + ' 题（正确率 '+ (c.rate===null?'—':c.rate+'%') +'，按错题率 2 倍量补强）', count:cnt, source:'custom'});
+      customPool.push({intensity:'med', dur:50, type:'drill', module:c.name,
+        text:'🎯 重做【'+c.name+'】专项 ' + cnt + ' 题（正确率 '+ (c.rate===null?'—':c.rate+'%') +'，按错题率 2 倍量补强）', count:cnt, source:'custom', score:c.score||0});
     });
-    // ★ 3) standard TOP1（最薄弱的标准模块）→ 看方法课
+    customPool.forEach(tryPush);
+    // ★ 3) standard TOP（最薄弱的标准模块）→ 只加 1 行（避免"看方法+计时刷"重复占 2 行）
     const topStd = standard[0];
     if(topStd){
       const why = (topStd.rate!==null && topStd.rate<75) ? ('正确率仅 '+topStd.rate+'%，优先补方法')
                   : (topStd.rate===null ? '还没练过，先建立节奏' : '巩固提升');
-      acts.push({intensity:'high', dur:60, type:'course', module:topStd.name,
+      tryPush({intensity:'high', dur:60, type:'course', module:topStd.name,
         text:'🎬 看【'+topStd.name+'】'+P(topStd.name)+'（'+why+'，1.2x 倍速+记笔记）', source:'standard'});
-      // 再补一个 30 题计时刷
-      acts.push({intensity:'med', dur:50, type:'drill', module:topStd.name,
-        text:'📝 '+topStd.name+' 计时刷 30 题 → 即时复盘 15 分钟', count:30, source:'standard'});
     }
-    // ★ 4) 如果 custom 还有剩余，做题最多的也加一行巩固
-    if(custom[2]){
-      const c = custom[2];
-      acts.push({intensity:'low', dur:30, type:'drill', module:c.name,
-        text:'🔄 巩固【'+c.name+'】基础题 20 道（你练得最多的内容，再稳一稳）', count:20, source:'custom'});
+    // ★ 4) 缺模块补位：从 standard[1..] 和 custom[2..] 里找"没出现过/未用满"的模块补到至少 4 种
+    const fillPool = [];
+    standard.slice(1, 6).forEach(function(s){
+      fillPool.push({intensity:'med', dur:50, type:'drill', module:s.name,
+        text:'📝 '+s.name+' 计时刷 30 题（'+((s.rate===null||s.rate<75)?'薄弱补强':'巩固提升')+'，配套复盘 15 分钟）',
+        count:30, source:'fill-standard', score:(s.score||0)+50}); // 标准模块优先级略高于 custom
+    });
+    custom.slice(2, 8).forEach(function(c){
+      fillPool.push({intensity:'low', dur:30, type:'drill', module:c.name,
+        text:'🔄 巩固【'+c.name+'】基础题 20 道（你练得最多的内容，再稳一稳）', count:20, source:'fill-custom', score:c.score||0});
+    });
+    // 完全没练过的标准模块（rate===null）→ 入门动作
+    standard.forEach(function(s){
+      if(s.rate===null){
+        fillPool.push({intensity:'low', dur:25, type:'drill', module:s.name,
+          text:'🌱 '+s.name+' 入门 15 题（先建立手感，不追正确率）', count:15, source:'fill-fresh', score:80});
+      }
+    });
+    // 排序：score 高的优先
+    fillPool.sort(function(a,b){return (b.score||0)-(a.score||0);});
+    for(const cand of fillPool){
+      if(distinctModCount() >= 5) break; // 至少 5 种模块
+      tryPush(cand);
     }
-    // ★ 5) 缺口兜底：如果行数太少，加个真题卷
-    if(acts.length < 4){
-      acts.push({intensity:'med', dur:90, type:'drill', module:'试卷练习',
-        text:'⏱ 限时做 1 套真题（严格按考试 120 分钟节奏）', count:1});
+    // ★ 5) 缺口兜底：如果行数仍太少，加个真题卷
+    if(acts.length < 5){
+      if(tryPush({intensity:'med', dur:90, type:'drill', module:'试卷练习',
+        text:'⏱ 限时做 1 套真题（严格按考试 120 分钟节奏）', count:1, source:'fallback'})){
+        // already pushed
+      }
     }
   }
-  // 必含：晨读 + 睡前复盘
-  acts.push({intensity:'low', dur:25, type:'review', module:'常识判断',
-    text:'📖 常识/时政 晨读 15 分钟 → APP 刷 10 题', count:10});
-  acts.push({intensity:'low', dur:25, type:'review', module:'错题复盘',
-    text:'🌙 睡前复盘当日错题 15 分钟（错题本 + 速记）'});
+  // 必含：晨读 + 睡前复盘（固定行，独立模块"常识判断 / 错题复盘"）
+  tryPush({intensity:'low', dur:25, type:'review', module:'常识判断',
+    text:'📖 常识/时政 晨读 15 分钟 → APP 刷 10 题', count:10}, 2);
+  tryPush({intensity:'low', dur:25, type:'review', module:'错题复盘',
+    text:'🌙 睡前复盘当日错题 15 分钟（错题本 + 速记）'}, 2);
 
   // 分配时间
   acts.forEach(function(a){
@@ -19850,12 +19914,18 @@ function buyFlower(id){
 
 // ---- 番茄钟 ----
 let tomatoMin = 25, tomatoRemaining = 25*60, tomatoElapsed = 0, tomatoTargetSec = 0, tomatoRunning = false, tomatoTimerId = null, tomatoMode = 'down';
+let tomatoStarted = false; // 是否已「开始/暂停」过：区分初始态与暂停态，供刷新后恢复
 let tomatoBaseTs = 0, tomatoBaseVal = 0; // 以真实时钟为基准（熄屏/后台也能准确计时）
 let tomatoTask = '', tomatoTodoId = ''; // 正在攻克的「具体事项」文字 + 关联的番茄ToDo id
+// 离线过久结算用：刷新恢复时若发现「上次会话在离线期间跑完」，按真实走过的分钟结算，且不弹庆祝弹窗
+let tomatoCreditMin = null, tomatoOfflineFinish = false;
+// 离线宽限：倒计时模式下，离线时长超过「剩余 + 5 分钟」即判定为上次会话已中断（避免关掉浏览器几小时后白记满时长）
+const POMO_OFFLINE_GRACE = 300;
 function setTomato(min){
   tomatoMin = min; tomatoRemaining = min*60;
   document.querySelectorAll('#tomatoPresets .tp-chip').forEach(c=> c.classList.toggle('active', parseInt(c.dataset.min)===min));
   updateTomatoDisplay(); resetTomatoBtns();
+  if(!tomatoRunning) persistTomato(); // 未开始：把选中的时长也记住，刷新不回到默认 25
 }
 // 自定义专注时长（1~600 分钟）
 function setCustomTomato(){
@@ -19866,6 +19936,7 @@ function setCustomTomato(){
   document.querySelectorAll('#tomatoPresets .tp-chip').forEach(c=> c.classList.remove('active'));
   tomatoMin = v; tomatoRemaining = v*60;
   updateTomatoDisplay(); resetTomatoBtns();
+  if(!tomatoRunning) persistTomato();
   toast('已设定专注 '+v+' 分钟');
 }
 // 切换 倒计时 / 正计时 模式
@@ -19880,6 +19951,7 @@ function setTomatoMode(mode){
   if(isUp){ tomatoElapsed = 0; } else { tomatoRemaining = tomatoMin*60; }
   tomatoBaseVal = isUp ? tomatoElapsed : tomatoRemaining;
   updateTomatoDisplay(); resetTomatoBtns();
+  persistTomato(); // 切模式后落盘（setTomatoMode 内部会先 reset，所以这里一定是未运行态）
 }
 
 // 以真实时钟重新计算当前剩余/已过秒数（不受熄屏、后台节流影响）
@@ -20019,6 +20091,7 @@ function startTomato(){
   focusSessionActive = true;
   enterFocusMode();
   tomatoTimerId = setInterval(syncTomatoFromClock, 1000);
+  tomatoStarted = true; persistTomato();
   updateFloatingWidget();
 }
 function pauseTomato(){
@@ -20031,6 +20104,7 @@ function pauseTomato(){
   document.getElementById('tomatoPause').disabled = true;
   document.getElementById('tomatoEnd').disabled = false;
   syncFocusBtns();
+  persistTomato();
   updateFloatingWidget();
 }
 function resetTomato(){
@@ -20039,12 +20113,104 @@ function resetTomato(){
   if(tomatoMode==='up'){ tomatoElapsed = 0; } else { tomatoRemaining = tomatoMin*60; }
   tomatoBaseVal = (tomatoMode==='up') ? tomatoElapsed : tomatoRemaining;
   updateTomatoDisplay(); resetTomatoBtns(); syncFocusBtns();
+  tomatoStarted = false; persistTomato();
   updateFloatingWidget();
+}
+// 番茄钟状态持久化：刷新页面后按真实时钟续算（运行中继续、暂停中保持冻结值、初始态保留选中的时长/模式）
+function persistTomato(){
+  try{
+    const modEl = document.getElementById('tomatoModule');
+    const st = {
+      started: tomatoStarted,
+      running: tomatoRunning,
+      mode: tomatoMode,
+      min: tomatoMin,
+      remaining: tomatoRemaining,
+      elapsed: tomatoElapsed,
+      baseTs: tomatoBaseTs,
+      baseVal: tomatoBaseVal,
+      targetSec: tomatoTargetSec,
+      task: tomatoTask,
+      todoId: tomatoTodoId,
+      mod: modEl ? modEl.value : '综合/其他'
+    };
+    localStorage.setItem('pomo_state', JSON.stringify(st));
+  }catch(e){}
+}
+function restoreTomato(){
+  let st = null;
+  try { st = JSON.parse(localStorage.getItem('pomo_state')||'null'); } catch(e){ st = null; }
+  if(!st) return;
+  tomatoMode = st.mode || 'down';
+  tomatoMin = st.min || 25;
+  tomatoRemaining = (typeof st.remaining==='number') ? st.remaining : tomatoMin*60;
+  tomatoElapsed = st.elapsed || 0;
+  tomatoTargetSec = st.targetSec || 0;
+  tomatoTask = st.task || '';
+  tomatoTodoId = st.todoId || '';
+  const modEl = document.getElementById('tomatoModule'); if(modEl) modEl.value = st.mod || '综合/其他';
+  const taskEl = document.getElementById('tomatoTaskInput'); if(taskEl) taskEl.value = tomatoTask;
+  document.querySelectorAll('.tm-mode').forEach(function(b){ b.classList.toggle('active', b.dataset.mode===tomatoMode); });
+  const pm = document.getElementById('tomatoPresets'); if(pm) pm.style.display = tomatoMode==='up' ? 'none' : '';
+  const pc = document.getElementById('tomatoCustomWrap'); if(pc) pc.style.display = tomatoMode==='up' ? 'none' : '';
+  const pt = document.getElementById('tomatoTargetWrap'); if(pt) pt.style.display = tomatoMode==='up' ? 'flex' : 'none';
+  document.querySelectorAll('#tomatoPresets .tp-chip').forEach(function(c){ c.classList.toggle('active', parseInt(c.dataset.min)===tomatoMin); });
+  tomatoBaseVal = (typeof st.baseVal==='number') ? st.baseVal : (tomatoMode==='up' ? tomatoElapsed : tomatoRemaining);
+  tomatoBaseTs = st.baseTs || Date.now();
+  const sB = document.getElementById('tomatoStart');
+  const pB = document.getElementById('tomatoPause');
+  const eB = document.getElementById('tomatoEnd');
+  if(st.running){
+    tomatoRunning = true;
+    recomputeTomato(); // 按真实时钟续算出当前剩余/已过秒数
+    updateTomatoDisplay(); updateFocusDisplay();
+    const offlineSec = Math.round((Date.now()-tomatoBaseTs)/1000);
+    // 过期保护：倒计时模式下离线远超剩余量（如关掉浏览器几小时），只按「启动后真实走过的时长」结算，不白记满
+    const expired = (tomatoMode==='down') && (offlineSec > tomatoBaseVal + POMO_OFFLINE_GRACE);
+    if(expired){
+      const realMin = Math.max(0, Math.min(tomatoBaseVal, tomatoMin*60))/60;
+      tomatoCreditMin = realMin; tomatoOfflineFinish = true;
+      try{ completeTomato(); } finally { tomatoCreditMin = null; tomatoOfflineFinish = false; }
+      if(realMin >= 1){
+        toast('⏱ 上次的专注在离线期间跑完了，按 '+Math.max(1,Math.round(realMin))+' 分钟结算');
+      }
+      return;
+    }
+    if(tomatoMode==='down' && tomatoRemaining<=0){ completeTomato(); return; }
+    if(tomatoMode==='up' && tomatoTargetSec>0 && tomatoElapsed>=tomatoTargetSec){ completeUp(); return; }
+    // 运行中：恢复计时器 + 按钮（开始禁用 / 暂停可点 / 结束可点）
+    focusSessionActive = true; // 状态保持一致，但不自动进全屏，避免刷新就被全屏打扰
+    tomatoTimerId = setInterval(syncTomatoFromClock, 1000);
+    if(sB) sB.disabled = true;
+    if(pB) pB.disabled = false;
+    if(eB) eB.disabled = false;
+    syncFocusBtns(); updateFloatingWidget();
+  } else if(st.started){
+    // 暂停态：保持冻结值不动，按钮为「可继续 / 可结束」
+    tomatoRunning = false;
+    if(sB) sB.disabled = false;
+    if(pB) pB.disabled = true;
+    if(eB) eB.disabled = false;
+    updateTomatoDisplay(); updateFocusDisplay();
+    syncFocusBtns(); updateFloatingWidget();
+  } else {
+    // 初始态：只恢复「选中的时长 / 模式 / 任务」，按钮回到初始
+    tomatoRunning = false;
+    resetTomatoBtns();
+    updateTomatoDisplay(); updateFocusDisplay();
+  }
+  // 兜底：模块下拉 / 任务输入框可能是后续渲染的，晚一拍再写一次
+  setTimeout(function(){
+    try{
+      const me = document.getElementById('tomatoModule'); if(me && st.mod) me.value = st.mod;
+      const te = document.getElementById('tomatoTaskInput'); if(te) te.value = tomatoTask;
+    }catch(e){}
+  }, 300);
 }
 function completeTomato(){
   exitFocusMode();
   clearInterval(tomatoTimerId); tomatoRunning=false;
-  const minutes = tomatoMin;
+  const minutes = (typeof tomatoCreditMin === 'number') ? tomatoCreditMin : tomatoMin;
   const t = todayKey();
   const existing = store.checkins[t]||0; // 累加前的打卡小时数
   addFocus(minutes, undefined, {task: tomatoTask, mode:'down', todoId: tomatoTodoId});
@@ -20052,8 +20218,11 @@ function completeTomato(){
   if(document.getElementById('page-tomato').classList.contains('active')) renderTomato();
   if(document.getElementById('page-garden').classList.contains('active')) renderGarden();
   // 当天第一次番茄钟完成（无论倒计时/正计时）弹打卡弹窗，之后当天再完成只 toast 不重复弹
+  // 离线补结算（tomatoOfflineFinish）不弹庆祝弹窗——睡了一觉回来弹「恭喜打卡」很诡异，由调用方 toast 说明
   const flagKey = 'pomoCheckinPopup_'+t;
-  if(!localStorage.getItem(flagKey)){
+  if(tomatoOfflineFinish){
+    // 静默结算：只写时长，不弹窗
+  } else if(!localStorage.getItem(flagKey)){
     localStorage.setItem(flagKey, '1');
     showCheckinPopup(t, null, existing, minutes/60);
   } else {
@@ -20549,6 +20718,7 @@ function onTomatoTaskInput(){
   tomatoTodoId = matchedId; // 没匹配上才为空（自定义）
   if(pick && typed !== '' && !matchedId) pick.value = '';
   syncTomatoModuleFromTask(); // 自动识别模块关键词，联动「正在攻克」+ 跳转按钮
+  if(tomatoStarted) persistTomato(); // 已开始的会话：任务文字改动也落盘，刷新不丢
 }
 
 // ---- 番茄钟：任务文本自动识别模块关键词，联动「正在攻克」+ 一键跳转 ----
@@ -21324,6 +21494,14 @@ function boot(){
     console.error('[boot] 启动弹窗出错，兜底显示开屏:', e);
     try { showSplash(); } catch(e2){}
   }
+  // 番茄钟：刷新页面后按真实时钟恢复计时（运行中续跑 / 暂停中保持冻结值 / 初始态保留选中时长与模式）
+  try { restoreTomato(); } catch(e){ console.error('[boot] restoreTomato 出错(已忽略):', e); }
+  // 兜底落盘：切后台 / 关页面 / 刷新前都把最新状态写一次（任务文字、模块等零散改动也能保住）
+  try {
+    const __pomoFlush = function(){ try{ persistTomato(); }catch(e){} };
+    window.addEventListener('pagehide', __pomoFlush);
+    document.addEventListener('visibilitychange', function(){ if(document.hidden) __pomoFlush(); });
+  } catch(e){}
 }
 // 每分钟检测跨天：自动刷新「今日待办」（归档往日 + 生成当日推荐）
 setInterval(function(){
