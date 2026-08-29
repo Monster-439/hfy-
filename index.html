@@ -2628,6 +2628,7 @@ body.drawer-open .nav-cloud{display:none;}
       </div>
       <div class="nav-children">
         <div class="nav-item" data-page="plan"><span class="nav-icon">📝</span>每日计划</div>
+        <div class="nav-item" data-page="month"><span class="nav-icon">📅</span>月计划</div>
         <div class="nav-item" data-page="checkin"><span class="nav-icon">📅</span>打卡日历</div>
         <div class="nav-item" data-page="stats"><span class="nav-icon">📈</span>时长统计</div>
         <div class="nav-item" data-page="report"><span class="nav-icon">📊</span>学习报告</div>
@@ -3086,8 +3087,7 @@ body.drawer-open .nav-cloud{display:none;}
         <option value="其他">其他</option>
       </select>
       <button class="btn" onclick="addPlan()">添加计划</button>
-      <button class="btn" onclick="generatePlan()" title="根据薄弱项智能生成">✨ 一键生成</button>
-      <button class="btn btn-strong" onclick="generateDailyStudyPlan(true)" title="读取错题/薄弱项/网课，按固定时段生成今日备考计划">🗓️ 每日计划自动生成</button>
+      <button class="btn btn-strong" onclick="regenTodayPlan()" title="读取错题/题本/网课三表真实数据，按 7 个固定时段生成今日备考计划（重复生成会先询问是否替换）">✨ 生成今日计划</button>
     </div>
   </div>
 
@@ -3097,9 +3097,11 @@ body.drawer-open .nav-cloud{display:none;}
     <div id="planList"></div>
   </div>
 
+  <div id="planDataNote" class="plan-data-note" style="display:none;background:rgba(255,193,71,.16);border:1px solid #FFC947;color:#9a6b00;border-radius:12px;padding:10px 12px;font-size:13px;margin-bottom:12px;"></div>
   <div class="card">
-    <div class="card-title"><span class="dot"></span>📅 月计划 <span class="more">可随时编辑</span></div>
-    <textarea id="monthPlanArea" class="month-plan-area" placeholder="这里会保存你本月的学习规划，可随时修改…（用「✨ 一键生成」可自动按薄弱项填充，再来手动调整）" oninput="saveMonthPlan()"></textarea>
+    <div class="card-title"><span class="dot"></span>📅 月计划 <span class="more">长期规划</span></div>
+    <p style="font-size:13px;color:var(--text-sub);margin-bottom:10px;">需要更长期的规划？到「📅 月计划」页按周生成本月主攻 + 限时训练 + 复盘，可「应用本周」一次性写入该周 7 天（不点不写入每日计划）。</p>
+    <button class="btn" onclick="showPage('month')">前往月计划 →</button>
   </div>
 
   <div class="card">
@@ -3162,6 +3164,17 @@ body.drawer-open .nav-cloud{display:none;}
     <button class="btn btn-danger" onclick="removeCheckin()">取消当日打卡</button>
     <div class="day-mood" id="dayMoodBox"></div>
   </div>
+</div>
+
+<!-- ===== 月计划 ===== -->
+<div class="page" id="page-month">
+  <div class="card">
+    <div class="card-title"><span class="dot"></span>📅 本月月计划 <span class="more" id="monthAutoLabel"></span></div>
+    <p style="font-size:13px;color:var(--text-sub);margin-bottom:10px;">每月 1 号首次打开会自动生成当月 4 周计划（基于薄弱项）；也可手动生成。每周可编辑主题/网课/刷题/套卷，点「应用本周」一次性写入该周 7 天（不点不写入每日计划）。</p>
+    <button class="btn btn-strong" onclick="generateMonthlyPlan(true)">✨ 生成/重算本月月计划</button>
+  </div>
+  <div id="monthPlanCards"></div>
+  <div id="monthApplyNote" class="plan-data-note" style="display:none;background:rgba(133,102,201,.12);border:1px solid #b9a6e6;color:#6b4fa8;border-radius:12px;padding:10px 12px;font-size:13px;"></div>
 </div>
 
 <!-- 打卡成功弹窗 -->
@@ -4047,17 +4060,15 @@ body.drawer-open .nav-cloud{display:none;}
 <!-- ========== 智能生成学习计划弹窗 ========== -->
 <div class="garden-overlay" id="genPlanModal" onclick="if(event.target===this)closeGenPlan()">
   <div class="garden-modal gen-plan-modal">
-    <div class="garden-modal-title">✨ 智能生成学习计划 <span class="qh-close" onclick="closeGenPlan()">✕</span></div>
+    <div class="garden-modal-title">✨ 生成今日计划 <span class="qh-close" onclick="closeGenPlan()">✕</span></div>
     <div class="gen-weak-box" id="genWeakBox"></div>
-    <div class="gen-sec-title">📌 每日学习计划（点时间可改，点 🔁 可换，➕ 单条加入今日）</div>
+    <div class="gen-sec-title">📌 今日学习计划（点时间可改，点 🔁 可换，➕ 单条加入今日）</div>
     <div class="gen-rows" id="genDailyRows"></div>
     <button class="gen-add" onclick="addGenRow({})">＋ 添加一行（自定义）</button>
-    <div class="gen-sec-title">📅 月计划（按周划分，每行可换一周 / 可编辑）</div>
-    <div id="genMonthContainer" class="gen-month-rows"></div>
-    <p class="gen-tip">提示：每行可点 🔁 换一条；点 ➕ 单条加入今日；最下「一键全部应用」会把每日与月计划一并保存。</p>
+    <p class="gen-tip">提示：每行可点 🔁 换一条；点 ➕ 单条加入今日；点「生成并应用到今日」写入今日计划（若今日已有计划会先询问是否替换）。</p>
     <div class="garden-acts" style="justify-content:flex-end;gap:8px;margin-top:6px;">
       <button class="btn btn-outline" onclick="closeGenPlan()">取消</button>
-      <button class="btn" onclick="applyGenPlan()">一键全部应用</button>
+      <button class="btn" onclick="applyDailyPlan()">✅ 生成并应用到今日</button>
     </div>
   </div>
 </div>
@@ -9336,6 +9347,7 @@ function onPageShow(page){
   if(page==='goals') renderGoals();
   if(page==='courses') renderCourses();
   if(page==='qbook') renderQuestionBooks();
+  if(page==='month') renderMonthPlan();
   if(page==='mindmap') renderMindmap();
   if(page==='diary') renderDiary();
   if(page==='garden'){ renderGarden(); maybeShowMorning(); renderMedals(); }
@@ -12280,6 +12292,71 @@ function computeWeakModules(){
   return {standard:standard, custom:custom, errRecent:errRecent, totalDone:totalDone, totalWrong:totalWrong, anyData:anyData};
 }
 
+// ===== 每日计划数据源：从「错题表 / 题本表 / 网课表」三表真实读取 =====
+// 输出 {errRecent, errReview, byMod, weakTop, courseTop2, qbookStats, hasData, note}
+//  - byMod:    近 30 天错题按模块聚合 {module:{err30,err7,kp:{}}}
+//  - weakTop:  用薄弱分公式排序的 TOP 模块 [{module,err7,err30,rate,mastery,score,priority,topKp}]
+//  - courseTop2:进行中网课前 2 门
+//  - qbookStats:题本累计做题/正确/章节进度
+//  - hasData:  错题≥5 或 题本做题≥30 → 视为有足够数据（否则走模板 + 提醒）
+function readForDailyPlan(){
+  const today = todayKey();
+  const errs = store.errors||[];
+  const d30 = shiftDateKey(today, -30), d7 = shiftDateKey(today, -7);
+  function inRange(e){ const dt=e.date||''; return dt>=d30 && dt<=today; }
+  function in7(e){ const dt=e.date||''; return dt>=d7 && dt<=today; }
+  // 最近 30 天错题按模块聚合
+  const byMod = {};
+  errs.filter(inRange).forEach(function(e){
+    const m = e.module||'错题';
+    if(!byMod[m]) byMod[m] = {module:m, err30:0, err7:0, kp:{}};
+    byMod[m].err30++;
+    if(in7(e)) byMod[m].err7++;
+    const kp = e.kp||'未分类';
+    byMod[m].kp[kp] = (byMod[m].kp[kp]||0)+1;
+  });
+  // 今日待复习（nextReview<=today 且未掌握）
+  const errReview = errs.filter(function(e){ return e.nextReview && e.nextReview<=today && !e.mastered; });
+  // 进行中网课（按 planFinish 升序取前 2）
+  const courseTop2 = getAllCourses().map(function(o){return o.c;})
+    .filter(function(c){ return (c.status||'')==='进行中'; })
+    .sort(function(a,b){ return (a.planFinish||'9999-12-31').localeCompare(b.planFinish||'9999-12-31'); })
+    .slice(0,2);
+  // 题本统计（含章节进度）
+  let qbookDone=0, qbookTotal=0, qbookChaptersDone=0, qbookChaptersTotal=0;
+  (store.questionBooks||[]).forEach(function(b){
+    qbookDone += (b.done||0); qbookTotal += (b.total||0);
+    (b.chapters||[]).forEach(function(ch){ qbookChaptersDone += (ch.done||0); qbookChaptersTotal += (ch.total||0); });
+  });
+  // 薄弱分公式：近 7 天错题×2 + (100-掌握度)×0.3 + 模块权重
+  const wk = computeWeakModules();
+  const rateMap = {};
+  wk.standard.forEach(function(s){ rateMap[s.name] = (s.rate===null? 0 : s.rate); });
+  (wk.custom||[]).forEach(function(c){ if(!(c.name in rateMap)) rateMap[c.name] = (c.rate===null?0:c.rate); });
+  const weakTop = Object.keys(byMod).map(function(m){
+    const o = byMod[m];
+    const w = (WEAK_MOD_WEIGHT[m]!=null) ? WEAK_MOD_WEIGHT[m] : 1.0;
+    const rate = (m in rateMap) ? rateMap[m] : 0;
+    const mastery = rate; // 掌握度以正确率近似
+    const score = o.err7*2 + (100-mastery)*0.3 + w;
+    const topKp = Object.keys(o.kp).sort(function(a,b){return o.kp[b]-o.kp[a];})[0]||'';
+    return {module:m, err7:o.err7, err30:o.err30, rate:rate, mastery:mastery, score:score, priority:priorityOf(score), topKp:topKp};
+  }).sort(function(a,b){ return b.score-a.score; });
+  const errCount = errs.length;
+  const hasData = errCount>=5 && qbookDone>=30;
+  const note = hasData ? '' : '数据不足（错题<5 道 或 题本做题<30 道），以下为参考模板，建议多录错题 / 多刷题后重新生成。';
+  return {
+    errRecent: errs.filter(inRange).slice().sort(function(a,b){return (b.date||'').localeCompare(a.date||'');}).slice(0,12),
+    errReview: errReview,
+    byMod: byMod,
+    weakTop: weakTop,
+    courseTop2: courseTop2,
+    qbookStats: {done:qbookDone, total:qbookTotal, chaptersDone:qbookChaptersDone, chaptersTotal:qbookChaptersTotal},
+    hasData: hasData,
+    note: note
+  };
+}
+
 // 从近 14 天的 focusLog 中学习高效时段：返回前 3 个最活跃的小时（[h1,h2,h3]）
 function computeEfficientHours(){
   const log = store.focusLog||[];
@@ -12691,84 +12768,191 @@ function genDailyPlanItem(text, module, start, end, taskType, count){
   return { id:'p'+Date.now()+'_'+Math.floor(Math.random()*1000), text:text, module:module||'综合/其他', count:count||0, start:start, end:end, done:false, status:'未开始', taskType:taskType, defer:false, gen:true };
 }
 // manual=true 表示手动点击按钮触发（会弹 toast 提示）
-function generateDailyStudyPlan(manual){
-  const today = todayKey();
+// ===== 合并后的「每日计划」生成（原「一键生成」与「每日计划自动生成」二合一） =====
+// 固定 7 个时段：08-09 错题重做 / 09-12 网课1 / 14-17 网课2 / 19-20 上午配套 / 20-21 下午配套 / 21-22 薄弱专项 / 22-22:30 复盘
+// 全部可编辑（弹窗里点时间/内容/题量，🔁 换一条，➕ 单条加入今日，＋ 自定义一行）
+// 顺延：昨天未完成 → 今天 08-09 顶部，打顺延标记
+// 不叠加：已存在今日计划 → 应用时先询问是否替换
+// 兜底：数据不足（错题<5 或 题本做题<30）→ 标注"数据不足，参考模板"，提醒多录错题
+
+// 纯函数：根据三表数据生成 7 条固定时段（不含顺延）
+function buildTodayPlanSlots(data, today){
   const yKey = shiftDateKey(today, -1);
+  const errs = store.errors||[];
+  const yesterdayNew = errs.filter(function(e){ return e.date===yKey && !e.mastered; });
+  const reviewDue = data.errReview||[];
+  const topWeak = data.weakTop[0];
+  const c1 = data.courseTop2[0], c2 = data.courseTop2[1];
+  const items = [];
+  // 08–09 错题重做（昨天新增×2 至少 3 道 + 复习日题）
+  const redoCount = Math.max(3, yesterdayNew.length*2) + reviewDue.length;
+  items.push(genDailyPlanItem('错题重做：昨日新增 '+yesterdayNew.length+' 道×2 + 待复习 '+reviewDue.length+' 道', '错题', '08:00', '09:00', '错题重做', redoCount));
+  // 09–12 网课第1节
+  if(c1) items.push(genDailyPlanItem('网课推进：'+c1.name+'（第1节）', getCourseModName(c1), '09:00', '12:00', '课程推进', 1));
+  else items.push(genDailyPlanItem('网课推进：暂无进行中课程，改为薄弱模块自由复习', '综合/其他', '09:00', '12:00', '课程推进', 0));
+  // 14–17 网课第2节
+  if(c2) items.push(genDailyPlanItem('网课推进：'+c2.name+'（第2节）', getCourseModName(c2), '14:00', '17:00', '课程推进', 1));
+  else items.push(genDailyPlanItem('网课推进：第2门进行中课程缺失，安排专项刷题', '综合/其他', '14:00', '17:00', '课程推进', 0));
+  // 19–20 上午课程配套练习
+  const m1 = c1 ? getCourseModName(c1) : '综合/其他';
+  items.push(genDailyPlanItem('上午课程配套练习（15–20道）', m1, '19:00', '20:00', '专项训练', 15));
+  // 20–21 下午课程配套练习
+  const m2 = c2 ? getCourseModName(c2) : '综合/其他';
+  items.push(genDailyPlanItem('下午课程配套练习（15–20道）', m2, '20:00', '21:00', '专项训练', 15));
+  // 21–22 薄弱专项训练
+  if(topWeak) items.push(genDailyPlanItem('薄弱专项：'+topWeak.module+(topWeak.topKp?('·'+topWeak.topKp):'')+'（10题·优先级'+topWeak.priority+'）', topWeak.module, '21:00', '22:00', '专项训练', 10));
+  else items.push(genDailyPlanItem('薄弱专项：按模块套题1组（15道）', '综合/其他', '21:00', '22:00', '专项训练', 15));
+  // 22–22:30 复盘+错题整理+闪卡
+  items.push(genDailyPlanItem('复盘+错题整理+闪卡：录入当天错题/填错因/复习10张闪卡/写3句复盘', '复盘', '22:00', '22:30', '复盘总结', 1));
+  return items;
+}
+
+// 自动写入（boot 触发，不弹窗）：顺延 + 7 时段 + 清当日每日推荐 + 置 planAutoDate + 数据不足备注
+function writeTodayPlan(manual, data){
+  const today = todayKey();
   if(!store.plans[today]) store.plans[today] = [];
   const arr = store.plans[today];
-  // ---- 第一步：读取数据 ----
-  const errors = store.errors||[];
-  const yesterdayNew = errors.filter(function(e){ return e.date===yKey && !e.mastered; });
-  const reviewDue = errors.filter(function(e){ return e.nextReview===today && !e.mastered; });
-  // 薄弱项：优先级=高，取薄弱分最高的前 1 个
-  const weakHigh = (store.weakItems||[])
-    .filter(function(it){ return priorityOf(computeWeakScore(it))==='高'; })
-    .sort(function(a,b){ return computeWeakScore(b)-computeWeakScore(a); });
-  const topWeak = weakHigh[0];
-  // 网课：状态=进行中，按计划完成日从近到远取前 2 门
-  const coursesActive = getAllCourses().map(function(o){ return o.c; })
-    .filter(function(c){ return (c.status||'')==='进行中'; })
-    .sort(function(a,b){ return (a.planFinish||'9999-12-31').localeCompare(b.planFinish||'9999-12-31'); });
-  const course1 = coursesActive[0];
-  const course2 = coursesActive[1];
-
-  // ---- 第三步：顺延（昨天未完成 → 今天 08–09 最前，打顺延标记）----
+  // 顺延：昨天未完成
+  const yKey = shiftDateKey(today, -1);
   const yPlans = store.plans[yKey]||[];
   const deferList = yPlans.filter(function(p){ return p.status!=='已完成' && !p.done; });
   deferList.forEach(function(p){
-    arr.push({ id:'p'+Date.now()+'_d'+Math.floor(Math.random()*1000), text:p.text, module:(p.module||'综合/其他'), count:(p.count||0), start:'08:00', end:'09:00', done:false, status:'未开始', taskType:p.taskType||'', defer:true, gen:true });
+    const it = genDailyPlanItem('↩️顺延：'+p.text, (p.module||'综合/其他'), '08:00', '09:00', (p.taskType||''), (p.count||0));
+    it.defer = true; arr.push(it);
   });
   const deferCount = deferList.length;
-
-  // ---- 第二步：生成 7 条固定时段 ----
-  // 08–09 错题重做（昨天新增×2 至少 3 道 + 复习日题）
-  const redoCount = Math.max(3, yesterdayNew.length*2) + reviewDue.length;
-  arr.push(genDailyPlanItem('错题重做：昨天新增 '+yesterdayNew.length+' 道×2 + 待复习 '+reviewDue.length+' 道', '错题', '08:00', '09:00', '错题重做', redoCount));
-  // 09–12 网课第1节
-  if(course1){
-    arr.push(genDailyPlanItem('网课推进：'+course1.name+'（第1节）', getCourseModName(course1), '09:00', '12:00', '课程推进', 1));
-  } else {
-    arr.push(genDailyPlanItem('网课推进：暂无进行中课程，改为薄弱模块自由复习', '综合/其他', '09:00', '12:00', '课程推进', 0));
-  }
-  // 14–17 网课第2节
-  if(course2){
-    arr.push(genDailyPlanItem('网课推进：'+course2.name+'（第2节）', getCourseModName(course2), '14:00', '17:00', '课程推进', 1));
-  } else {
-    arr.push(genDailyPlanItem('网课推进：第2门进行中课程缺失，安排专项刷题', '综合/其他', '14:00', '17:00', '课程推进', 0));
-  }
-  // 19–20 上午课程配套练习
-  const m1 = course1 ? getCourseModName(course1) : '综合/其他';
-  arr.push(genDailyPlanItem('上午课程配套练习（15–20道）', m1, '19:00', '20:00', '专项训练', 15));
-  // 20–21 下午课程配套练习
-  const m2 = course2 ? getCourseModName(course2) : '综合/其他';
-  arr.push(genDailyPlanItem('下午课程配套练习（15–20道）', m2, '20:00', '21:00', '专项训练', 15));
-  // 21–22 薄弱专项训练
-  if(topWeak){
-    arr.push(genDailyPlanItem('薄弱专项：'+topWeak.kp+'（10题）', topWeak.module||'综合/其他', '21:00', '22:00', '专项训练', 10));
-  } else {
-    arr.push(genDailyPlanItem('薄弱专项：按模块套题1组（15道）', '综合/其他', '21:00', '22:00', '专项训练', 15));
-  }
-  // 22–22:30 复盘+错题整理+闪卡
-  arr.push(genDailyPlanItem('复盘+错题整理+闪卡：录入当天错题/填错因/复习10张闪卡/写3句复盘', '复盘', '22:00', '22:30', '复盘总结', 1));
-
-  // ---- 第四步：保存（关联待办 + 落盘）----
+  const slots = buildTodayPlanSlots(data, today);
+  slots.forEach(function(it){ arr.push(it); });
   arr.forEach(function(p){ if(!p.todoId) ensurePlanTodo(p, today); });
+  // 清掉当日「每日推荐」待办（避免每日待办里天天出现"复盘错题本15分钟"等，q-0）
+  if(store.todos){ store.todos = store.todos.filter(function(td){ return !(td.src==='daily' && td.date===today); }); }
   store.planAutoDate = today;
+  store.dailyPlanNote = data && !data.hasData ? (data.note||'') : '';
   saveStore();
-  // 刷新当前可见页面
   const pg = document.getElementById('page-plan');
   if(pg && pg.classList.contains('active')) renderPlan();
   if(typeof renderHome==='function') renderHome();
-  const total = arr.length;
-  if(manual){ toast('已生成今日备考计划（共 '+total+' 项'+(deferCount>0?'，含 '+deferCount+' 条顺延':'')+'）'); }
-  return total;
+  return {total: arr.length, deferCount: deferCount};
+}
+
+// 薄弱项分析面板（弹窗内，基于三表真实数据）
+function renderGenWeakBox(data){
+  const box = document.getElementById('genWeakBox');
+  if(!box) return;
+  const esc = function(s){ return escapeHtml(s||''); };
+  let html = '<div class="gen-weak-title">📊 薄弱项分析（基于错题表 / 题本表 / 网课表三表真实数据）</div>';
+  if(data.weakTop.length){
+    html += '<div class="gen-weak-sub">▸ 近 30 天错题按模块（薄弱分 = 近7天错×2 + (100-掌握度)×0.3 + 模块权重）</div>';
+    html += data.weakTop.slice(0,7).map(function(w){
+      const cls = w.priority==='高'?'weak':(w.priority==='中'?'mid':'good');
+      return '<div class="gen-weak-item"><span style="flex:0 0 88px;">'+esc(w.module)+'</span>'
+        + '<span class="gen-weak-tag '+cls+'">'+w.priority+'</span>'
+        + '<span>近7天错 '+w.err7+'</span><span>· 近30天 '+w.err30+'</span>'
+        + '<span>· 正确率 '+(w.rate===null?'—':w.rate+'%')+'</span>'
+        + '<span>· 分 '+w.score.toFixed(1)+'</span></div>';
+    }).join('');
+  } else {
+    html += '<div class="gen-weak-item" style="color:#a08bb8;">近 30 天暂无错题记录</div>';
+  }
+  if(data.errReview.length){
+    html += '<div class="gen-weak-sub" style="margin-top:10px">▸ 🔔 今日待复习 '+data.errReview.length+' 道（已纳入 08-09 错题重做）</div>';
+  }
+  if(data.courseTop2.length){
+    html += '<div class="gen-weak-sub" style="margin-top:10px">▸ 🎓 进行中网课（前 2 门，已排 09-12 / 14-17）</div>';
+    html += data.courseTop2.map(function(c){ return '<div class="gen-weak-item"><span style="flex:0 0 88px;">'+esc(c.name)+'</span><span>'+esc(getCourseModName(c)||'')+'</span><span>· 计划完成 '+esc(c.planFinish||'—')+'</span></div>'; }).join('');
+  }
+  if(data.qbookStats){
+    const q = data.qbookStats;
+    html += '<div class="gen-weak-sub" style="margin-top:10px">▸ 📚 题本累计做题 '+q.done+' / '+q.total+(q.chaptersTotal?('（章节 '+q.chaptersDone+'/'+q.chaptersTotal+'）'):'')+'</div>';
+  }
+  box.innerHTML = html;
+  if(!data.hasData){
+    box.insertAdjacentHTML('beforeend', '<div class="gen-data-note" style="margin-top:10px;background:rgba(255,193,71,.16);border:1px solid #FFC947;color:#9a6b00;border-radius:10px;padding:8px 10px;font-size:12px;">⚠️ '+escapeHtml(data.note)+'</div>');
+  }
+}
+
+// 手动入口（按钮）：弹窗预填，用户可编辑后点「生成并应用到今日」
+function regenTodayPlan(){
+  const data = readForDailyPlan();
+  const today = todayKey();
+  const yKey = shiftDateKey(today, -1);
+  renderGenWeakBox(data);
+  const rowsBox = document.getElementById('genDailyRows');
+  rowsBox.innerHTML = '';
+  // 顺延行（置顶）
+  (store.plans[yKey]||[]).filter(function(p){ return p.status!=='已完成' && !p.done; }).forEach(function(p){
+    addGenRow({text:'↩️顺延：'+p.text, module:(p.module||'综合/其他'), count:(p.count||0), start:'08:00', end:'09:00', intensity:'med', type:'defer'});
+  });
+  // 7 固定时段（带 intensity/type 以便 🔁 换一条）
+  const typeMap = {'错题重做':'review','课程推进':'course','专项训练':'drill','复盘总结':'review'};
+  buildTodayPlanSlots(data, today).forEach(function(d){
+    addGenRow({text:d.text, module:d.module, count:d.count, start:d.start, end:d.end, intensity:'med', type:(typeMap[d.taskType]||'drill')});
+  });
+  store.dailyPlanNote = data.hasData ? '' : data.note;
+  document.getElementById('genPlanModal').classList.add('show');
+}
+
+// 弹窗「生成并应用到今日」：确认替换 → 写 store.plans[today] + 清每日推荐
+function applyDailyPlan(){
+  const today = todayKey();
+  const rows = Array.prototype.slice.call(document.querySelectorAll('#genDailyRows .gen-row'));
+  if(rows.length===0){ toast('还没有可应用的计划'); return; }
+  const doWrite = function(){
+    store.plans[today] = []; // 先清空当天，重新生成（不叠加）
+    rows.forEach(function(row){
+      const text = row.querySelector('.gen-text').value.trim();
+      if(!text) return;
+      const start = row.querySelector('.gen-start').value || '';
+      const end = row.querySelector('.gen-end').value || '';
+      const mod = row.querySelector('.gen-mod').value;
+      const count = parseInt(row.querySelector('.gen-count').value,10) || 0;
+      const p = genDailyPlanItem(text, mod, start, end, planTypeLabel(row.dataset.type), count);
+      if(row.dataset.type==='defer') p.defer = true;
+      store.plans[today].push(p);
+    });
+    store.plans[today].forEach(function(p){ if(!p.todoId) ensurePlanTodo(p, today); });
+    if(store.todos){ store.todos = store.todos.filter(function(td){ return !(td.src==='daily' && td.date===today); }); }
+    store.planAutoDate = today;
+    store.dailyPlanNote = (readForDailyPlan().hasData) ? '' : readForDailyPlan().note;
+    saveStore();
+    closeGenPlan();
+    const pg = document.getElementById('page-plan'); if(pg && pg.classList.contains('active')) renderPlan();
+    if(typeof renderHome==='function') renderHome();
+    toast('✅ 今日计划已生成并应用（共 '+store.plans[today].length+' 项）');
+  };
+  if((store.plans[today]||[]).length>0){
+    confirmAction('今日已有 '+store.plans[today].length+' 条计划，确定要重新生成并替换吗？', doWrite);
+  } else {
+    doWrite();
+  }
+}
+
+// 轻量确认框（不依赖原生 confirm，预览环境会被拦截）
+function confirmAction(msg, onYes, onNo){
+  let box = document.getElementById('confirmBox');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'confirmBox';
+    box.style.cssText = 'position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(60,40,70,.35);';
+    document.body.appendChild(box);
+  }
+  box.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:340px;width:88%;padding:20px 18px;box-shadow:0 12px 40px rgba(0,0,0,.18);font-family:inherit;">'
+    + '<div style="font-size:14px;line-height:1.6;color:#3a2f44;margin-bottom:16px;">'+escapeHtml(msg)+'</div>'
+    + '<div style="display:flex;gap:10px;justify-content:flex-end;">'
+    + '<button id="confirmNo" style="border:1px solid #d9c9e6;background:#fff;color:#6b4fa8;border-radius:10px;padding:8px 16px;font-size:14px;cursor:pointer;">取消</button>'
+    + '<button id="confirmYes" style="border:none;background:#6b4fa8;color:#fff;border-radius:10px;padding:8px 16px;font-size:14px;cursor:pointer;">确定替换</button>'
+    + '</div></div>';
+  box.style.display = 'flex';
+  document.getElementById('confirmYes').onclick = function(){ box.style.display='none'; try{ onYes&&onYes(); }catch(e){} };
+  document.getElementById('confirmNo').onclick = function(){ box.style.display='none'; try{ onNo&&onNo(); }catch(e){} };
+  box.onclick = function(ev){ if(ev.target===box){ box.style.display='none'; try{ onNo&&onNo(); }catch(e){} } };
 }
 // 打开 App 自动生成：新的一天且今天还没生成过才跑（纯静态无 cron，用"首次打开"兜底 7:30 触发）
 function autoGenDailyPlanOnBoot(){
   const t = todayKey();
   if(store.planAutoDate===t) return;            // 今天已生成过
   if((store.plans[t]||[]).length>0){ store.planAutoDate=t; try{saveStore();}catch(e){} return; } // 已有手动计划，不打扰
-  try { generateDailyStudyPlan(false); } catch(e){ console.error('[autoGen] 每日计划自动生成失败(已忽略):', e); }
+  try { const data = readForDailyPlan(); writeTodayPlan(false, data); } catch(e){ console.error('[autoGen] 每日计划自动生成失败(已忽略):', e); }
 }
 // 一键加入全部 + 月计划 → 替代原 applyGenPlan
 function applyGenPlan(){
@@ -12942,9 +13126,129 @@ function initMonthPlan(){
   if(el) el.value = store.monthPlan || '';
 }
 
+// ===== 月计划（独立页面） =====
+function monthWeekDates(weekNum){
+  const now = new Date(); const y = now.getFullYear(), m = now.getMonth();
+  const dates = [];
+  const base = (weekNum-1)*7 + 1;
+  for(let i=0;i<7;i++){
+    const day = base + i;
+    const d = new Date(y, m, day);
+    if(d.getMonth()!==m) continue; // 超出当月则不写
+    dates.push(dateKey(d));
+  }
+  return dates;
+}
+function generateMonthlyPlan(manual){
+  const analysis = computeWeakModules();
+  const weeks = buildMonthPlan(analysis, analysis.anyData);
+  store.monthWeeks = weeks.map(function(w){ return {weekNum:w.weekNum, theme:w.theme, course:w.course, drill:w.drill, mock:w.mock, milestone:w.milestone||''}; });
+  const now = new Date();
+  store.monthAutoDate = now.getFullYear()+'-'+(now.getMonth()+1);
+  saveStore();
+  renderMonthPlan();
+  if(manual) toast('📅 已生成本月 '+store.monthWeeks.length+' 周月计划（基于你的薄弱项）');
+}
+function renderMonthPlan(){
+  const wrap = document.getElementById('monthPlanCards');
+  if(!wrap) return;
+  const now = new Date();
+  const curKey = now.getFullYear()+'-'+(now.getMonth()+1);
+  const label = document.getElementById('monthAutoLabel');
+  if(label) label.textContent = curKey + ' 月' + (store.monthAutoDate===curKey ? ' · 已自动生成' : '');
+  const weeks = store.monthWeeks || [];
+  const ms = (store.goals&&store.goals.milestones)||[];
+  if(weeks.length===0){
+    wrap.innerHTML = '<div class="empty-state"><span class="emoji">📅</span>本月还没有月计划，点上方「生成/重算本月月计划」试试~</div>';
+    return;
+  }
+  const lab = 'display:block;font-size:12px;color:var(--text-sub);margin:8px 0 4px;';
+  const inp = 'width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:10px;font-size:14px;box-sizing:border-box;font-family:inherit;background:var(--bg-card,#fff);color:var(--text-main);';
+  wrap.innerHTML = weeks.map(function(w){
+    const msOpts = ['<option value="">— 不关联 —</option>'].concat(ms.map(function(mmm){
+      var sel = (mmm.title===w.milestone)?' selected':'';
+      return '<option value="'+escapeHtml(mmm.title)+'"'+sel+'>'+escapeHtml(mmm.title)+'</option>';
+    })).join('');
+    return '<div class="card month-week-card" data-week="'+w.weekNum+'">'
+      + '<div class="card-title"><span class="dot"></span>第 '+w.weekNum+' 周 · '+escapeHtml(w.theme)+'</div>'
+      + '<div class="grid-2">'
+      + '<div><label style="'+lab+'">主题</label><input style="'+inp+'" id="mpTheme'+w.weekNum+'" value="'+escapeHtml(w.theme)+'"></div>'
+      + '<div><label style="'+lab+'">关联里程碑</label><select style="'+inp+'" id="mpMs'+w.weekNum+'">'+msOpts+'</select></div>'
+      + '</div>'
+      + '<label style="'+lab+'">网课</label><input style="'+inp+'" id="mpCourse'+w.weekNum+'" value="'+escapeHtml(w.course)+'">'
+      + '<label style="'+lab+'">刷题</label><input style="'+inp+'" id="mpDrill'+w.weekNum+'" value="'+escapeHtml(w.drill)+'">'
+      + '<label style="'+lab+'">套卷</label><input style="'+inp+'" id="mpMock'+w.weekNum+'" value="'+escapeHtml(w.mock)+'">'
+      + '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">'
+      + '<button class="btn btn-strong" onclick="applyCurrentWeek('+w.weekNum+')">✅ 应用本周（写 7 天）</button>'
+      + '<button class="btn btn-outline" onclick="swapMonthWeekById('+w.weekNum+')">🔁 换一周</button>'
+      + '</div></div>';
+  }).join('');
+}
+function saveMonthWeekEdit(weekNum){
+  const w = (store.monthWeeks||[]).find(function(x){ return x.weekNum===weekNum; });
+  if(!w) return;
+  w.theme = (document.getElementById('mpTheme'+weekNum)||{}).value || w.theme;
+  w.course = (document.getElementById('mpCourse'+weekNum)||{}).value || w.course;
+  w.drill = (document.getElementById('mpDrill'+weekNum)||{}).value || w.drill;
+  w.mock = (document.getElementById('mpMock'+weekNum)||{}).value || w.mock;
+  w.milestone = (document.getElementById('mpMs'+weekNum)||{}).value || '';
+  saveStore();
+}
+function applyCurrentWeek(weekNum){
+  const w = (store.monthWeeks||[]).find(function(x){ return x.weekNum===weekNum; });
+  if(!w) return;
+  saveMonthWeekEdit(weekNum); // 先保存编辑
+  const dates = monthWeekDates(weekNum);
+  let total=0;
+  dates.forEach(function(dk){
+    if(!store.plans[dk]) store.plans[dk] = [];
+    if(store.plans[dk].some(function(p){ return p.weekMark===weekNum; })) return; // 该周已写过则跳过（防重复）
+    const items = [
+      genDailyPlanItem('错题重做 + 复盘（'+w.theme+'）', '错题', '08:00', '09:00', '错题重做', 3),
+      genDailyPlanItem('网课推进：'+w.course, '综合/其他', '09:00', '12:00', '课程推进', 1),
+      genDailyPlanItem('专项训练：'+w.drill, '综合/其他', '14:00', '17:00', '专项训练', 20),
+      genDailyPlanItem('配套练习：'+w.drill, '综合/其他', '19:00', '21:00', '专项训练', 20)
+    ];
+    const dow = new Date(dk+'T00:00:00').getDay();
+    if(dow===0 || dow===6){ items.push(genDailyPlanItem('套卷模拟：'+w.mock, '试卷练习', '21:00', '22:00', '专项训练', 1)); }
+    items.push(genDailyPlanItem('复盘+错题整理+闪卡（'+w.theme+'）', '复盘', '22:00', '22:30', '复盘总结', 1));
+    items.forEach(function(it){ it.weekMark = weekNum; store.plans[dk].push(it); ensurePlanTodo(it, dk); });
+    total += items.length;
+  });
+  saveStore();
+  const note = document.getElementById('monthApplyNote');
+  if(note){ note.style.display='block'; note.textContent='✅ 已把第 '+weekNum+' 周计划写入 '+dates.length+' 天（共 '+total+' 项）。未点的周不会写入每日计划。'; }
+  if(typeof renderHome==='function') renderHome();
+  toast('✅ 第 '+weekNum+' 周已应用，写入 '+dates.length+' 天');
+}
+function swapMonthWeekById(weekNum){
+  const pool = MONTH_WEEK_SWAP[weekNum] || MONTH_WEEK_SWAP[1];
+  function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+  const w = (store.monthWeeks||[]).find(function(x){ return x.weekNum===weekNum; });
+  if(!w) return;
+  const newTheme = pool.themes.filter(function(t){ return t!==w.theme; })[0] || pool.themes[0];
+  w.theme = newTheme;
+  w.course = (w.course||'').split('（')[0] + '（' + pick(pool.courseMods);
+  w.drill = pick(pool.drillMods);
+  w.mock = pick(pool.mockMods);
+  saveStore(); renderMonthPlan(); toast('🔁 第 '+weekNum+' 周已换一个安排');
+}
+function autoGenMonthlyPlanOnBoot(){
+  const now = new Date();
+  const key = now.getFullYear()+'-'+(now.getMonth()+1);
+  if(store.monthAutoDate===key) return;
+  // 仅每月 1 号首次打开自动生成；其余日期仅记已访问，不自动生成
+  if(now.getDate()!==1){ store.monthAutoDate = key; try{saveStore();}catch(e){} return; }
+  if((store.monthWeeks||[]).length>0){ store.monthAutoDate=key; try{saveStore();}catch(e){} return; }
+  try { generateMonthlyPlan(false); } catch(e){ console.error('[autoGen] 月计划自动生成失败(已忽略):', e); }
+}
+
 let planChart = null;
 function renderPlan(){
   initMonthPlan();
+  // 数据不足提示横幅（生成每日计划时若错题<5 且 题本做题<30 会写入 store.dailyPlanNote）
+  const noteEl = document.getElementById('planDataNote');
+  if(noteEl){ if(store.dailyPlanNote){ noteEl.style.display='block'; noteEl.textContent='⚠️ '+store.dailyPlanNote; } else { noteEl.style.display='none'; } }
   const today = todayKey();
   const d = new Date();
   const weekDays = ['日','一','二','三','四','五','六'];
@@ -22200,6 +22504,8 @@ function boot(){
   try { ensureDailyTodos(); } catch(e){ console.error('[boot] ensureDailyTodos 出错(已忽略):', e); }
   // 每日备考计划自动生成：新的一天首次打开且未生成过则自动跑（纯静态无 cron，兜底 7:30 触发）
   try { autoGenDailyPlanOnBoot(); } catch(e){ console.error('[boot] autoGenDailyPlanOnBoot 出错(已忽略):', e); }
+  // 月计划自动生成：每月 1 号首次打开且未生成过则自动跑（不自动写入每日计划）
+  try { autoGenMonthlyPlanOnBoot(); } catch(e){ console.error('[boot] autoGenMonthlyPlanOnBoot 出错(已忽略):', e); }
   try {
     if(!store.onboard || !store.onboard.done){ startOnboarding(); }
     else { showSplash(); }
