@@ -3436,8 +3436,9 @@ body.drawer-open .nav-cloud{display:none;}
       <textarea id="errorInput" placeholder="快速记录：粘贴题目/拍照上传/口述内容…（下方可补充完整结构）"></textarea>
     </div>
     <div class="error-input-area" style="margin-bottom:8px;">
-      <select id="errorModule" onchange="populateKpDropdown('__current','manKp');populateKpDropdown('__current','errorKp')" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
-        <option value="常识判断">常识判断</option>
+      <select id="errorModule" onchange="populateKpDropdown('__current','manKp');populateKpDropdown('__current','errorKp');renderErrorReasons()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
+        <option value="">模块 · 未选</option>
+        <option value="常识判断" selected>常识判断</option>
         <option value="时政热点">时政热点</option>
         <option value="言语理解">言语理解</option>
         <option value="图形推理">图形推理</option>
@@ -3491,11 +3492,6 @@ body.drawer-open .nav-cloud{display:none;}
         </select>
         <select id="errorReason" class="manual-sel">
           <option value="">错因 · 未填</option>
-          <option value="概念不清">概念不清</option>
-          <option value="审题失误">审题失误</option>
-          <option value="计算错误">计算错误</option>
-          <option value="方法不会">方法不会</option>
-          <option value="粗心大意">粗心大意</option>
         </select>
       </div>
       <div class="manual-row err-meta-row">
@@ -9341,7 +9337,7 @@ function onPageShow(page){
   if(page==='checkin') renderCheckin();
   if(page==='stats') renderStats();
   if(page==='exam') renderExam();
-  if(page==='error'){ renderErrors(); populateErrorBookSelect(); populateKpDropdown('__current','errorKp'); populateKpDropdown('__current','manKp'); }
+  if(page==='error'){ renderErrors(); populateErrorBookSelect(); populateKpDropdown('__current','errorKp'); populateKpDropdown('__current','manKp'); renderErrorReasons(); }
   if(TOPICS[page]) renderTopic(page);
   if(IMPORT_SECTIONS.indexOf(page)>=0) renderImports(page);
   if(page==='bank') renderBank();
@@ -9368,6 +9364,116 @@ function onPageShow(page){
   if(page==='idea'){ renderIdeaTabs(); renderIdeaDaily(); renderIdeaCustom(); }
   checkDayReviewReminder();
   updateFloatingWidget();
+}
+
+// ====================================================
+//  错因联动下拉（模块 → 错因分类）
+// ====================================================
+// 通用错因：所有模块均显示（共 4 条）
+const ERROR_COMMON_REASONS = ['审题错误（看反正误）','粗心大意','时间不够/蒙的','完全不会/没思路'];
+// 各模块专属错因（下拉值 → 错因列表）。常识判断 / 时政热点 共用常识组
+const ERROR_REASON_GROUPS = {
+  '言语理解': [
+    '逻辑填空-近义词词义混淆，无法精准辨析',
+    '逻辑填空-只看词义，忽略语境/感情色彩/固定搭配',
+    '逻辑填空-未捕捉并列/转折/递进等逻辑提示词',
+    '逻辑填空-仅凭语感做题，不结合题干对应信息',
+    '主旨题-未找准中心句，被背景/举例/转折前内容干扰',
+    '主旨题-选项过度推断，主观脑补超出文段范围',
+    '主旨题-忽略主题词，选择无关但表述通顺的选项',
+    '细节判断题-未识别偷换概念/时态/范围/语气的陷阱',
+    '细节判断题-定位信息错误，混淆文段数据与表述',
+    '语句排序/填空-未抓住话题一致/指代词/关联词等线索',
+    '语句排序/填空-仅凭语感排序，逻辑判断错误'
+  ],
+  '数量关系': [
+    '审题错误-看错多/少、提高到/提高了、至少/至多等关键词',
+    '审题错误-漏看单位/时间/范围等限定条件',
+    '审题错误-题意理解错误，列式错误',
+    '知识方法错误-公式/模型记混记错（行程/工程/排列组合等）',
+    '知识方法错误-未掌握赋值法/代入排除/倍数特性等速解技巧',
+    '知识方法错误-解题思路复杂，简单题目复杂化',
+    '计算错误-口算失误，加减乘除计算错误',
+    '计算错误-小数点/分数/比例运算出错',
+    '计算错误-解方程/列式过程出错',
+    '时间策略错误-单题耗时过长，挤占其他题目时间',
+    '时间策略错误-会做题目因时间不足未完成',
+    '时间策略错误-盲目放弃，未优先选择简单题'
+  ],
+  '图形推理': [
+    '图形推理-特征图识别不足，无法判断考点（对称/笔画/位置等）',
+    '图形推理-忽略复合规律，仅寻找单一规律',
+    '图形推理-封闭面/交点/笔画数/线条数量统计错误',
+    '图形推理-空间重构相对面/相邻面判断失误',
+    '图形推理-心态急躁，复杂图形直接蒙题'
+  ],
+  '判断推理': [
+    '定义判断-未圈画主体/客体/条件/目的/方式等关键词',
+    '定义判断-忽略否定词/限定词（不/除了/必须等）',
+    '定义判断-多定义题目混淆定义内容',
+    '定义判断-未识别选项偷换主体/场景的陷阱',
+    '定义判断-题干过长，未精读导致理解错误',
+    '类比推理-并列/包容/交叉/因果等逻辑关系判断错误',
+    '类比推理-仅看表面词义，未进行二级辨析（词性/褒贬等）',
+    '类比推理-常识积累不足（历史/文学/生活常识）',
+    '类比推理-强行造句，逻辑关系不严谨',
+    '逻辑判断-翻译推理前后逻辑关系记反',
+    '逻辑判断-加强削弱题找不准论点/论据',
+    '逻辑判断-掉入无关选项/类比加强等陷阱',
+    '逻辑判断-排列组合题未用列表/排除法，硬推耗时',
+    '逻辑判断-逻辑理解错误，颠倒题意'
+  ],
+  '资料分析': [
+    '找数错误-混淆主体（全国/省市、进口/出口、规模以上/全部）',
+    '找数错误-混淆时间（同比/环比、基期/现期、1-12月/12月）',
+    '找数错误-段落/图表定位错误，误读数据',
+    '计算错误-口算/速算失误，截位直除错误',
+    '计算错误-小数点/单位换算错误，百化分使用错误',
+    '公式混淆-基期量/现期量/增长率公式混用',
+    '公式混淆-比重差/平均数增长率公式记混',
+    '公式混淆-间隔增长率/混合增长率公式应用错误',
+    '陷阱错误-单位（%/‰、万吨/亿吨）/时间/范围/表述陷阱未识别',
+    '陷阱错误-题干问"不正确"，误选正确选项'
+  ],
+  '常识判断': [
+    '知识点没记住/记忆模糊',
+    '没积累/没看过',
+    '记忆混淆（时间/人物/事件搞混）',
+    '法律条文理解错误'
+  ],
+  '时政热点': [
+    '知识点没记住/记忆模糊',
+    '没积累/没看过',
+    '记忆混淆（时间/人物/事件搞混）',
+    '法律条文理解错误'
+  ]
+};
+// 根据当前所选模块，动态刷新「错因分类」下拉
+//  - 未选模块：通用错因 + 首项提示「请先选择模块」
+//  - 已选模块：通用错因（全部 4 条）+ 该模块专属错因，其他模块隐藏
+function renderErrorReasons(){
+  const modSel = document.getElementById('errorModule');
+  const rsSel = document.getElementById('errorReason');
+  if(!rsSel) return;
+  const escOpt = function(s){ s = (s==null?'':''+s); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); };
+  const mod = (modSel && modSel.value) || '';
+  const prev = rsSel.value || '';
+  const opts = [];
+  if(!mod){
+    opts.push('<option value="">请先选择模块</option>');
+    ERROR_COMMON_REASONS.forEach(function(r){ opts.push('<option value="'+escOpt(r)+'">'+escOpt(r)+'</option>'); });
+  } else {
+    opts.push('<option value="">错因 · 未填</option>');
+    ERROR_COMMON_REASONS.forEach(function(r){ opts.push('<option value="'+escOpt(r)+'">'+escOpt(r)+'</option>'); });
+    (ERROR_REASON_GROUPS[mod] || []).forEach(function(r){ opts.push('<option value="'+escOpt(r)+'">'+escOpt(r)+'</option>'); });
+  }
+  rsSel.innerHTML = opts.join('');
+  // 保留之前的有效选择（编辑回填 / 切换模块后旧值仍属于可见集合）
+  if(prev){
+    let hit = false;
+    for(let i=0;i<rsSel.options.length;i++){ if(rsSel.options[i].value===prev){ hit=true; break; } }
+    if(hit) rsSel.value = prev;
+  }
 }
 
 // ====================================================
@@ -12320,11 +12426,13 @@ function readForDailyPlan(){
   const byMod = {};
   errs.filter(inRange).forEach(function(e){
     const m = e.module||'错题';
-    if(!byMod[m]) byMod[m] = {module:m, err30:0, err7:0, kp:{}};
+    if(!byMod[m]) byMod[m] = {module:m, err30:0, err7:0, kp:{}, reasons:{}};
     byMod[m].err30++;
     if(in7(e)) byMod[m].err7++;
     const kp = e.kp||'未分类';
     byMod[m].kp[kp] = (byMod[m].kp[kp]||0)+1;
+    const wr = (e.wrongReason&&e.wrongReason.trim()) ? e.wrongReason.trim() : '未填错因';
+    byMod[m].reasons[wr] = (byMod[m].reasons[wr]||0)+1;
   });
   // 今日待复习（nextReview<=today 且未掌握）
   const errReview = errs.filter(function(e){ return e.nextReview && e.nextReview<=today && !e.mastered; });
@@ -12351,7 +12459,9 @@ function readForDailyPlan(){
     const mastery = rate; // 掌握度以正确率近似
     const score = o.err7*2 + (100-mastery)*0.3 + w;
     const topKp = Object.keys(o.kp).sort(function(a,b){return o.kp[b]-o.kp[a];})[0]||'';
-    return {module:m, err7:o.err7, err30:o.err30, rate:rate, mastery:mastery, score:score, priority:priorityOf(score), topKp:topKp};
+    const topReason = Object.keys(o.reasons).sort(function(a,b){return o.reasons[b]-o.reasons[a];})[0]||'';
+    const reasonCount = topReason ? (o.reasons[topReason]||0) : 0;
+    return {module:m, err7:o.err7, err30:o.err30, rate:rate, mastery:mastery, score:score, priority:priorityOf(score), topKp:topKp, topReason:topReason, reasonCount:reasonCount};
   }).sort(function(a,b){ return b.score-a.score; });
   const errCount = errs.length;
   const hasData = errCount>=5 && qbookDone>=30;
@@ -12811,7 +12921,7 @@ function buildTodayPlanSlots(data, today){
   const m2 = c2 ? getCourseModName(c2) : '综合/其他';
   items.push(genDailyPlanItem('下午课程配套练习（15–20道）', m2, '20:00', '21:00', '专项训练', 15));
   // 21–22 薄弱专项训练
-  if(topWeak) items.push(genDailyPlanItem('薄弱专项：'+topWeak.module+(topWeak.topKp?('·'+topWeak.topKp):'')+'（10题·优先级'+topWeak.priority+'）', topWeak.module, '21:00', '22:00', '专项训练', 10));
+  if(topWeak) items.push(genDailyPlanItem('薄弱专项：'+topWeak.module+(topWeak.topKp?('·'+topWeak.topKp):'')+(topWeak.topReason?(' → 主攻错因：'+topWeak.topReason):'')+'（10题·优先级'+topWeak.priority+'）', topWeak.module, '21:00', '22:00', '专项训练', 10));
   else items.push(genDailyPlanItem('薄弱专项：按模块套题1组（15道）', '综合/其他', '21:00', '22:00', '专项训练', 15));
   // 22–22:30 复盘+错题整理+闪卡
   items.push(genDailyPlanItem('复盘+错题整理+闪卡：录入当天错题/填错因/复习10张闪卡/写3句复盘', '复盘', '22:00', '22:30', '复盘总结', 1));
@@ -12856,11 +12966,13 @@ function renderGenWeakBox(data){
     html += '<div class="gen-weak-sub">▸ 近 30 天错题按模块（薄弱分 = 近7天错×2 + (100-掌握度)×0.3 + 模块权重）</div>';
     html += data.weakTop.slice(0,7).map(function(w){
       const cls = w.priority==='高'?'weak':(w.priority==='中'?'mid':'good');
+      const reasonLine = w.topReason ? '<span style="flex-basis:100%;margin-top:3px;color:#9a4a2a;">↳ 最常见错因：'+esc(w.topReason)+(w.reasonCount>1?('（'+w.reasonCount+'次）'):'')+'</span>' : '';
       return '<div class="gen-weak-item"><span style="flex:0 0 88px;">'+esc(w.module)+'</span>'
         + '<span class="gen-weak-tag '+cls+'">'+w.priority+'</span>'
         + '<span>近7天错 '+w.err7+'</span><span>· 近30天 '+w.err30+'</span>'
         + '<span>· 正确率 '+(w.rate===null?'—':w.rate+'%')+'</span>'
-        + '<span>· 分 '+w.score.toFixed(1)+'</span></div>';
+        + '<span>· 分 '+w.score.toFixed(1)+'</span>'
+        + reasonLine + '</div>';
     }).join('');
   } else {
     html += '<div class="gen-weak-item" style="color:#a08bb8;">近 30 天暂无错题记录</div>';
