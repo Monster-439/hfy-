@@ -3630,7 +3630,7 @@ body.drawer-open .nav-cloud{display:none;}
     <div class="card-title"><span class="dot"></span>✍️ 手动录入题目</div>
     <div class="manual-form">
       <div class="manual-row">
-        <select id="manModule" class="manual-sel" onchange="populateKpDropdown('__current','manKp')">
+        <select id="manModule" class="manual-sel" onchange="populateKpDropdown('__current','manKp');populateManReason()">
           <option value="常识判断">常识判断</option>
           <option value="时政热点">时政热点</option>
           <option value="言语理解">言语理解</option>
@@ -3649,6 +3649,9 @@ body.drawer-open .nav-cloud{display:none;}
       </div>
       <div class="manual-row">
         <select id="manKp" class="manual-sel"><option value="">（知识点 · 请先选择模块）</option></select>
+      </div>
+      <div class="manual-row">
+        <select id="manReason" class="manual-sel"><option value="">错因 · 未填</option></select>
       </div>
       <textarea id="manQuestion" class="manual-area" placeholder="输入题干，例如：下列关于……的说法正确的是？"></textarea>
       <div class="manual-opts">
@@ -9405,6 +9408,26 @@ function renderErrorReasons(){
   }
 }
 
+// 题库录入「错因分类」下拉：复用错题错因字典，按 manModule 联动
+function populateManReason(){
+  const modSel = document.getElementById('manModule');
+  const rsSel = document.getElementById('manReason');
+  if(!rsSel) return;
+  const escOpt = function(s){ s = (s==null?'':''+s); return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); };
+  const mod = (modSel && modSel.value) || '';
+  const prev = rsSel.value || '';
+  const opts = [];
+  opts.push('<option value="">错因 · 未填</option>');
+  ERROR_COMMON_REASONS.forEach(function(r){ opts.push('<option value="'+escOpt(r)+'">'+escOpt(r)+'</option>'); });
+  if(mod){ (ERROR_REASON_GROUPS[mod] || []).forEach(function(r){ opts.push('<option value="'+escOpt(r)+'">'+escOpt(r)+'</option>'); }); }
+  rsSel.innerHTML = opts.join('');
+  if(prev){
+    let hit = false;
+    for(let i=0;i<rsSel.options.length;i++){ if(rsSel.options[i].value===prev){ hit=true; break; } }
+    if(hit) rsSel.value = prev;
+  }
+}
+
 // ====================================================
 //  题型模块渲染
 // ====================================================
@@ -10548,14 +10571,15 @@ function startDrill(module, type){
   let shuffled = [...questions].sort(()=>Math.random()-0.5);
   quizState.questions = shuffled.map(q=>{
     // 打乱选项顺序（方案C：optionPhotos 与 options 配对一起乱序，永不错位）
+    // 采用「索引乱序」重映射答案，避免图推纯配图题选项为空串导致 indexOf('') 永远命中 0 而答案错位
     const opts = [...q.options];
     const photos = Array.isArray(q.optionPhotos) ? [...q.optionPhotos] : [];
-    const correctText = opts[q.answer];
-    const paired = opts.map((o,i)=>({ o:o, p: (i<photos.length ? photos[i] : null) }));
-    paired.sort(()=>Math.random()-0.5);
-    const shuffledOpts = paired.map(x=>x.o);
-    const shuffledPhotos = paired.map(x=>x.p);
-    return {...q, options:shuffledOpts, optionPhotos:shuffledPhotos, answer:shuffledOpts.indexOf(correctText), _origOpts: q.options.slice(), _origOptPhotos: photos.slice()};
+    const order = opts.map((o,i)=>i).sort(()=>Math.random()-0.5);
+    const shuffledOpts = order.map(i=>opts[i]);
+    const shuffledPhotos = order.map(i=>(i<photos.length ? photos[i] : null));
+    const _origAns = q.answer;
+    const newAnswer = (typeof _origAns==='number' && _origAns>=0) ? order.indexOf(_origAns) : -1;
+    return {...q, options:shuffledOpts, optionPhotos:shuffledPhotos, answer:newAnswer, _origOpts: q.options.slice(), _origOptPhotos: photos.slice()};
   });
   // 兜底：如果题量异常（<5），多半是浏览器缓存了旧 JS，尝试用 raw 取题
   if(quizState.questions.length < 5){
@@ -10600,7 +10624,7 @@ function getQuestions(module, type){
   // 合并「我的题库」中同模块的题目（手动录入 + PDF 题库），自动同步到对应板块刷题池
   (store.bankManual||[]).forEach(function(it){
     if(it.module === module){
-      extra.push({q: it.q, options: it.options, answer: it.answer, explain: it.explain||'', explainStruct: it.explainStruct || null});
+      extra.push({q: it.q, options: it.options, answer: it.answer, explain: it.explain||'', explainStruct: it.explainStruct || null, kp: it.kp || '', wrongReason: it.wrongReason || '', optionPhotos: Array.isArray(it.optionPhotos) ? it.optionPhotos.slice() : []});
     }
   });
   (store.bankPdf||[]).forEach(function(e){
@@ -10631,6 +10655,8 @@ function getQuestions(module, type){
         _errParts: e.parts || null,
         _errSummary: e.summary || '',
         _errPhotoOnly: !hasFull && hasPhoto,  // 标记：这是「纯图片错题」，用户看完图可选「跳过」
+        kp: e.kp || '', wrongReason: e.wrongReason || '',
+        wrongReason: e.wrongReason || '',
         optionPhotos: Array.isArray(e.optionPhotos) ? e.optionPhotos.slice() : []  // 方案C：选项级配图跟随
       });
     }
@@ -11651,51 +11677,50 @@ function renderQuestion(){
   const errPhotos = Array.isArray(q._errPhotos) ? q._errPhotos : [];
   const errOriginal = (q._errQuestion && q._errQuestion !== q.q) ? q._errQuestion : (q._errContent || '');
   const isPhotoOnly = !!q._errPhotoOnly || (q._fromError && errPhotos.length>0 && Array.isArray(q.options) && q.options.every(function(o){ return !o || o==='未填写' || String(o).trim()===''; }));
-  const errMetaParts = [];
-  if(q._fromError){
-    const e = (store.errors||[]).find(function(x){ return x.id===q._fromError; });
-    if(e){
-      if(e.src) errMetaParts.push('来源：' + (e.srcLabel || ({drill:'刷题答错',manual:'手动录入',qbook:'关联题本',course:'课程'})[e.src] || e.src));
-      if(e.kp) errMetaParts.push('📍 ' + e.kp);
-      if(e.date) errMetaParts.push('📅 ' + e.date);
-    }
-  }
-  // 【修复 BUG①】纯图片错题的照片大图优先渲染在最顶部，便于"看图回忆"
-  const errPhotosHtml = errPhotos.length ? `
-    <div class="err-photos" style="margin:0 0 12px;background:linear-gradient(135deg,#fff7f3,#fff0ea);border:1.5px dashed #f5b3a4;border-radius:14px;padding:12px;">
-      <div style="font-size:12px;color:#c0552b;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px">📷 错题原貌（${errPhotos.length} 张）<span style="font-weight:400;color:#9a7b6f;font-size:11px;margin-left:auto">点击放大查看</span></div>
-      <div style="display:flex;flex-direction:column;gap:10px;max-height:50vh;overflow:auto">
-        ${errPhotos.map(function(src,i){ return '<img data-idx="'+i+'" src="'+src+'" onclick="openErrPhoto(this.src,this.dataset.idx,'+JSON.stringify(errPhotos)+')" style="width:100%;max-width:520px;max-height:50vh;border-radius:10px;border:1px solid #f5d3c4;cursor:zoom-in;background:#fff;object-fit:contain" />'; }).join('')}
-      </div>
+  // 知识点 / 错因 / 来源 / 日期：统一收口，仅「提交答案后」才显示（答题前当作答案提示隐藏）
+  const errObj = q._fromError ? (store.errors||[]).find(function(x){ return x.id===q._fromError; }) : null;
+  const kpText = q.kp || (errObj && errObj.kp) || '';
+  const reasonText = q.wrongReason || (errObj && errObj.wrongReason) || '';
+  const srcText = (errObj && errObj.src) ? ('来源：' + (errObj.srcLabel || ({drill:'刷题答错',manual:'手动录入',qbook:'关联题本',course:'课程'})[errObj.src] || errObj.src)) : '';
+  const dateText = (errObj && errObj.date) ? ('📅 ' + errObj.date) : '';
+  // 题目图（错题原貌等）并入「题目区」顶部，不单独成块、不暴露答案提示类标签
+  const qImgHtml = errPhotos.length ? `
+    <div class="quiz-qimgs" style="display:flex;flex-direction:column;gap:10px;margin:0 0 12px">
+      ${errPhotos.map(function(src,i){ return '<img data-idx="'+i+'" src="'+src+'" onclick="openErrPhoto(\''+src+'\','+i+','+JSON.stringify(errPhotos)+')" style="width:100%;max-width:520px;max-height:46vh;border-radius:10px;border:1px solid #eee;cursor:zoom-in;background:#fff;object-fit:contain" />'; }).join('')}
     </div>` : '';
-  const errOriginalHtml = errOriginal ? `
-    <div style="margin:0 0 10px;padding:8px 12px;background:#f6f3ff;border-left:3px solid #a89bd4;border-radius:8px;font-size:13px;color:#5b4f7a;white-space:pre-line;line-height:1.6">📝 录入时的内容：${escHtml(errOriginal)}</div>` : '';
-  const errMetaHtml = errMetaParts.length ? `
-    <div style="margin:0 0 10px;font-size:11px;color:#999;display:flex;flex-wrap:wrap;gap:10px">${errMetaParts.map(function(t){return '<span>'+escHtml(t)+'</span>';}).join('')}</div>` : '';
   // 【修复 BUG①】纯图片错题：替换 4 个「未填写」占位为提示卡 + 单按钮"确认/跳过"
   const photoOnlyHint = isPhotoOnly ? `
     <div style="margin:0 0 14px;padding:14px 16px;background:linear-gradient(135deg,#fff5f0,#fff0e8);border:1.5px dashed #e8a18e;border-radius:14px;text-align:center">
       <div style="font-size:14px;font-weight:700;color:#c0552b;margin-bottom:4px">📷 这是纯图片错题</div>
       <div style="font-size:12px;color:#a06b5b;line-height:1.6">请看上方图片回忆当时错点，<br/>答不上来可直接「跳过」</div>
     </div>` : '';
+  const optHtml = q.options.map(function(opt,i){
+    const ph = (Array.isArray(q.optionPhotos) && q.optionPhotos[i]) ? q.optionPhotos[i] : '';
+    const txt = (opt && String(opt).trim()) ? String(opt) : '';
+    const txtHtml = txt ? '<span style="white-space:pre-line">'+escHtml(txt)+'</span>' : (ph ? '' : '<span style="color:#bbb;font-style:italic">（未填写）</span>');
+    return '<div class="quiz-option" onclick="selectOption('+i+')" data-idx="'+i+'">'
+      + '<span class="opt-label">'+String.fromCharCode(65+i)+'</span>'
+      + txtHtml
+      + (ph ? '<img class="quiz-opt-photo" src="'+ph+'" onclick="event.stopPropagation();zoomImg(this.src)" alt="选项图" />' : '')
+      + '</div>';
+  }).join('');
+  // 知识点 / 错因 / 来源 / 日期 标签：置于「解析区」内，提交答案前随 .quiz-explain 隐藏
+  const metaTagsHtml = (kpText||reasonText||srcText||dateText) ? `
+    <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
+      ${kpText ? '<span style="font-size:11px;padding:3px 10px;border-radius:12px;background:#f3eefe;color:#6b4fa8;border:1px solid #e3d8fb">'+escHtml(kpText)+'</span>' : ''}
+      ${reasonText ? '<span style="font-size:11px;padding:3px 10px;border-radius:12px;background:#fdeef0;color:#c0552b;border:1px solid #f7d3d9">'+escHtml(reasonText)+'</span>' : ''}
+      ${srcText ? '<span style="font-size:11px;padding:3px 10px;border-radius:12px;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0">'+escHtml(srcText)+'</span>' : ''}
+      ${dateText ? '<span style="font-size:11px;padding:3px 10px;border-radius:12px;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0">'+escHtml(dateText)+'</span>' : ''}
+    </div>` : '';
   document.getElementById('quizBody').innerHTML = `
-    ${errPhotosHtml}
-    ${errMetaHtml}
+    ${qImgHtml}
     <div class="quiz-q" style="white-space:pre-line"><span class="q-tag">${quizState.type}</span>${q.q}</div>
-    ${errOriginalHtml}
     ${photoOnlyHint}
-    <div class="quiz-options">
-      ${q.options.map((opt,i)=>`
-        <div class="quiz-option" onclick="selectOption(${i})" data-idx="${i}">
-          <span class="opt-label">${String.fromCharCode(65+i)}</span>
-          <span style="white-space:pre-line">${opt||'<span style="color:#bbb;font-style:italic">（未填写）</span>'}</span>
-          ${(Array.isArray(q.optionPhotos) && q.optionPhotos[i]) ? '<img class="quiz-opt-photo" src="'+q.optionPhotos[i]+'" onclick="event.stopPropagation();zoomImg(this.src)" alt="选项图" />' : ''}
-        </div>
-      `).join('')}
-    </div>
+    <div class="quiz-options">${optHtml}</div>
     <div class="quiz-explain" id="quizExplain">
       <div class="et">📋 解析</div>
       <div class="qe-body" style="white-space:pre-line">${explainHtml}</div>
+      ${metaTagsHtml}
     </div>
   `;
   quizState.selected = -1;
@@ -17829,6 +17854,7 @@ function reparseBankPdf(id){
 function addManualQuestion(){
   const module = document.getElementById('manModule').value;
   const kp = (document.getElementById('manKp') || {}).value || '';
+  const wrongReason = (document.getElementById('manReason') || {}).value || '';
   const q = document.getElementById('manQuestion').value.trim();
   const opts = [
     document.getElementById('manOptA').value.trim(),
@@ -17836,14 +17862,21 @@ function addManualQuestion(){
     document.getElementById('manOptC').value.trim(),
     document.getElementById('manOptD').value.trim()
   ];
-  const validOpts = opts.filter(function(o){ return o.length > 0; });
-  // 方案C：选项级配图 —— 与 validOpts 一一对应（仅取有效选项位置）
-  const validOptPhotos = [];
-  opts.forEach(function(o,i){ if(o.length > 0) validOptPhotos.push(manOptPhotos[i] || null); });
+  // 图推等题型：选项以配图为主，文字可空。有效选项 = 文字非空 或 该位置有配图
+  const isOptValid = function(o,i){ return (o && o.length > 0) || !!manOptPhotos[i]; };
+  const validIdx = [];
+  for(let i=0;i<4;i++){ if(isOptValid(opts[i], i)) validIdx.push(i); }
+  const validOpts = validIdx.map(function(i){ return opts[i] || ''; });
+  // 方案C：选项级配图 —— 与 validOpts 一一对应（按有效位置收集；图推纯配图也会带上）
+  const validOptPhotos = validIdx.map(function(i){ return manOptPhotos[i] || null; });
   if(!q){ toast('请先输入题干~'); return; }
-  if(validOpts.length < 2){ toast('至少需要填写 2 个有效选项~'); return; }
-  const answer = parseInt(document.getElementById('manAnswer').value, 10);
-  if(answer >= validOpts.length){ toast('正确答案序号超出了有效选项数量~'); return; }
+  if(validIdx.length < 2){ toast('至少需要 2 个有效选项（填文字或传配图）~'); return; }
+  let answer = parseInt(document.getElementById('manAnswer').value, 10);
+  if(answer >= 0){
+    const pos = validIdx.indexOf(answer);
+    if(pos === -1){ toast('正确答案对应的选项未填写/未传图~'); return; }
+    answer = pos; // 重映射到有效选项位置
+  }
   // 结构化解析：parts[i] 对应原始第 i 个选项，乱序后按原索引自动对齐
   const parts = [0,1,2,3].map(function(i){
     const t = (document.getElementById('manExplain'+i) || {}).value;
@@ -17862,6 +17895,7 @@ function addManualQuestion(){
       it.answer = answer;
       it.explainStruct = explainStruct;
       it.kp = kp;
+      it.wrongReason = wrongReason;
       it.optionPhotos = validOptPhotos;  // 方案C：选项级配图
     }
   } else {
@@ -17873,6 +17907,7 @@ function addManualQuestion(){
       answer: answer,            // -1 表示无答案（自测）
       explainStruct: explainStruct,
       kp: kp,
+      wrongReason: wrongReason,
       optionPhotos: validOptPhotos  // 方案C：选项级配图（与 options 一一对应）
     };
     store.bankManual.push(item);
@@ -17916,6 +17951,7 @@ function editManual(id){
   const oph = it.optionPhotos || [];
   manOptPhotos = ['', '', '', ''];
   for(let i=0;i<o.length && i<4;i++){ if(oph[i]) manOptPhotos[i] = oph[i]; }
+  const rsSel = document.getElementById('manReason'); if(rsSel) rsSel.value = it.wrongReason || '';
   renderManOptPhotos();
   const es = document.getElementById('manExplainSummary'); if(es) es.value = struct.summary || '';
   document.getElementById('manAnswer').value = (typeof it.answer === 'number') ? String(it.answer) : '-1';
@@ -18104,7 +18140,7 @@ function bankAllQuestions(){
   const all = [];
   store.bankPdf.forEach(function(e){ (e.questions||[]).forEach(function(q){ all.push(Object.assign({}, q, { module: e.module || '未分类', kp: q.kp || '' })); }); });
   store.bankManual.forEach(function(it){
-    all.push({ q: it.q, options: it.options, answer: it.answer, explain: it.explain || '', explainStruct: it.explainStruct || null, module: it.module || '未分类', kp: it.kp || '', optionPhotos: Array.isArray(it.optionPhotos) ? it.optionPhotos.slice() : [] });
+    all.push({ q: it.q, options: it.options, answer: it.answer, explain: it.explain || '', explainStruct: it.explainStruct || null, module: it.module || '未分类', kp: it.kp || '', wrongReason: it.wrongReason || '', optionPhotos: Array.isArray(it.optionPhotos) ? it.optionPhotos.slice() : [] });
   });
   // 合并「我的错题」中带完整结构的题目（题干+≥2选项+答案）—— 与题库同池，刷题也能刷到错题
   (store.errors||[]).forEach(function(e){
@@ -18123,7 +18159,7 @@ function bankAllQuestions(){
         explain: e.summary || '',
         explainStruct: e.parts || null,
         module: e.module,
-        kp: e.kp || '',
+        kp: e.kp || '', wrongReason: e.wrongReason || '',
         _fromError: e.id,
         _errPhotos: e.photos || [],
         _errContent: e.content || '',
@@ -18141,7 +18177,7 @@ function bankAllQuestions(){
         explain: e.summary || '',
         explainStruct: e.parts || null,
         module: e.module,
-        kp: e.kp || '',
+        kp: e.kp || '', wrongReason: e.wrongReason || '',
         optionPhotos: Array.isArray(e.optionPhotos) ? e.optionPhotos.slice() : []  // 方案C：选项级配图跟随
       });
     }
@@ -18184,16 +18220,17 @@ function shuffleQuizQuestions(list){
     const opts = q.options.slice();
     const photos = Array.isArray(q.optionPhotos) ? q.optionPhotos.slice() : [];
     // 方案C：optionPhotos 与选项配对一起 Fisher-Yates 乱序，保证跟选项走
-    const paired = opts.map(function(o,i){ return { o:o, p: (i<photos.length ? photos[i] : null) }; });
+    const paired = opts.map(function(o,i){ return { o:o, p: (i<photos.length ? photos[i] : null), idx:i }; });
     for(let i=paired.length-1;i>0;i--){
       const j = Math.floor(Math.random()*(i+1));
       const t = paired[i]; paired[i] = paired[j]; paired[j] = t;
     }
     const shuffledOpts = paired.map(function(x){ return x.o; });
     const shuffledPhotos = paired.map(function(x){ return x.p; });
+    const order = paired.map(function(x){ return x.idx; });
     let ans = q.answer;
     if(typeof ans === 'number' && ans >= 0 && ans < q.options.length){
-      ans = shuffledOpts.indexOf(q.options[ans]);
+      ans = order.indexOf(ans);  // 索引乱序重映射，避免图推空串选项错位
     } else { ans = -1; }
     // 备份原选项顺序，让 renderQuestion 可构造"老标签→新标签"映射，
     // 让解析里的 ✅OLD / 故选OLD 跟随选项乱序走
