@@ -505,8 +505,8 @@ body[data-color-theme="sky"]{
 .btn-outline:hover{background:var(--pink-main);}
 .btn-danger{background:#fff0f0;color:#e88; border:2px solid #fcc;box-shadow:none;}
 .btn-danger:hover{background:#fee;}
-.btn-strong{background:linear-gradient(135deg,#6b4fa8,#8566c9);color:#fff;border:2px solid #6b4fa8;box-shadow:0 4px 14px rgba(107,79,168,.32);}
-.btn-strong:hover{background:linear-gradient(135deg,#5d4493,#7959bd);box-shadow:0 6px 18px rgba(107,79,168,.42);}
+.btn-strong{background:var(--pink-btn);color:#fff;border:2px solid var(--pink-btn);box-shadow:0 4px 14px rgba(0,0,0,.18);text-shadow:0 1px 2px rgba(0,0,0,.12);}
+.btn-strong:hover{background:var(--pink-btn-hover);box-shadow:0 6px 18px rgba(0,0,0,.26);transform:translateY(-1px);}
 
 /* 添加试卷记录按钮 + 成绩趋势分析标签：跟随主题主色（与番茄钟一致） */
 #examAddBtn{background:var(--pink-btn);color:#fff;border-color:transparent;text-shadow:0 1px 2px var(--pink-text-shadow-softest);}
@@ -757,6 +757,11 @@ body[data-color-theme="sky"]{
 .gen-tip{font-size:11px;color:var(--text-sub);margin:4px 0 12px;}
 /* 月计划卡片 */
 .month-plan-area{width:100%;min-height:150px;box-sizing:border-box;background:#fff;color:var(--text-main);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;line-height:1.7;resize:vertical;font-family:inherit;}
+.month-top-row{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;}
+.month-top-tip{flex:1;min-width:200px;font-size:13px;color:var(--text-sub);margin:0;line-height:1.7;}
+.month-week-card .mp-field{display:block;margin-top:14px;}
+.month-week-card .mp-field label{display:block;font-size:12px;color:var(--text-sub);font-weight:600;margin-bottom:4px;}
+.month-week-card .grid-2{margin-top:8px;}
 .plan-check{
   width:22px;height:22px;border:2px solid var(--pink-btn);
   border-radius:50%;cursor:pointer;flex-shrink:0;
@@ -1121,8 +1126,12 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .page-head{font-size:20px;font-weight:800;color:var(--text);margin:2px 4px 14px;display:flex;align-items:baseline;gap:10px;}
 .page-head small{font-size:12px;font-weight:500;color:var(--text-sub);}
 .manual-form{display:flex;flex-direction:column;gap:10px;margin-bottom:12px;}
-.manual-row{display:flex;gap:10px;}
+.manual-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
+.manual-row:not(:last-child){margin-bottom:8px;}
+#errorFullPanel .manual-row{margin-bottom:10px;}
 .manual-sel{flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff;color:var(--text);}
+.err-meta-row{align-items:center;}
+.err-question-lb{flex:1;display:block;font-size:12px;color:var(--text-sub);font-weight:600;margin:0;padding:4px 2px;}
 .manual-area{width:100%;min-height:44px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;resize:vertical;font-family:inherit;box-sizing:border-box;}
 .manual-explain-block{margin:10px 0;padding:10px;border:1px dashed var(--border);border-radius:10px;background:var(--bg-soft,#faf7fb);}
 .meb-title{font-size:12px;color:var(--text-sub,#888);margin-bottom:6px;font-weight:600;}
@@ -3170,8 +3179,10 @@ body.drawer-open .nav-cloud{display:none;}
 <div class="page" id="page-month">
   <div class="card">
     <div class="card-title"><span class="dot"></span>📅 本月月计划 <span class="more" id="monthAutoLabel"></span></div>
-    <p style="font-size:13px;color:var(--text-sub);margin-bottom:10px;">每月 1 号首次打开会自动生成当月 4 周计划（基于薄弱项）；也可手动生成。每周可编辑主题/网课/刷题/套卷，点「应用本周」一次性写入该周 7 天（不点不写入每日计划）。</p>
-    <button class="btn btn-strong" onclick="generateMonthlyPlan(true)">✨ 生成/重算本月月计划</button>
+    <div class="month-top-row">
+      <p class="month-top-tip">每月 1 号首次打开会自动生成当月 4 周计划（基于薄弱项）；也可手动生成。每周可编辑主题/网课/刷题/套卷，点「应用本周」一次性写入该周 7 天（不点不写入每日计划）。</p>
+      <button class="btn btn-strong" onclick="generateMonthlyPlan(true)" style="white-space:nowrap;flex-shrink:0;">✨ 生成/重算本月月计划</button>
+    </div>
   </div>
   <div id="monthPlanCards"></div>
   <div id="monthApplyNote" class="plan-data-note" style="display:none;background:rgba(133,102,201,.12);border:1px solid #b9a6e6;color:#6b4fa8;border-radius:12px;padding:10px 12px;font-size:13px;"></div>
@@ -3504,7 +3515,7 @@ body.drawer-open .nav-cloud{display:none;}
         <input id="errorMasteredDate" type="date" class="manual-sel" title="掌握日期（勾选已掌握自动填今天）" style="display:none">
       </div>
       <div class="manual-row">
-        <span class="bank-mod-tip">题干留空时，会用上方「快速记录」区的内容作为兜底；按学科筛节点</span>
+        <label class="err-question-lb">题干（留空时，会用上方「快速记录」区的内容兜底；按学科筛节点）</label>
       </div>
       <textarea id="errorQuestion" class="manual-area" placeholder="题干（可与上方「快速记录」互补；留空则用上方）"></textarea>
       <div class="manual-opts">
@@ -13162,7 +13173,7 @@ function renderMonthPlan(){
     wrap.innerHTML = '<div class="empty-state"><span class="emoji">📅</span>本月还没有月计划，点上方「生成/重算本月月计划」试试~</div>';
     return;
   }
-  const lab = 'display:block;font-size:12px;color:var(--text-sub);margin:8px 0 4px;';
+  const lab = 'display:block;font-size:12px;color:var(--text-sub);font-weight:600;margin-bottom:4px;';
   const inp = 'width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:10px;font-size:14px;box-sizing:border-box;font-family:inherit;background:var(--bg-card,#fff);color:var(--text-main);';
   wrap.innerHTML = weeks.map(function(w){
     const msOpts = ['<option value="">— 不关联 —</option>'].concat(ms.map(function(mmm){
@@ -13172,13 +13183,13 @@ function renderMonthPlan(){
     return '<div class="card month-week-card" data-week="'+w.weekNum+'">'
       + '<div class="card-title"><span class="dot"></span>第 '+w.weekNum+' 周 · '+escapeHtml(w.theme)+'</div>'
       + '<div class="grid-2">'
-      + '<div><label style="'+lab+'">主题</label><input style="'+inp+'" id="mpTheme'+w.weekNum+'" value="'+escapeHtml(w.theme)+'"></div>'
-      + '<div><label style="'+lab+'">关联里程碑</label><select style="'+inp+'" id="mpMs'+w.weekNum+'">'+msOpts+'</select></div>'
+      + '<div class="mp-field"><label>主题</label><input style="'+inp+'" id="mpTheme'+w.weekNum+'" value="'+escapeHtml(w.theme)+'"></div>'
+      + '<div class="mp-field"><label>关联里程碑</label><select style="'+inp+'" id="mpMs'+w.weekNum+'">'+msOpts+'</select></div>'
       + '</div>'
-      + '<label style="'+lab+'">网课</label><input style="'+inp+'" id="mpCourse'+w.weekNum+'" value="'+escapeHtml(w.course)+'">'
-      + '<label style="'+lab+'">刷题</label><input style="'+inp+'" id="mpDrill'+w.weekNum+'" value="'+escapeHtml(w.drill)+'">'
-      + '<label style="'+lab+'">套卷</label><input style="'+inp+'" id="mpMock'+w.weekNum+'" value="'+escapeHtml(w.mock)+'">'
-      + '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">'
+      + '<div class="mp-field"><label>网课</label><input style="'+inp+'" id="mpCourse'+w.weekNum+'" value="'+escapeHtml(w.course)+'"></div>'
+      + '<div class="mp-field"><label>刷题</label><input style="'+inp+'" id="mpDrill'+w.weekNum+'" value="'+escapeHtml(w.drill)+'"></div>'
+      + '<div class="mp-field"><label>套卷</label><input style="'+inp+'" id="mpMock'+w.weekNum+'" value="'+escapeHtml(w.mock)+'"></div>'
+      + '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">'
       + '<button class="btn btn-strong" onclick="applyCurrentWeek('+w.weekNum+')">✅ 应用本周（写 7 天）</button>'
       + '<button class="btn btn-outline" onclick="swapMonthWeekById('+w.weekNum+')">🔁 换一周</button>'
       + '</div></div>';
