@@ -14725,8 +14725,10 @@ function genWeakFromErrors(){
   }
   const groups = {};
   store.errors.forEach(function(e){
-    const k = (e.module||'未分类') + '|' + (e.kp||'');
-    if(!groups[k]) groups[k] = {module:(e.module||'未分类'), kp:(e.kp||'')};
+    const kp = (e.kp||'').trim();
+    if(!kp || kp.indexOf('如：')===0) return;   // 跳过空 kp / 占位演示知识点（如：行程问题），不进表
+    const k = (e.module||'未分类') + '|' + kp;
+    if(!groups[k]) groups[k] = {module:(e.module||'未分类'), kp:kp};
   });
   let added = 0;
   Object.keys(groups).forEach(function(k){
@@ -14753,8 +14755,10 @@ function syncWeakTableFromErrors(){
   const ago = new Date(); ago.setHours(0,0,0,0); ago.setDate(ago.getDate()-7);
   const map = {}; // key -> {module,kp,total,recent,lastD}
   store.errors.forEach(function(e){
-    const k = (e.module||'未分类') + '|' + (e.kp||'');
-    if(!map[k]) map[k] = {module:(e.module||'未分类'), kp:(e.kp||''), total:0, recent:0, lastD:null};
+    const kp = (e.kp||'').trim();
+    if(!kp || kp.indexOf('如：')===0) return;   // 跳过空 kp / 占位演示知识点（如：行程问题）
+    const k = (e.module||'未分类') + '|' + kp;
+    if(!map[k]) map[k] = {module:(e.module||'未分类'), kp:kp, total:0, recent:0, lastD:null};
     map[k].total++;
     if(e.date){ const d=new Date(e.date); if(d>=ago) map[k].recent++; if(!map[k].lastD||d>map[k].lastD) map[k].lastD=d; }
   });
