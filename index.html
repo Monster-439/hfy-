@@ -15290,6 +15290,8 @@ const BANK_ICONS = {
 
 function renderErrors(){
   const filter = document.getElementById('errorFilter').value;
+  // 方案B：本子视图下选了具体模块，自动退出本子视图，转全局平铺该模块
+  if(_errorsBookView && filter!=='all'){ _errorsBookView=''; }
   const list = document.getElementById('errorAllList');
 
   // 联动：重做错题（来自题本）— 独立分支，按 bookId 过滤
@@ -15316,6 +15318,22 @@ function renderErrors(){
       + ' <span class="eb-back-cnt">'+errors.length+' 道</span></div>';
     if(errors.length===0){
       html += '<div class="empty-state"><span class="emoji">❌</span>这本子还没有错题</div>';
+    } else {
+      html += '<ul class="manual-group-list">';
+      errors.forEach(function(e){ html += renderErrorItem(e); });
+      html += '</ul>';
+    }
+    list.innerHTML = html; syncTopicErrors(); return;
+  }
+
+  // 全局模块筛选：平铺所有该模块错题（不受本子限制）
+  if(!_errorsBookView && !_errorsBookFilter && filter!=='all'){
+    let errors = (store.errors||[]).filter(function(e){ return e.module===filter; }).reverse();
+    let html = '<div class="eb-back"><button type="button" class="btn btn-sm" onclick="document.getElementById(\'errorFilter\').value=\'all\';renderErrors()">← 返回书架</button>'
+      + '<span class="eb-back-name">🌐 全部错题 · '+escapeHtml(filter)+'</span>'
+      + '<span class="eb-back-cnt">'+errors.length+' 道</span></div>';
+    if(errors.length===0){
+      html += '<div class="empty-state"><span class="emoji">❌</span>暂无该模块错题</div>';
     } else {
       html += '<ul class="manual-group-list">';
       errors.forEach(function(e){ html += renderErrorItem(e); });
