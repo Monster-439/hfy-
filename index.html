@@ -12463,6 +12463,13 @@ function readForDailyPlan(){
     const reasonCount = topReason ? (o.reasons[topReason]||0) : 0;
     return {module:m, err7:o.err7, err30:o.err30, rate:rate, mastery:mastery, score:score, priority:priorityOf(score), topKp:topKp, topReason:topReason, reasonCount:reasonCount};
   }).sort(function(a,b){ return b.score-a.score; });
+  // 联动3：薄弱项表 → 每日计划。取「优先级=高」且薄弱分最高的 Top1 知识点
+  const wkItems = (store.weakItems||[]).map(function(it){
+    const s = computeWeakScore(it);
+    return {it:it, s:s, p:priorityOf(s)};
+  }).filter(function(o){ return o.p==='高'; })
+    .sort(function(a,b){ return b.s-a.s; });
+  const weakKpTop = wkItems.length ? {kp:wkItems[0].it.kp, module:wkItems[0].it.module, score:wkItems[0].s} : null;
   const errCount = errs.length;
   const hasData = errCount>=5 && qbookDone>=30;
   const note = hasData ? '' : '数据不足（错题<5 道 或 题本做题<30 道），以下为参考模板，建议多录错题 / 多刷题后重新生成。';
@@ -12471,6 +12478,7 @@ function readForDailyPlan(){
     errReview: errReview,
     byMod: byMod,
     weakTop: weakTop,
+    weakKpTop: weakKpTop,
     courseTop2: courseTop2,
     qbookStats: {done:qbookDone, total:qbookTotal, chaptersDone:qbookChaptersDone, chaptersTotal:qbookChaptersTotal},
     hasData: hasData,
@@ -12920,9 +12928,15 @@ function buildTodayPlanSlots(data, today){
   // 20–21 下午课程配套练习
   const m2 = c2 ? getCourseModName(c2) : '综合/其他';
   items.push(genDailyPlanItem('下午课程配套练习（15–20道）', m2, '20:00', '21:00', '专项训练', 15));
-  // 21–22 薄弱专项训练
-  if(topWeak) items.push(genDailyPlanItem('薄弱专项：'+topWeak.module+(topWeak.topKp?('·'+topWeak.topKp):'')+(topWeak.topReason?(' → 主攻错因：'+topWeak.topReason):'')+'（10题·优先级'+topWeak.priority+'）', topWeak.module, '21:00', '22:00', '专项训练', 10));
-  else items.push(genDailyPlanItem('薄弱专项：按模块套题1组（15道）', '综合/其他', '21:00', '22:00', '专项训练', 15));
+  // 21–22 薄弱专项训练（联动3：优先薄弱项表「高优先级」Top1 知识点）
+  const kpTop = data.weakKpTop;
+  if(kpTop && kpTop.kp){
+    items.push(genDailyPlanItem('薄弱专项：'+kpTop.kp+'专项训练（10题·优先级高）', (kpTop.module||'综合/其他'), '21:00', '22:00', '专项训练', 10));
+  } else if(topWeak){
+    items.push(genDailyPlanItem('薄弱专项：'+topWeak.module+(topWeak.topKp?('·'+topWeak.topKp):'')+(topWeak.topReason?(' → 主攻错因：'+topWeak.topReason):'')+'（10题·优先级'+topWeak.priority+'）', topWeak.module, '21:00', '22:00', '专项训练', 10));
+  } else {
+    items.push(genDailyPlanItem('薄弱专项：按模块套题1组（15道）', '综合/其他', '21:00', '22:00', '专项训练', 15));
+  }
   // 22–22:30 复盘+错题整理+闪卡
   items.push(genDailyPlanItem('复盘+错题整理+闪卡：录入当天错题/填错因/复习10张闪卡/写3句复盘', '复盘', '22:00', '22:30', '复盘总结', 1));
   return items;
@@ -14538,9 +14552,17 @@ function weakFmtDate(d){
   const day = ('0'+d.getDate()).slice(-2);
   return y+'-'+m+'-'+day;
 }
+// 有效掌握度：优先取模块「题本进度正确率」（autoMastery，自动联动）；无题本数据才用手动填
+function effMastery(it){
+  const live = (typeof autoMastery==='function') ? autoMastery(it.module) : null;
+  if(live!=null) return live;
+  if(it.mastery!=='' && it.mastery!=null) return Number(it.mastery);
+  return null;
+}
 function computeWeakScore(it){
   const recent = (it.recentErr===''||it.recentErr==null) ? 0 : Number(it.recentErr);
-  const mastery = (it.mastery===''||it.mastery==null) ? 0 : Number(it.mastery);
+  const mas = effMastery(it);                 // 联动2：题本进度正确率变化时自动重算薄弱分
+  const mastery = (mas==null) ? 0 : mas;
   const w = (WEAK_MOD_WEIGHT[it.module]!=null) ? WEAK_MOD_WEIGHT[it.module] : 1.0;
   return recent*2 + (100-mastery)*0.3 + w;
 }
@@ -14550,10 +14572,11 @@ function priorityOf(s){ return s>=15 ? '高' : (s>=8 ? '中' : '低'); }
 function autoPullErrorStats(module, kp){
   if(!Array.isArray(store.errors)) return {total:0, recent:0, last:''};
   const ago = new Date(); ago.setHours(0,0,0,0); ago.setDate(ago.getDate()-7);
+  const target = kp||'';
   let total=0, recent=0, lastD=null;
   store.errors.forEach(function(e){
-    if(e.module !== module) return;
-    if(kp && e.kp && e.kp !== kp) return;
+    if((e.module||'') !== (module||'')) return;
+    if((e.kp||'') !== target) return;
     total++;
     if(e.date){
       const d = new Date(e.date);
@@ -14563,13 +14586,24 @@ function autoPullErrorStats(module, kp){
   });
   return {total:total, recent:recent, last: lastD ? weakFmtDate(lastD) : ''};
 }
-// 掌握度：6 大模块自动取刷题正确率；图形推理无统计返回 null（需手动填）
+// 掌握度：知识点所属模块的「刷题正确率」= 真实做题记录聚合(含手动偏移) - 课程记录不计入
+// 题本进度变化（store.records / store.manual 偏移）即自动联动；无数据返回 null → 显示"—"
 function autoMastery(module){
+  let done=0, right=0;
+  const recs = store.records||{};
+  Object.keys(recs).forEach(function(d){
+    (recs[d]||[]).forEach(function(r){
+      if(r.module!==module) return;
+      if(r.kind==='course') return;            // 课程推进不计刷题正确率
+      done += (r.done||0); right += (r.right||0);
+    });
+  });
   const key = WEAK_MOD_KEY[module];
-  if(!key) return null;
-  const m = store.manual && store.manual[key];
-  if(!m || !m.done) return null;
-  return Math.round(m.right / m.done * 100);
+  if(key && store.manual && store.manual[key]){
+    done += (store.manual[key].done||0); right += (store.manual[key].right||0);
+  }
+  if(done<=0) return null;
+  return Math.round(right/done*100);
 }
 
 function renderWeakness(){
@@ -14614,7 +14648,12 @@ function renderWeakness(){
     rows.forEach(function(r){
       const it = r.it;
       const kpVal = escapeHtml(it.kp||'');
-      const masteryVal = (it.mastery===''||it.mastery==null)?'':it.mastery;
+      const mas = (typeof effMastery==='function') ? effMastery(it) : null;
+      const masLive = (typeof autoMastery==='function') ? autoMastery(it.module) : null;
+      // 掌握度列：有题本数据的模块显示自动值(只读🔗)；图形推理/无数据模块允许手动填（"—"）
+      const masteryCell = (masLive!=null)
+        ? '<td class="wk-mastery wk-auto" title="自动取 '+escapeHtml(it.module)+' 题本进度正确率，题本更新即联动">'+mas+'% <span class="wk-link">🔗自动</span></td>'
+        : '<td><input class="wk-in wk-in-num" type="number" min="0" max="100" value="'+((it.mastery===''||it.mastery==null)?'':it.mastery)+'" oninput="updateWeakCell(\''+it.id+'\',\'mastery\',this.value)" placeholder="手动填"></td>';
       const totalVal = (it.totalErr===''||it.totalErr==null)?'':it.totalErr;
       const recentVal = (it.recentErr===''||it.recentErr==null)?'':it.recentErr;
       const lastVal = it.lastErrDate||'';
@@ -14623,7 +14662,7 @@ function renderWeakness(){
         + '<td><select class="wk-in wk-in-mod" onchange="updateWeakCell(\''+it.id+'\',\'module\',this.value)">'+opt(it.module)+'</select></td>'
         + '<td><input class="wk-in wk-in-num" type="number" min="0" value="'+totalVal+'" oninput="updateWeakCell(\''+it.id+'\',\'totalErr\',this.value)"></td>'
         + '<td><input class="wk-in wk-in-num" type="number" min="0" value="'+recentVal+'" oninput="updateWeakCell(\''+it.id+'\',\'recentErr\',this.value)"></td>'
-        + '<td><input class="wk-in wk-in-num" type="number" min="0" max="100" value="'+masteryVal+'" oninput="updateWeakCell(\''+it.id+'\',\'mastery\',this.value)"></td>'
+        + masteryCell
         + '<td class="wk-score">'+r.s.toFixed(1)+'</td>'
         + '<td class="wk-prio wk-prio-'+r.p+'">'+r.p+'</td>'
         + '<td><input class="wk-in wk-in-date" type="date" value="'+lastVal+'" oninput="updateWeakCell(\''+it.id+'\',\'lastErrDate\',this.value)"></td>'
@@ -14678,17 +14717,19 @@ function autoFillWeakRow(id){
   toast('已按错题记录与刷题正确率自动填充');
 }
 function genWeakFromErrors(){
-  if(!Array.isArray(store.errors) || !store.errors.length){ toast('错题记录为空，无法生成'); return; }
-  const seen = {};
-  store.weakItems.forEach(function(it){ seen[it.module+'|'+(it.kp||'')] = true; });
+  // 问题1：先清空全部（含模板/示例数据），再从真实错题记录重建，不叠加不残留
+  store.weakItems = [];
+  if(!Array.isArray(store.errors) || !store.errors.length){
+    saveStore(); renderWeakness();
+    toast('错题记录为空，已清空薄弱项表'); return;
+  }
   const groups = {};
   store.errors.forEach(function(e){
-    const k = e.module + '|' + (e.kp||'');
-    if(!groups[k]) groups[k] = {module:e.module, kp:e.kp||''};
+    const k = (e.module||'未分类') + '|' + (e.kp||'');
+    if(!groups[k]) groups[k] = {module:(e.module||'未分类'), kp:(e.kp||'')};
   });
   let added = 0;
   Object.keys(groups).forEach(function(k){
-    if(seen[k]) return;
     const g = groups[k];
     const st = autoPullErrorStats(g.module, g.kp);
     const mas = autoMastery(g.module);
@@ -14700,9 +14741,52 @@ function genWeakFromErrors(){
     added++;
   });
   saveStore(); renderWeakness();
-  toast('已从错题记录生成 '+added+' 条薄弱项'+(added===0?'（均已存在，未重复）':''));
+  toast('已从错题记录生成 '+added+' 条薄弱项（已先清空旧数据）');
 }
 
+// 联动1：错题记录新增/删除 → 薄弱项表自动更新
+//  - 对应知识点累计/近7天/最近日期随错题数刷新；新知识点自动新增一行
+//  - 错题删空时：自动行（autoErr）直接删除，手动行清零保留（不丢手动掌握度）
+//  - 薄弱分与优先级随错题数/掌握度变化自动重算（computeWeakScore 实时取数）
+function syncWeakTableFromErrors(){
+  if(!Array.isArray(store.errors)) return;
+  const ago = new Date(); ago.setHours(0,0,0,0); ago.setDate(ago.getDate()-7);
+  const map = {}; // key -> {module,kp,total,recent,lastD}
+  store.errors.forEach(function(e){
+    const k = (e.module||'未分类') + '|' + (e.kp||'');
+    if(!map[k]) map[k] = {module:(e.module||'未分类'), kp:(e.kp||''), total:0, recent:0, lastD:null};
+    map[k].total++;
+    if(e.date){ const d=new Date(e.date); if(d>=ago) map[k].recent++; if(!map[k].lastD||d>map[k].lastD) map[k].lastD=d; }
+  });
+  const updated = {};
+  store.weakItems.forEach(function(it){ updated[it.module+'|'+(it.kp||'')] = it; });
+  // 更新已存在 / 新增新知识点
+  Object.keys(map).forEach(function(k){
+    const g = map[k];
+    if(updated[k]){
+      const it = updated[k];
+      it.totalErr = g.total; it.recentErr = g.recent; it.lastErrDate = g.lastD?weakFmtDate(g.lastD):'';
+      it.autoErr = true;
+    } else {
+      const mas = autoMastery(g.module);
+      store.weakItems.push({
+        id: 'w'+Date.now()+Math.random().toString(36).slice(2,6),
+        kp: g.kp, module: g.module, totalErr: g.total, recentErr: g.recent,
+        mastery: (mas==null?'':mas), lastErrDate: g.lastD?weakFmtDate(g.lastD):'', autoErr: true
+      });
+    }
+  });
+  // 错题删空：自动行删除；手动行清零保留
+  store.weakItems = store.weakItems.filter(function(it){
+    const k = it.module+'|'+(it.kp||'');
+    if(map[k]) return true;
+    if(it.autoErr) return false;
+    it.totalErr=0; it.recentErr=0; it.lastErrDate=''; it.autoErr=true;
+    return true;
+  });
+  saveStore();
+  if(typeof renderWeakness==='function' && document.getElementById('page-weak')) renderWeakness();
+}
 function renderExam(){
   renderExamList();
   renderExamChart();
@@ -15118,6 +15202,8 @@ function addError(){
     store.errors.push(newErr);
   }
   saveStore();
+  // 联动1：错题新增/修改 → 薄弱项表自动更新统计与薄弱分
+  try{ if(typeof syncWeakTableFromErrors==='function') syncWeakTableFromErrors(); }catch(_){}
   // 复习日 → 记忆复习队列（双向同步）
   try{ syncNextReviewToEbb(newErr); }catch(_){}
   document.getElementById('errorInput').value = '';
@@ -15252,6 +15338,8 @@ if(typeof _origAddErrorFinish==='undefined'){
 function deleteError(id){
   store.errors = store.errors.filter(e=>e.id!==id);
   saveStore();
+  // 联动1：错题删除 → 薄弱项表对应知识点统计与薄弱分自动更新
+  try{ if(typeof syncWeakTableFromErrors==='function') syncWeakTableFromErrors(); }catch(_){}
   renderErrors();
 }
 
@@ -23374,6 +23462,8 @@ function renderQuizComplete(){
 .wk-in-num{width:78px;text-align:center;}
 .wk-in-mod{min-width:104px;background:var(--card-bg);}
 .wk-in-date{width:140px;}
+.wk-mastery.wk-auto{font-weight:700;color:var(--pink-deep);white-space:nowrap;}
+.wk-mastery .wk-link{font-size:11px;color:var(--text-sub);font-weight:600;margin-left:2px;}
 .wk-ops{white-space:nowrap;}
 .wk-ops .btn{margin-right:4px;}
 
