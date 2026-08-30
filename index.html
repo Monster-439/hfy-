@@ -2644,7 +2644,7 @@ body.drawer-open .nav-cloud{display:none;}
         <div class="nav-item" data-page="goals"><span class="nav-icon">🎯</span>目标拆解</div>
         <div class="nav-item" data-page="courses"><span class="nav-icon">📚</span>我的课程</div>
         <div class="nav-item" data-page="qbook"><span class="nav-icon">📖</span>题本进度</div>
-        <div class="nav-item" data-page="mindmap"><span class="nav-icon">📊</span>知识体系导图</div>
+        <div class="nav-item" data-page="mindmap"><span class="nav-icon">📚</span>知识体系文档</div>
       </div>
     </div>
 
@@ -3436,7 +3436,7 @@ body.drawer-open .nav-cloud{display:none;}
       <textarea id="errorInput" placeholder="快速记录：粘贴题目/拍照上传/口述内容…（下方可补充完整结构）"></textarea>
     </div>
     <div class="error-input-area" style="margin-bottom:8px;">
-      <select id="errorModule" onchange="populateKpDropdown('__current','manKp');populateKpDropdown('__current','errorKp');renderErrorReasons()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
+      <select id="errorModule" onchange="populateKpDropdown('__current','errorKp');renderErrorReasons()" style="padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;">
         <option value="">模块 · 未选</option>
         <option value="常识判断" selected>常识判断</option>
         <option value="时政热点">时政热点</option>
@@ -3473,9 +3473,7 @@ body.drawer-open .nav-cloud{display:none;}
           <label><input type="checkbox" class="err-ans-multi" value="2">C</label>
           <label><input type="checkbox" class="err-ans-multi" value="3">D</label>
         </span>
-        <select id="errorKp" class="manual-sel" onchange="onManKpChange(this)"><option value="">（知识点 · 关联思维导图，选填）</option></select>
-        <button type="button" class="btn btn-ghost btn-sm" onclick="mmPickKpTree('errorKp')">🌳 树状选</button>
-        <button type="button" class="btn btn-ghost btn-sm" onclick="mmFillKpFree('errorKp')">✏️ 自定义</button>
+        <select id="errorKp" class="manual-sel"><option value="">（知识点 · 请先选择模块）</option></select>
       </div>
       <div class="manual-row err-meta-row">
         <select id="errorBook" class="manual-sel" title="归入哪个小本子"><option value="">（归入本子 · 可不选）</option></select>
@@ -3650,10 +3648,7 @@ body.drawer-open .nav-cloud{display:none;}
         </select>
       </div>
       <div class="manual-row">
-        <select id="manKp" class="manual-sel" onchange="onManKpChange(this)"><option value="">（知识点 · 关联思维导图，选填）</option></select>
-        <button type="button" class="btn btn-ghost btn-sm" onclick="mmPickKpTree('manKp')">🌳 树状选</button>
-        <button type="button" class="btn btn-ghost btn-sm" onclick="mmFillKpFree('manKp')">✏️ 自定义</button>
-        <span class="bank-mod-tip">选题后可点导图节点一键筛出本题</span>
+        <select id="manKp" class="manual-sel"><option value="">（知识点 · 请先选择模块）</option></select>
       </div>
       <textarea id="manQuestion" class="manual-area" placeholder="输入题干，例如：下列关于……的说法正确的是？"></textarea>
       <div class="manual-opts">
@@ -7647,73 +7642,92 @@ function collectMindmapGroupedNames(){
   return groups;
 }
 function _escAttrKp(s){ return (''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+// ===== 标准化知识点列表（录错题/手动录入时直接下拉选择，不再关联思维导图） =====
+// key 与错题本「模块」下拉值一致；每个模块下按子组分组，items 为可选项
+var KP_STD = {
+  '言语理解': { icon:'🗣️', groups:[
+    {label:'逻辑填空', items:['实词辨析','成语辨析','近义辨析','语境分析','固定搭配','感情色彩','语义轻重']},
+    {label:'片段阅读', items:['主旨概括','意图判断','细节判断','标题填入','态度理解']},
+    {label:'语句表达', items:['语句排序','语句填空','接语选择']}
+  ]},
+  '数量关系': { icon:'🔢', groups:[
+    {label:'', items:['工程问题','行程问题','利润问题','排列组合','概率问题','几何问题','容斥问题','最值问题','年龄问题','周期问题','浓度问题']}
+  ]},
+  '判断推理': { icon:'🧩', groups:[
+    {label:'定义判断', items:['单定义判断','多定义判断']},
+    {label:'类比推理', items:['语义关系','逻辑关系','语法关系','二级辨析']},
+    {label:'逻辑判断', items:['翻译推理','真假推理','分析推理','加强论证','削弱论证','日常结论','前提假设']}
+  ]},
+  '图形推理': { icon:'🔷', groups:[
+    {label:'位置规律', items:['平移','旋转','翻转']},
+    {label:'样式规律', items:['遍历','加减同异','黑白运算']},
+    {label:'属性规律', items:['对称性','曲直性','开闭性']},
+    {label:'数量规律', items:['点数量','线数量','面数量','角数量','素数量']},
+    {label:'空间重构', items:['六面体','截面图','三视图','立体拼合']}
+  ]},
+  '资料分析': { icon:'📊', groups:[
+    {label:'', items:['基期量','现期量','一般增长率','间隔增长率','混合增长率','年均增长率','增长量','现期比重','基期比重','两期比重差','现期平均数','基期平均数','平均数增长率','现期倍数','基期倍数','翻番','截位直除','特殊分数（百化分）','综合分析题']}
+  ]},
+  '常识判断': { icon:'📚', groups:[
+    {label:'法律常识', items:['宪法','民法','刑法','行政法','诉讼法','新法速递']},
+    {label:'人文历史', items:['中国古代史','中国近现代史','世界史','文学常识','文化常识']},
+    {label:'科技常识', items:['物理常识','化学常识','生物常识','医学常识','科技成就','生活常识']},
+    {label:'地理国情', items:['中国地理','世界地理','自然地理','国情社情']},
+    {label:'政治理论', items:['马克思主义哲学','毛泽东思想','中国特色社会主义理论体系']}
+  ]},
+  '时政热点': { icon:'📰', groups:[
+    {label:'', items:['近12个月时政','重要会议','重要文件','领导人讲话','重大事件']}
+  ]},
+  '申论': { icon:'✍️', groups:[
+    {label:'', items:['归纳概括','提出对策','综合分析','贯彻执行','大作文']}
+  ]}
+};
+// 取某模块的标准化知识点（按子组聚合）；mod 为空返回 null
+function kpStdForModule(mod){ return KP_STD[mod] || null; }
 // populateKpDropdown(scope, targetId)
 //   scope: '__all' 全部科目；'__current' 只显示当前学科（按 manModule / errorModule）；具体 sub key 也可
 //   targetId: 'manKp' | 'bankKpFilter' | 不传=两个一起
+// populateKpDropdown(scope, targetId)
+//   scope: '__all' 全部模块；'__current' 只显示当前面板所选模块（按 errorModule / manModule）
+//   targetId: 'errorKp' | 'manKp' | 'bankKpFilter' | 不传=三个一起
+// 知识点选项来自标准化列表 KP_STD，纯文本下拉，不再跳转思维导图
 function populateKpDropdown(scope, targetId){
   scope = scope || '__all';
-  const SUB2KEY = { '常识判断':'common','时政热点':'politics','言语理解':'verbal','判断推理':'reasoning','图形推理':'figure','数量关系':'quantity','资料分析':'data','申论':'shenlun' };
   const selVal = (id)=>{ const e=document.getElementById(id); return e?e.value:''; };
-  // 【修复 BUG②】每个下拉框按自己所属面板的模块取 currentSubKey，
-  //   避免 manModule 残留值污染 errorKp（曾导致「图形推理」下显示「常识判断」知识点）
-  function currentSubKeyFor(id){
-    if(id === 'errorKp') return SUB2KEY[selVal('errorModule')] || '';
-    if(id === 'manKp')   return SUB2KEY[selVal('manModule')]   || '';
-    if(id === 'bankKpFilter') return SUB2KEY[selVal('bankPdfModuleSel')] || '';
-    return SUB2KEY[selVal('manModule')] || SUB2KEY[selVal('errorModule')] || '';
-  }
   const targets = targetId ? [targetId] : ['manKp','bankKpFilter','errorKp'];
   const wantAll = (scope === '__all');
-  const wantCurrent = (scope === '__current');
-  const fixedSub = (!wantAll && !wantCurrent) ? scope : '';
-  // __all / 外部传具体 sub（fixedSub）——共用同一份 groups；
-  // __current ——每个 id 各自按自己所属面板模块过滤
-  const sharedGroups = (fixedSub || wantAll) ? (function(){
-    const all = collectMindmapGroupedNames();
-    if(fixedSub) return all.filter(function(g){ return g.sub === fixedSub; });
-    return all;
-  })() : null;
   targets.forEach(function(id){
     const sel = document.getElementById(id);
     if(!sel) return;
     const cur = sel.value;
     const isFilter = (id === 'bankKpFilter');
-    let html = isFilter ? '<option value="">全部知识点</option>' : '<option value="">（知识点 · 关联思维导图，选填）</option>';
-    if(!wantAll && !isFilter){
-      // 手动录入 / 错题面板：加「显示全部」快捷回退
-      html += '<option value="__show_all__">📋 显示全部科目（跨学科选题）</option>';
-    }
-    const groups = sharedGroups ? sharedGroups : (function(){
-      const useSub = currentSubKeyFor(id);
-      const all = collectMindmapGroupedNames();
-      if(useSub) return all.filter(function(g){ return g.sub === useSub; });
-      return all;
-    })();
-    if(groups.length === 0){
-      const msg = wantAll ? '暂无知识点，请先在思维导图里添加节点' : '当前学科暂无节点，点上方「显示全部」跨学科选题，或去「知识体系导图」添加';
-      html += '<option value="" disabled>' + msg + '</option>';
-    } else {
-      groups.forEach(function(g){
-        html += '<optgroup label="' + _escAttrKp((g.icon||'📘') + ' ' + g.label) + '">';
-        g.names.forEach(function(nm){
-          html += '<option value="' + _escAttrKp(nm) + '">' + escHtml(nm) + '</option>';
+    let html = isFilter ? '<option value="">全部知识点</option>' : '<option value="">（知识点 · 请先选择模块）</option>';
+    // 该下拉对应的模块：错题=errorModule，手动录入=manModule，题库筛选=全部
+    let mods;
+    if(id === 'errorKp') mods = [selVal('errorModule')];
+    else if(id === 'manKp') mods = [selVal('manModule')];
+    else mods = Object.keys(KP_STD);
+    let any = false;
+    mods.forEach(function(mod){
+      if(!mod) return;
+      const grp = kpStdForModule(mod);
+      if(!grp) return;
+      html += '<optgroup label="' + _escAttrKp((grp.icon||'📘') + ' ' + mod) + '">';
+      grp.groups.forEach(function(g){
+        if(g.label) html += '<option disabled style="color:#aaa">└ ' + escHtml(g.label) + '</option>';
+        g.items.forEach(function(it){
+          html += '<option value="' + escapeAttr(it) + '">' + escHtml(it) + '</option>';
+          any = true;
         });
-        html += '</optgroup>';
       });
+      html += '</optgroup>';
+    });
+    if(!any && !isFilter){
+      html += '<option value="" disabled>请先在上方选择「模块」</option>';
     }
     sel.innerHTML = html;
-    if(cur && cur !== '__show_all__') sel.value = cur;
+    if(cur) sel.value = cur;
   });
-  // 顶部小角标
-  const tip = document.getElementById('bankKpScopeTip');
-  if(tip){
-    if(wantAll){ tip.textContent = '全部科目'; }
-    else if(wantCurrent){
-      const firstSub = currentSubKeyFor(targets[0]);
-      const m = (typeof MINDMAP_DATA!=='undefined' && MINDMAP_DATA[firstSub]) ? MINDMAP_DATA[firstSub].name : '当前学科';
-      tip.textContent = m;
-    }
-  }
 }
 var gBankKp = '';
 function pickBankKp(v){
@@ -7724,12 +7738,7 @@ function pickBankKp(v){
   updateBankDrillBtn();
 }
 function onManKpChange(sel){
-  if(sel && sel.value === '__show_all__'){
-    // 用户选了"显示全部"——切到全科模式，但保持当前选项可被再次选择
-    const id = (sel.id === 'errorKp') ? 'errorKp' : 'manKp';
-    populateKpDropdown('__all', id);
-    if(sel) sel.value = '__show_all__';
-  }
+  // 知识点已改为纯文本标准化下拉，不再跳转思维导图
 }
 function toggleMindmapNode(path){
   if(!store.mindmapOpen) store.mindmapOpen = {};
@@ -7836,176 +7845,96 @@ function resetMindmapSubject(){
   saveStore(); renderMindmap();
   if(typeof toast==='function') toast(isBuiltin ? '已重置为默认导图' : '已删除自导入科目「'+displayName+'」');
 }
+// ===== 知识体系文档（PDF 导入 + 查看/翻页/缩放） =====
+// 独立 key 持久化（隔离 localStorage 配额风险）；会话变量作为超额兜底
+var __kpPdfSession = null;
+var __kpPdfZoom = 1;
+function getKpPdf(){
+  try{
+    const raw = localStorage.getItem('hfy_kp_pdf');
+    if(raw){ const o = JSON.parse(raw); if(o && o.dataUrl) return o; }
+  }catch(_){ }
+  return __kpPdfSession || null;
+}
 function renderMindmap(){
   const el = document.getElementById('page-mindmap');
   if(!el) return;
   if(typeof ensureStore==='function') ensureStore();
-  const sub = getActiveMindmapSubject();
-  const data = MINDMAP_DATA[sub] || MINDMAP_DATA.verbal;
-  const root = getMindmapData();
-  // 自定义科目兜底名（data 是 verbal 兜底，对自导入科目不准）
-  const subjectDisplayName = data.name || ((store && store.mindmapCustom && store.mindmapCustom[sub] && store.mindmapCustom[sub].name) || sub);
-  const layout = layoutRadialMindmap(root);
-  const notes = (store.mindmapNotes && store.mindmapNotes[sub]) || '';
-  const openMap = (store && store.mindmapOpen) ? store.mindmapOpen : (store.mindmapOpen = {});
-  const isOpen = function(path){ return !(path in openMap) || !!openMap[path]; };
-  // ----- 配色（按「刘义恒导图」风：根绿盒，其余白底+紫色描边；选中/多选再加粗描边） -----
-  const COL_ROOT_FILL = '#DCEED6', COL_ROOT_STROKE = '#4F9F73', COL_ROOT_TEXT = '#2D7A4F';
-  const COL_L1_FILL = '#fff',     COL_L1_STROKE   = '#8A6FBE', COL_L1_TEXT   = '#6B5BA8';
-  const COL_L2_FILL = '#fff',     COL_L2_STROKE   = '#A89BD4', COL_L2_TEXT   = '#7B68B5';
-  const COL_CURVE   = '#8A6FBE';
-  // ----- 节点尺寸 -----
-  const W_ROOT = 140, H_ROOT = 44;
-  const W_L1   = 110, H_L1   = 36;
-  const W_L2   = 90,  H_L2   = 30;
-  const RX = 8;
-  const svgW = layout.width, svgH = layout.height;
-  // ----- SVG 元素拼接 -----
-  let svg = ''; let nodeSvg = ''; let edgeSvg = '';
-  // 连线（任意层级，仅当父级展开时画）—— 先累积到 edgeSvg，最后再拼到节点之上
-  layout.edges.forEach(function(e){
-    const isImgEdge = e.isImgEdge;
-    // 【修复 BUG④】图片虚拟子节点的连线改为与真实子节点一致的紫色实线（仅略细以视觉区分），
-    // 满足「图片要跟前面的子节点一样有线」；之前粉虚线虽存在但视觉上不像有线
-    edgeSvg += '<path d="'+svgCurve(e.x1,e.y1,e.x2,e.y2)+'" stroke="'+COL_CURVE+'" stroke-width="'+(isImgEdge?'2':'2.5')+'" fill="none" opacity="1" stroke-linecap="round" stroke-linejoin="round"/>';
-  });
-  // 通用绘制函数
-  function svgRect(x, y, w, h, fill, stroke){
-    return '<rect x="'+(x-w/2)+'" y="'+(y-h/2)+'" width="'+w+'" height="'+h+'" rx="'+RX+'" ry="'+RX+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="1.5"/>';
-  }
-  function svgText(x, y, str, fill, size, weight){
-    return '<text x="'+x+'" y="'+(y+size*0.36)+'" text-anchor="middle" font-size="'+size+'" font-weight="'+(weight||700)+'" fill="'+fill+'" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif">'+escapeHtml(str||'')+'</text>';
-  }
-  function svgErrBadge(x, y, n, w){
-    if(!n) return '';
-    const cx = x + w/2 - 2, cy = y - 14;
-    return '<circle cx="'+cx+'" cy="'+cy+'" r="9" fill="#e8a13a" stroke="#fff" stroke-width="1.5"/>'
-      + '<text x="'+cx+'" y="'+(cy+3)+'" text-anchor="middle" font-size="10" font-weight="800" fill="#fff" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif">'+n+'</text>';
-  }
-  // 节点（按层级着色；任意有子节点且层级>=1 的节点都可折叠）
-  layout.nodes.forEach(function(nd){
-    // 【修复 BUG③】虚拟图片子节点：粉虚线边框包图片，整体不再贴在父节点右侧当缩略图
-    if(nd.virtual === 'img'){
-      const im = nd.img;
-      const src = im && (im.src || im.dataUrl);
-      if(!src) return;
-      const ix = nd.x - nd.w/2;
-      const iy = nd.y - nd.h/2;
-      nodeSvg += '<g data-mm-vimg="'+escapeAttr(nd.path)+'" data-mm-parent="'+escapeAttr(nd.parentPath||'')+'" style="cursor:pointer" onclick="event.stopPropagation();mmShowImagesManager(\''+escapeAttr(nd.parentPath||'')+'\')">'
-        + '<rect x="'+ix+'" y="'+iy+'" width="'+nd.w+'" height="'+nd.h+'" rx="9" ry="9" fill="#FFF5F0" stroke="#D86B83" stroke-width="1.6" stroke-dasharray="5,3"/>'
-        + '<rect x="'+(ix+4)+'" y="'+(iy+4)+'" width="'+(nd.w-8)+'" height="'+(nd.h-14)+'" rx="6" ry="6" fill="#fff" stroke="rgba(216,107,131,0.4)" stroke-width="1"/>'
-        + '<image href="'+escapeAttr(src)+'" x="'+(ix+5)+'" y="'+(iy+5)+'" width="'+(nd.w-10)+'" height="'+(nd.h-16)+'" preserveAspectRatio="xMidYMid meet" style="pointer-events:none"/>'
-        + '<text x="'+nd.x+'" y="'+(iy+nd.h-2)+'" text-anchor="middle" font-size="9" font-weight="600" fill="#a0552b" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif" style="pointer-events:none">📷 错题原图</text>'
-        + '</g>';
-      return;
-    }
-    const n = nd.node, lvl = nd.level;
-    let fill, stroke, textColor, tSize, tWeight;
-    if(lvl===0){ fill=COL_ROOT_FILL; stroke=COL_ROOT_STROKE; textColor=COL_ROOT_TEXT; tSize=14; tWeight=800; }
-    else if(lvl===1){ fill=COL_L1_FILL; stroke=COL_L1_STROKE; textColor=COL_L1_TEXT; tSize=13; tWeight=700; }
-    else { fill=COL_L2_FILL; stroke=COL_L2_STROKE; textColor=COL_L2_TEXT; tSize=12; tWeight=600; }
-    // 多选模式选中态：填充变浅蓝，描边加粗变蓝
-    const isSel = mmMultiSelectMode && mmSelectedPaths.has(nd.path);
-    const drawFill   = isSel ? '#EEF4FF' : fill;
-    const drawStroke = isSel ? '#3B82F6' : stroke;
-    const drawStrokeW= isSel ? 3 : 1.5;
-    const baseH = nd.h;
-    const yShift = 0;
-    const cy = nd.y + yShift;
-    const canFold = nd.hasKids && lvl>=1;
-    const foldSym = nd.open ? '▾' : '▸';
-    const textDx = canFold ? 7 : 0;
-    let g = '<g data-mm-path="'+escapeAttr(nd.path)+'" data-mm-sel="'+(isSel?1:0)+'" style="cursor:'+(mmMultiSelectMode?'crosshair':'pointer')+'" onclick="onMindmapNodeClick(\''+escapeAttr(nd.path)+'\','+lvl+')">'
-      + '<rect x="'+(nd.x-nd.w/2)+'" y="'+(cy-baseH/2)+'" width="'+nd.w+'" height="'+baseH+'" rx="'+RX+'" ry="'+RX+'" fill="'+drawFill+'" stroke="'+drawStroke+'" stroke-width="'+drawStrokeW+'"/>';
-    if(canFold){
-      g += '<text x="'+(nd.x - nd.w/2 + 11)+'" y="'+(cy+4)+'" text-anchor="middle" font-size="13" font-weight="800" fill="'+(lvl===1?COL_L1_TEXT:COL_L2_TEXT)+'" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif" style="cursor:pointer" onclick="event.stopPropagation();toggleMindmapNode(\''+escapeAttr(nd.path)+'\')">'+foldSym+'</text>';
-    }
-    g += svgText(nd.x + textDx, cy, n.name||(lvl===0?subjectDisplayName:'(未命名)'), textColor, tSize, tWeight)
-      + svgErrBadge(nd.x, cy, mmGetErr(sub, nd.path), nd.w);
-    // 【修复 BUG③】删除节点正右侧的内联缩略图条——图片现在作为虚拟子节点渲染到右侧（由 layoutRadialMindmap 处理）
-    // 这里只在右上角显示图片数量徽标
-    if(nd.imgCount > 0){
-      const bx = nd.x + nd.w/2 - 8;
-      const by = cy - nd.h/2 - 6;
-      g += '<g style="cursor:pointer" onclick="event.stopPropagation();mmShowImagesManager(\''+escapeAttr(nd.path)+'\')">'
-        + '<circle cx="'+bx+'" cy="'+by+'" r="9" fill="#D86B83" stroke="#fff" stroke-width="1.5"/>'
-        + '<text x="'+bx+'" y="'+(by+3.5)+'" text-anchor="middle" font-size="10" font-weight="800" fill="#fff" font-family="-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif">'+nd.imgCount+'</text>'
-        + '</g>';
-    }
-    g += '</g>';
-    nodeSvg += g;
-  });
-  // 连线最后绘制，覆盖在节点与图片虚拟子节点之上，避免被任何图形遮住
-  svg = nodeSvg + edgeSvg;
-  // ----- 外壳 HTML -----
+  const pdf = getKpPdf();
+  const name = pdf ? pdf.name : '';
+  const dataUrl = pdf ? pdf.dataUrl : '';
+  const z = Math.round((__kpPdfZoom||1)*100);
+  const btnStyle = 'background:#fff;border:1.5px solid #C9A9E0;color:#A86BC4;border-radius:10px;font-size:12px;padding:6px 12px;cursor:pointer;font-weight:700';
   let html = '<div style="padding:14px 14px 40px;background:#F7F7F8;min-height:100vh">';
-  // 顶部标题
-  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);display:flex;align-items:center;justify-content:space-between;gap:10px">';
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">';
   html +=   '<div style="display:flex;align-items:center;gap:10px">'
-    +'<span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#4F9F73,#2D7A4F);color:#fff;font-size:18px">🧠</span>'
-    +'<div><div style="font-size:15px;font-weight:700;color:#333">知识体系思维导图</div>'
-    +'<div style="font-size:11px;color:#aaa;margin-top:1px">放射状结构 · 一步步搭建自己的知识网</div></div>'
+    +'<span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#6b4fa8,#8566c9);color:#fff;font-size:18px">📚</span>'
+    +'<div><div style="font-size:15px;font-weight:700;color:#333">知识体系文档（PDF）</div>'
+    +'<div style="font-size:11px;color:#aaa;margin-top:1px">导入你自己的知识体系 PDF，随时翻阅、缩放、翻页</div></div>'
     +'</div>';
-  html +=   '<div style="display:flex;gap:6px;flex-wrap:wrap">'
-    +'<button onclick="toggleMmMultiSelMode()" style="background:'+(mmMultiSelectMode?'linear-gradient(135deg,#3B82F6,#2563EB)':'#fff')+';border:1.5px solid '+(mmMultiSelectMode?'#2563EB':'#9B92CC')+';color:'+(mmMultiSelectMode?'#fff':'#6B5BA8')+';border-radius:10px;font-size:12px;padding:6px 12px;cursor:pointer;font-weight:700">☑️ '+(mmMultiSelectMode?'多选开':'多选')+'</button>'
-    +'<button onclick="mmShowImport()" style="background:linear-gradient(135deg,#E8919B,#D86B83);border:none;color:#fff;border-radius:10px;font-size:12px;padding:7px 12px;cursor:pointer;font-weight:700;box-shadow:0 2px 6px rgba(216,107,131,.3)">📥 导入</button>'
-    +'<button onclick="mmExportCurrent()" style="background:#fff;border:1.5px solid #4F9F73;color:#4F9F73;border-radius:10px;font-size:12px;padding:6px 12px;cursor:pointer;font-weight:700">💾 导出</button>'
-    +'<button onclick="mmExportXmind()" style="background:#fff;border:1.5px solid #E0A82E;color:#E0A82E;border-radius:10px;font-size:12px;padding:6px 12px;cursor:pointer;font-weight:700">🧠 导出Xmind</button>'
-    +'<button onclick="resetMindmapSubject()" style="background:#fff;border:1.5px solid #C9A9E0;color:#A86BC4;border-radius:10px;font-size:12px;padding:6px 12px;cursor:pointer;font-weight:700">↺ 重置</button>'
-    +'</div>';
-  html += '</div>';
-  // 6 个科目 tab（含用户自定义）
-  if(!store.mindmapCustom) store.mindmapCustom = {};
-  const builtinSubs = ['verbal','data','reasoning','figure','quantity','common','shenlun'];
-  const subLabel = { verbal:'言语理解与表达', data:'资料分析', reasoning:'判断推理', figure:'图形推理', quantity:'数量关系', common:'常识判断', shenlun:'申论' };
-  const customSubs = Object.keys(store.mindmapCustom).filter(function(k){ return builtinSubs.indexOf(k)<0; });
-  customSubs.forEach(function(k){ subLabel[k] = (store.mindmapCustom[k] && store.mindmapCustom[k].name) || k; });
-  const subs = builtinSubs.concat(customSubs);
-  html += '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;background:#fff;border-radius:14px;padding:8px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
-  subs.forEach(function(k){
-    const active = (k===sub);
-    const isCustom = builtinSubs.indexOf(k)<0;
-    html += '<div onclick="setActiveMindmapSubject(\''+k+'\')" style="cursor:pointer;padding:7px 12px;border-radius:10px;font-size:12px;font-weight:700;background:'+(active?'linear-gradient(135deg,var(--pink-btn),var(--pink-deep))':'#FAF6F2')+';color:'+(active?'#fff':(isCustom?'#A86BC4':'#888'))+';box-shadow:'+(active?'0 2px 8px rgba(211,95,132,.35)':'none')+';border:'+(isCustom && !active?'1.5px dashed #C9A9E0':'')+'">'+ (isCustom?'✨ ':'') +subLabel[k]+'</div>';
-  });
-  html += '</div>';
-  // 操作小提示（更新版）
-  html += '<div style="margin-top:10px;font-size:11px;color:#bbb;display:flex;gap:12px;flex-wrap:wrap;align-items:center">'
-    +'<span>▾ 折叠分支（任意层级）</span>'
-    +'<span>点节点 · 看操作</span>'
-    +'<span>📚 跳题库</span>'
-    +'<span>⬆️⬇️ 上下移</span>'
-    +'<span>📊 关联错题</span>'
-    +'<span>📥 自导入</span>'
-    +'</div>';
-  // 思维导图本体（SVG，手机左右滑动）
-  html += '<div id="mmScrollBox" style="margin-top:12px;background:#fff;border-radius:18px;padding:14px 18px;box-shadow:0 2px 8px rgba(0,0,0,.04);overflow-x:auto">';
-  html += '<svg width="'+svgW+'" height="'+svgH+'" viewBox="0 0 '+svgW+' '+svgH+'" style="display:block;min-width:'+svgW+'px">'+svg+'</svg>';
-  html += '</div>';
-  html += '<div style="margin-top:10px;font-size:11px;color:#bbb;text-align:center">💡 手指左右滑动查看完整导图 · 节点右上角数字为该分支关联的错题数</div>';
-  // 多选浮窗：选中 ≥2 节点时固定底部显示，可一键加上级节点
-  if(mmSelectedPaths.size >= 2){
-    html += '<div style="position:fixed;left:0;right:0;bottom:0;z-index:150;display:flex;gap:8px;align-items:center;padding:12px 14px calc(12px + env(safe-area-inset-bottom));background:rgba(255,255,255,.97);box-shadow:0 -4px 18px rgba(0,0,0,.12)">'
-      + '<span style="font-size:13px;font-weight:700;color:#3B82F6;flex:1">已选 <b>'+mmSelectedPaths.size+'</b> 个节点</span>'
-      + '<button onclick="mmClearSelection()" style="background:#fff;border:1.5px solid #C9C2D8;color:#7B738C;border-radius:12px;font-size:13px;padding:9px 14px;cursor:pointer;font-weight:700">清空</button>'
-      + '<button onclick="mmAddParentForSelected()" style="background:linear-gradient(135deg,#3B82F6,#2563EB);border:none;color:#fff;border-radius:12px;font-size:13px;padding:9px 16px;cursor:pointer;font-weight:700;box-shadow:0 2px 8px rgba(37,99,235,.35)">📦 添加上级节点</button>'
-      + '</div>';
+  html +=   '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+  if(dataUrl){
+    html += '<button onclick="zoomKpPdf(0.2)" style="'+btnStyle+'">🔍 放大</button>'
+      + '<button onclick="zoomKpPdf(-0.2)" style="'+btnStyle+'">🔍 缩小</button>'
+      + '<button onclick="openKpPdfNewTab()" style="'+btnStyle+'">↗ 新标签打开</button>'
+      + '<button onclick="clearKpPdf()" style="background:#fff;border:1.5px solid #E8A18E;color:#9a4a2a;border-radius:10px;font-size:12px;padding:6px 12px;cursor:pointer;font-weight:700">🗑 移除</button>';
   }
-  // 笔记区
-  html += '<div style="background:#fff;border-radius:14px;padding:14px;margin-top:14px;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
-  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-size:13px;font-weight:700;color:#A86BC4">📝 知识体系搭建笔记</div><span style="font-size:11px;color:#bbb">自动保存</span></div>';
-  html += '<textarea id="mmNote" oninput="saveMindmapNote(\''+sub+'\',this.value)" placeholder="记录这科的搭建思路、心得、薄弱点……" style="width:100%;min-height:90px;padding:10px 12px;border:1.5px solid #F3ECFB;border-radius:10px;font-size:13px;line-height:1.6;outline:none;resize:vertical;box-sizing:border-box;color:#444;font-family:inherit;background:#FBF8FC">'+escapeHtml(notes)+'</textarea>';
-  html += '</div>';
+  html +=     '<label style="background:linear-gradient(135deg,#E8919B,#D86B83);border:none;color:#fff;border-radius:10px;font-size:12px;padding:7px 12px;cursor:pointer;font-weight:700;box-shadow:0 2px 6px rgba(216,107,131,.3)">📥 导入PDF'
+    + '<input type="file" accept="application/pdf" id="kpPdfInput" style="display:none" onchange="importKpPdf(this)"></label>';
+  html +=   '</div></div>';
+  if(dataUrl){
+    html += '<div style="margin-top:12px;background:#fff;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,.04);overflow:auto;max-height:82vh">';
+    html += '<iframe id="kpPdfFrame" src="'+escapeAttr(dataUrl)+'#toolbar=1&navpanes=0&view=FitH&zoom='+z+'" style="width:100%;height:80vh;border:none;display:block"></iframe>';
+    html += '</div>';
+    html += '<div style="margin-top:8px;font-size:11px;color:#bbb">📄 '+escapeHtml(name)+' · 用上方按钮缩放，或在 PDF 内滚动翻页（当前 '+(dataUrl?'缩放 '+z+'%':'')+'）</div>';
+  } else {
+    html += '<div style="margin-top:12px;background:#fff;border-radius:14px;padding:48px 16px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.04)">';
+    html +=   '<div style="font-size:46px">📄</div>';
+    html +=   '<div style="font-size:14px;font-weight:700;color:#555;margin-top:8px">还没有导入 PDF</div>';
+    html +=   '<div style="font-size:12px;color:#aaa;margin-top:4px">点右上角「📥 导入PDF」上传你的知识体系文档，支持翻阅与缩放</div>';
+    html += '</div>';
+  }
   html += '</div>';
   el.innerHTML = html;
-  // 重渲染后恢复滚动位置，避免添加节点/重命名后页面跳回根节点位置
+}
+function importKpPdf(input){
+  const f = input && input.files && input.files[0];
+  if(!f) return;
+  if(f.size > 12*1024*1024){ if(typeof toast==='function') toast('PDF 太大（上限 12MB），请压缩后再导入'); try{input.value='';}catch(_){} return; }
+  const reader = new FileReader();
+  reader.onload = function(){
+    try{
+      const dataUrl = reader.result;
+      localStorage.setItem('hfy_kp_pdf', JSON.stringify({ name: f.name, dataUrl: dataUrl, ts: Date.now() }));
+      __kpPdfSession = null; __kpPdfZoom = 1;
+      if(typeof toast==='function') toast('已导入：'+f.name);
+    }catch(e){ if(typeof toast==='function') toast('导入失败：'+(e&&e.message||e)); }
+    renderMindmap();
+  };
+  reader.onerror = function(){ if(typeof toast==='function') toast('读取文件失败'); };
+  reader.readAsDataURL(f);
+}
+function zoomKpPdf(delta){
+  __kpPdfZoom = Math.max(0.4, Math.min(3, (__kpPdfZoom||1) + delta));
+  const pdf = getKpPdf();
+  const frame = document.getElementById('kpPdfFrame');
+  if(pdf && frame){ frame.src = pdf.dataUrl + '#toolbar=1&navpanes=0&view=FitH&zoom=' + Math.round(__kpPdfZoom*100); }
+}
+function openKpPdfNewTab(){
+  const pdf = getKpPdf();
+  if(!pdf) return;
   try{
-    const scroller = document.getElementById('mmScrollBox');
-    const prev = window.__mmScrollState;
-    if(scroller && prev){
-      scroller.scrollLeft = prev.l|0;
-      scroller.scrollTop  = prev.t|0;
-    }
-  }catch(_){ }
+    const w = window.open();
+    if(w){ w.document.open(); w.document.write('<iframe src="'+pdf.dataUrl+'" style="width:100%;height:100vh;border:0"></iframe>'); w.document.close(); }
+    else if(typeof toast==='function') toast('浏览器拦截了新窗口，请允许弹窗');
+  }catch(e){ if(typeof toast==='function') toast('打开失败：'+(e&&e.message||e)); }
+}
+function clearKpPdf(){
+  if(typeof confirm==='function' && !confirm('移除已导入的 PDF？此操作不可撤销。')) return;
+  try{ localStorage.removeItem('hfy_kp_pdf'); }catch(_){ }
+  __kpPdfSession = null;
+  if(typeof toast==='function') toast('已移除 PDF');
+  renderMindmap();
 }
 // ----- SVG 布局辅助：水平-竖直-水平 三段折线（短距离也清晰可见，避免贝塞尔在紧凑布局下曲线消失） -----
 function svgCurve(x1,y1,x2,y2){
