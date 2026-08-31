@@ -10560,6 +10560,24 @@ function saveStatEdit(){
   toast('已更新');
 }
 
+// 把「正确答案」统一成数字索引（0=A,1=B,2=C,3=D）；兼容字母 'C' / 数字字符 '2' / 纯数字 / 单元素数组
+// 刷题判定只认数字索引，录题时填字母会导致答案透传成字符串、判定永远失败，故在合并入口统一归一化
+function normAnsToIdx(a, fallbackArr){
+  let v = a;
+  if((v===null || v===undefined || v==='' || v===-1) && Array.isArray(fallbackArr) && fallbackArr.length){
+    v = fallbackArr[0];
+  }
+  if(typeof v==='number'){ return (v>=0 && v<26) ? v : -1; }
+  if(typeof v==='string'){
+    const s = v.trim().toUpperCase();
+    if(/^[A-Z]$/.test(s)) return s.charCodeAt(0)-65;
+    const n = parseInt(s, 10);
+    if(!isNaN(n) && n>=0 && n<26) return n;
+  }
+  if(Array.isArray(v) && v.length){ return normAnsToIdx(v[0]); }
+  return -1;
+}
+
 function startDrill(module, type){
   // 取当日完整 20 道题
   let questions = getQuestions(module, type);
@@ -10577,7 +10595,7 @@ function startDrill(module, type){
     const order = opts.map((o,i)=>i).sort(()=>Math.random()-0.5);
     const shuffledOpts = order.map(i=>opts[i]);
     const shuffledPhotos = order.map(i=>(i<photos.length ? photos[i] : null));
-    const _origAns = q.answer;
+    const _origAns = normAnsToIdx(q.answer);
     const newAnswer = (typeof _origAns==='number' && _origAns>=0) ? order.indexOf(_origAns) : -1;
     return {...q, options:shuffledOpts, optionPhotos:shuffledPhotos, answer:newAnswer, _origOpts: q.options.slice(), _origOptPhotos: photos.slice()};
   });
@@ -10624,7 +10642,7 @@ function getQuestions(module, type){
   // 合并「我的题库」中同模块的题目（手动录入 + PDF 题库），自动同步到对应板块刷题池
   (store.bankManual||[]).forEach(function(it){
     if(it.module === module){
-      extra.push({q: it.q, options: it.options, answer: it.answer, explain: it.explain||'', explainStruct: it.explainStruct || null, kp: it.kp || '', wrongReason: it.wrongReason || '', optionPhotos: Array.isArray(it.optionPhotos) ? it.optionPhotos.slice() : []});
+      extra.push({q: it.q, options: it.options, answer: normAnsToIdx(it.answer), explain: it.explain||'', explainStruct: it.explainStruct || null, kp: it.kp || '', wrongReason: it.wrongReason || '', optionPhotos: Array.isArray(it.optionPhotos) ? it.optionPhotos.slice() : []});
     }
   });
   (store.bankPdf||[]).forEach(function(e){
@@ -10648,13 +10666,13 @@ function getQuestions(module, type){
     if(hasFull || hasPhoto){
       // 【修复 BUG②】整图题（选项文字空 + 有配图 + 有答案）→ options 用 4 个空串，渲染层只显配图
       const hasRealText = opts.filter(function(s){ return !!s; }).length >= 2;
-      const options = hasRealText ? opts : (hasOptPhoto ? ['','','',''] : ['未填写','未填写','未填写','未填写']);
+      const options = hasRealText ? opts : (hasOptPhoto ? ['','','',''] : ['','','','']);
       // 【修复 BUG①】qText 兜底更友好：模块=图形推理/资料分析时显示「（图片题…）」，避免孤零零的「(错题回顾)」
       const qText = e.question || e.content || (hasPhoto ? '（图片错题，请看下方图片）' : ((/^图形|^资料|^图推|图推|图形|资料/.test(module||'')) ? '（图片错题，请添加图片或题干）' : '(错题回顾)'));
       extra.push({
         q: qText,
         options: options,
-        answer: hasFull ? e.answer : -1,
+        answer: normAnsToIdx(e.answer, e.answerArr),
         explain: e.summary || '',
         explainStruct: e.parts || null,
         _fromError: e.id,
@@ -11804,7 +11822,7 @@ function submitAnswer(){
     }
 
     document.getElementById('quizExplain').classList.add('show');
-    document.getElementById('quizTip').textContent = hasAnswer ? (correct ? '✅ 回答正确！' : '❌ 回答错误') : '💡 纯练习题（无对错评判），你选了 ' + String.fromCharCode(65+quizState.selected);
+    document.getElementById('quizTip').textContent = hasAnswer ? (correct ? '✅ 回答正确！' : ('❌ 回答错误，正确答案是 ' + String.fromCharCode(65+q.answer))) : ('已选 ' + String.fromCharCode(65+quizState.selected) + '（本题未设置标准答案）');
     document.getElementById('quizSubmitBtn').textContent = quizState.currentIdx < quizState.questions.length-1 ? '下一题' : '查看结果';
   } else {
     // 下一题或查看结果
@@ -18232,7 +18250,7 @@ function bankAllQuestions(){
   const all = [];
   store.bankPdf.forEach(function(e){ (e.questions||[]).forEach(function(q){ all.push(Object.assign({}, q, { module: e.module || '未分类', kp: q.kp || '' })); }); });
   store.bankManual.forEach(function(it){
-    all.push({ q: it.q, options: it.options, answer: it.answer, explain: it.explain || '', explainStruct: it.explainStruct || null, module: it.module || '未分类', kp: it.kp || '', wrongReason: it.wrongReason || '', optionPhotos: Array.isArray(it.optionPhotos) ? it.optionPhotos.slice() : [] });
+    all.push({ q: it.q, options: it.options, answer: normAnsToIdx(it.answer), explain: it.explain || '', explainStruct: it.explainStruct || null, module: it.module || '未分类', kp: it.kp || '', wrongReason: it.wrongReason || '', optionPhotos: Array.isArray(it.optionPhotos) ? it.optionPhotos.slice() : [] });
   });
   // 合并「我的错题」中带完整结构的题目（题干+≥2选项+答案）—— 与题库同池，刷题也能刷到错题
   (store.errors||[]).forEach(function(e){
@@ -18246,8 +18264,8 @@ function bankAllQuestions(){
       const allBlank = Array.isArray(e.options) && e.options.every(function(o){ return !o || !String(o).trim(); });
       all.push({
         q: qText,
-        options: (!allBlank && e.options && e.options.length>=2) ? e.options : ['未填写','未填写','未填写','未填写'],
-        answer: (!allBlank && typeof e.answer==='number' && e.answer>=0) ? e.answer : -1,
+        options: (Array.isArray(e.optionPhotos) && e.optionPhotos.some(function(p){ return !!p; })) ? ['','','',''] : ((!allBlank && e.options && e.options.length>=2) ? e.options : ['','','','']),
+        answer: normAnsToIdx(e.answer, e.answerArr),
         explain: e.summary || '',
         explainStruct: e.parts || null,
         module: e.module,
@@ -18258,14 +18276,14 @@ function bankAllQuestions(){
         _errQuestion: e.question || '',
         _errParts: e.parts || null,
         _errSummary: e.summary || '',
-        _errPhotoOnly: allBlank || !e.options || e.options.length<2,
+        _errPhotoOnly: !(Array.isArray(e.optionPhotos) && e.optionPhotos.some(function(p){ return !!p; })) && (allBlank || !e.options || e.options.length<2),
         optionPhotos: Array.isArray(e.optionPhotos) ? e.optionPhotos.slice() : []  // 方案C：选项级配图跟随
       });
     } else if(hasFull){
       all.push({
         q: e.question || e.content || '(错题回顾)',
         options: e.options,
-        answer: e.answer,
+        answer: normAnsToIdx(e.answer, e.answerArr),
         explain: e.summary || '',
         explainStruct: e.parts || null,
         module: e.module,
