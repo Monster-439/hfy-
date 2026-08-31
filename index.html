@@ -10636,10 +10636,19 @@ function getQuestions(module, type){
   (store.errors||[]).forEach(function(e){
     if(!e || e.module !== module) return;
     const hasPhoto = Array.isArray(e.photos) && e.photos.length>0;
-    const hasFull = Array.isArray(e.options) && e.options.length>=2 && typeof e.answer==='number' && e.answer>=0;
-    // 仅含照片的错题（如图推整图题），也合并进来；选项置 4 个「未填写」让刷题流程完整
+    const optPhotos = Array.isArray(e.optionPhotos) ? e.optionPhotos : [];
+    const hasOptPhoto = optPhotos.some(function(p){ return !!p; });
+    // 【修复 BUG②】选项文字里的"选项 A/B/C/D"占位文字按空处理（避免误以为是文字提示）
+    const optsRaw = Array.isArray(e.options) ? e.options : ['','','',''];
+    const opts = optsRaw.map(function(o){ return (o && !/^选项\s*[A-D]$/.test(String(o).trim())) ? o : ''; });
+    // 【修复 BUG②】hasFull 放宽：选项文字（>=2项有内容） / 选项配图存在 / 有答案索引 任一满足即视为完整题
+    const hasFull = opts.filter(function(s){ return !!s; }).length >= 2
+                 || hasOptPhoto
+                 || (typeof e.answer==='number' && e.answer>=0);
     if(hasFull || hasPhoto){
-      const options = hasFull ? e.options : ['未填写','未填写','未填写','未填写'];
+      // 【修复 BUG②】整图题（选项文字空 + 有配图 + 有答案）→ options 用 4 个空串，渲染层只显配图
+      const hasRealText = opts.filter(function(s){ return !!s; }).length >= 2;
+      const options = hasRealText ? opts : (hasOptPhoto ? ['','','',''] : ['未填写','未填写','未填写','未填写']);
       // 【修复 BUG①】qText 兜底更友好：模块=图形推理/资料分析时显示「（图片题…）」，避免孤零零的「(错题回顾)」
       const qText = e.question || e.content || (hasPhoto ? '（图片错题，请看下方图片）' : ((/^图形|^资料|^图推|图推|图形|资料/.test(module||'')) ? '（图片错题，请添加图片或题干）' : '(错题回顾)'));
       extra.push({
@@ -10654,10 +10663,10 @@ function getQuestions(module, type){
         _errQuestion: e.question || '',
         _errParts: e.parts || null,
         _errSummary: e.summary || '',
-        _errPhotoOnly: !hasFull && hasPhoto,  // 标记：这是「纯图片错题」，用户看完图可选「跳过」
-        kp: e.kp || '', wrongReason: e.wrongReason || '',
+        _errPhotoOnly: !hasFull && hasPhoto && !hasOptPhoto,  // 标记：这是「纯图片错题」，用户看完图可选「跳过」
+        kp: e.kp || '',
         wrongReason: e.wrongReason || '',
-        optionPhotos: Array.isArray(e.optionPhotos) ? e.optionPhotos.slice() : []  // 方案C：选项级配图跟随
+        optionPhotos: optPhotos.slice()  // 方案C：选项级配图跟随
       });
     }
   });
@@ -11675,8 +11684,6 @@ function renderQuestion(){
 
   // 错题原貌：照片 + 原内容（当来源是错题记录时显示，方便回顾当时拍照/手写的内容）
   const errPhotos = Array.isArray(q._errPhotos) ? q._errPhotos : [];
-  const errOriginal = (q._errQuestion && q._errQuestion !== q.q) ? q._errQuestion : (q._errContent || '');
-  const isPhotoOnly = !!q._errPhotoOnly || (q._fromError && errPhotos.length>0 && Array.isArray(q.options) && q.options.every(function(o){ return !o || o==='未填写' || String(o).trim()===''; }));
   // 知识点 / 错因 / 来源 / 日期：统一收口，仅「提交答案后」才显示（答题前当作答案提示隐藏）
   const errObj = q._fromError ? (store.errors||[]).find(function(x){ return x.id===q._fromError; }) : null;
   const kpText = q.kp || (errObj && errObj.kp) || '';
@@ -11689,19 +11696,23 @@ function renderQuestion(){
       ${errPhotos.map(function(src,i){ return '<img data-idx="'+i+'" src="'+src+'" onclick="openErrPhoto(\''+src+'\','+i+','+JSON.stringify(errPhotos)+')" style="width:100%;max-width:520px;max-height:46vh;border-radius:10px;border:1px solid #eee;cursor:zoom-in;background:#fff;object-fit:contain" />'; }).join('')}
     </div>` : '';
   // 【修复 BUG①】纯图片错题：替换 4 个「未填写」占位为提示卡 + 单按钮"确认/跳过"
-  const photoOnlyHint = isPhotoOnly ? `
+  // —— 这里 options 已清洗为 4 个 "未填写"（纯图兜底），故 photoOnlyHint 提示用户。
+  const photoOnlyHint = (q._errPhotoOnly || (q._fromError && Array.isArray(q.options) && q.options.every(function(o){ return !o || o==='未填写' || String(o).trim()===''; }) && !(Array.isArray(q.optionPhotos) && q.optionPhotos.some(function(p){return !!p;})))) ? `
     <div style="margin:0 0 14px;padding:14px 16px;background:linear-gradient(135deg,#fff5f0,#fff0e8);border:1.5px dashed #e8a18e;border-radius:14px;text-align:center">
       <div style="font-size:14px;font-weight:700;color:#c0552b;margin-bottom:4px">📷 这是纯图片错题</div>
       <div style="font-size:12px;color:#a06b5b;line-height:1.6">请看上方图片回忆当时错点，<br/>答不上来可直接「跳过」</div>
     </div>` : '';
+  // 【修复图推选项渲染】配图存在时只显图（不显示文字），没有任何内容时仅显示字母 + 浅色底，不再写"未填写"
   const optHtml = q.options.map(function(opt,i){
     const ph = (Array.isArray(q.optionPhotos) && q.optionPhotos[i]) ? q.optionPhotos[i] : '';
-    const txt = (opt && String(opt).trim()) ? String(opt) : '';
-    const txtHtml = txt ? '<span style="white-space:pre-line">'+escHtml(txt)+'</span>' : (ph ? '' : '<span style="color:#bbb;font-style:italic">（未填写）</span>');
-    return '<div class="quiz-option" onclick="selectOption('+i+')" data-idx="'+i+'">'
+    const txt = (opt && String(opt).trim() && !/^选项\s*[A-D]$/.test(String(opt).trim())) ? String(opt) : '';
+    const txtHtml = txt ? '<span style="white-space:pre-line;flex:1">'+escHtml(txt)+'</span>' : '';
+    const photoHtml = ph ? '<img class="quiz-opt-photo" src="'+ph+'" onclick="event.stopPropagation();zoomImg(this.src)" alt="选项图" />' : '';
+    return '<div class="quiz-option'+(ph && !txt ? ' opt-photo-only':'')+'" onclick="selectOption('+i+')" data-idx="'+i+'">'
       + '<span class="opt-label">'+String.fromCharCode(65+i)+'</span>'
       + txtHtml
-      + (ph ? '<img class="quiz-opt-photo" src="'+ph+'" onclick="event.stopPropagation();zoomImg(this.src)" alt="选项图" />' : '')
+      + photoHtml
+      + (!txt && !ph ? '<span class="opt-empty" style="color:#c4bcd4;font-size:12px;font-style:italic">（无内容）</span>' : '')
       + '</div>';
   }).join('');
   // 知识点 / 错因 / 来源 / 日期 标签：置于「解析区」内，提交答案前随 .quiz-explain 隐藏
@@ -11793,7 +11804,7 @@ function submitAnswer(){
     }
 
     document.getElementById('quizExplain').classList.add('show');
-    document.getElementById('quizTip').textContent = hasAnswer ? (correct ? '✅ 回答正确！' : '❌ 回答错误') : '🔍 本题无标准答案，请自行核对';
+    document.getElementById('quizTip').textContent = hasAnswer ? (correct ? '✅ 回答正确！' : '❌ 回答错误') : '💡 纯练习题（无对错评判），你选了 ' + String.fromCharCode(65+quizState.selected);
     document.getElementById('quizSubmitBtn').textContent = quizState.currentIdx < quizState.questions.length-1 ? '下一题' : '查看结果';
   } else {
     // 下一题或查看结果
