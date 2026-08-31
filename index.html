@@ -3566,6 +3566,11 @@ body.drawer-open .nav-cloud{display:none;}
           <option value="数量关系">数量关系</option>
           <option value="资料分析">资料分析</option>
         </select>
+        <select id="errorStatusFilter" onchange="renderErrors()" style="font-size:12px;border:1px solid var(--border);border-radius:6px;padding:2px 6px;margin-left:6px;">
+          <option value="all">全部状态</option>
+          <option value="due">🔔 待复习</option>
+          <option value="mastered">✅ 已掌握</option>
+        </select>
       </span>
     </div>
     <div id="errorAllList"></div>
@@ -4256,7 +4261,7 @@ function defaultStore(){
     gacha: { tickets:0, pulled:[], coll:{} }, // 抽卡养花：扭蛋币数 / 抽卡历史 / 已收集图鉴
     ebbinghaus: { items: [] }, // 艾宾浩斯复习计划 [{id,srcDate,module,stage,interval,dueDate,done,doneDate}]
     errorBooks: [],  // 错题本（小本子）[{id,name,color,icon,createdAt,order}] 为空时首次运行按科目预建
-    errors: [],      // 错题 [{id,module,content,photos,date,...,book,qType,level,wrongReason,wrongCount,srcDetail,mastered,masteredDate,note,nextReview,answer:[]}]
+    errors: [],      // 错题 [{id,module,content,photos,date,...,book,qType,level,wrongReason,wrongCount,srcDetail,mastered,masteredDate,note,nextReview,reviewRound,correctCount,answer:[]}]
     flashcards: [],    // 知识闪卡 [{id,module,front,back,created,level,lastReview}]（level:掌握度0-5）
     inspiration: { custom: [] }, // 用户自己记录的灵感 {id,module,text,date}
     diary: {},         // 每晚日记 {date: {mood, meaningful, wish, feeling, thanks, ts}}
@@ -5209,7 +5214,11 @@ function migrateErrorFields(){
     if(typeof e.mastered !== 'boolean'){ e.mastered = false; changed = true; }
     if(e.masteredDate === undefined){ e.masteredDate = ''; changed = true; }
     if(e.note === undefined){ e.note = ''; changed = true; }
+    if(typeof e.reviewRound !== 'number' || e.reviewRound < 1){ e.reviewRound = 1; changed = true; }   // 第1轮=新题
+    if(typeof e.correctCount !== 'number' || e.correctCount < 0){ e.correctCount = 0; changed = true; } // 累计做对次数（难题需≥5）
     if(e.nextReview === undefined){ e.nextReview = ''; changed = true; }
+    // 老错题（未掌握且未设复习日）→ 置今天，使其自然进入「待复习」池
+    if(!e.mastered && !e.nextReview){ e.nextReview = todayKey(); changed = true; }
     if(!e.book){
       const bid = errorBookIdByModule(e.module);
       if(bid){ e.book = bid; changed = true; }
@@ -11802,10 +11811,10 @@ function submitAnswer(){
     if(hasAnswer){
       correct = (quizState.selected === q.answer);
       if(correct) quizState.correctCount++;
-      // 关联错题：答错自动 +1 错误次数
-      if(!correct && q._fromError){
+      // 关联错题：按答案推进复习轮次 / 错次 / 自动掌握（详见 applyErrorDrillResult）
+      if(q._fromError){
         const _er = (store.errors||[]).find(function(x){ return x.id===q._fromError; });
-        if(_er){ _er.wrongCount = (typeof _er.wrongCount==='number' && _er.wrongCount>0) ? _er.wrongCount+1 : 1; try{ saveStore(); }catch(_){} }
+        if(_er){ applyErrorDrillResult(_er, correct); }
       }
       // 标记选项
       document.querySelectorAll('.quiz-option').forEach((el,i)=>{
@@ -11893,6 +11902,46 @@ function showQuizResult(){
   saveStore();
 }
 
+// 错题复习闭环核心：刷题答对了来自「错题记录」的题 → 推进复习轮次 / 自动标记掌握
+// 规则（已与用户确认）：
+//  - 新题 = 第1轮（录入时 nextReview=今天）；复习 = 第2 / 第3轮，每轮间隔 +7 天（间隔复习）
+//  - 普通题：第3轮全对 → 标记「已掌握」
+//  - 困难题（level='困难'，即难题）：第3轮全对但 做对次数<5 → 继续 +7 天排复习，直到做对满 5 次才掌握（标准从严）
+//  - 答错：不推进轮次，错误次数 +1，次日再复习（nextReview=今天+1）
+function applyErrorDrillResult(err, correct){
+  if(!err || !err.id || err.mastered) return;
+  if(typeof err.reviewRound !== 'number' || err.reviewRound < 1) err.reviewRound = 1;
+  if(typeof err.correctCount !== 'number' || err.correctCount < 0) err.correctCount = 0;
+  const isHard = (err.level === '困难');
+  if(correct){
+    err.correctCount = err.correctCount + 1;
+    if(err.reviewRound < 3){
+      err.reviewRound = err.reviewRound + 1;
+      err.nextReview = addDaysStr(todayKey(), 7);   // 进入下一轮，间隔复习
+    } else {
+      // 已到第3轮且本次全对
+      if(!isHard){
+        err.mastered = true; err.masteredDate = todayKey();
+      } else {
+        if(err.correctCount >= 5){
+          err.mastered = true; err.masteredDate = todayKey();
+        } else {
+          // 难题从严：继续 +7 天复习，直到做对满 5 次
+          err.nextReview = addDaysStr(todayKey(), 7);
+          err.reviewRound = 3; // 停在第3轮，反复巩固
+        }
+      }
+    }
+  } else {
+    // 答错：错误次数 +1，本轮未完成，明天再复习
+    err.wrongCount = (typeof err.wrongCount==='number' && err.wrongCount>0) ? err.wrongCount+1 : 1;
+    err.nextReview = addDaysStr(todayKey(), 1);
+  }
+  try{ saveStore(); }catch(_){}
+  try{ syncNextReviewToEbb(err); }catch(_){}      // 同步记忆队列
+  try{ syncWeakTableFromErrors(); }catch(_){}    // 联动薄弱项表（掌握后排除计数）
+}
+
 // 将本次站内刷题答错的题写入错题本（按 模块+题干 去重，避免重复计入）
 function recordDrillErrors(){
   if(!store.errors) store.errors = [];
@@ -11916,7 +11965,8 @@ function recordDrillErrors(){
       explain: q.explain || '',
       photos: [],
       date: todayKey(),
-      src: 'drill'
+      src: 'drill',
+      reviewRound: 1, correctCount: 0, nextReview: todayKey(), mastered: false, masteredDate: ''
     });
   });
 }
@@ -11939,7 +11989,8 @@ function collectQbookErrors(b, chapName, wrong, correct, srcLabel){
     date: tk,
     src: 'qbook',
     key: key,
-    srcLabel: srcLabel||'题本'
+    srcLabel: srcLabel||'题本',
+    reviewRound: 1, correctCount: 0, nextReview: tk, mastered: false, masteredDate: ''
   });
 }
 
@@ -12889,27 +12940,25 @@ function genDailyPlanItem(text, module, start, end, taskType, count){
 
 // 纯函数：根据三表数据生成 7 条固定时段（不含顺延）。每条带 slotKey，供「顺延合并」定位目标时段
 function buildTodayPlanSlots(data, today){
-  const yKey = shiftDateKey(today, -1);
   const errs = store.errors||[];
-  // 昨天新增错题（未掌握）
-  let yesterdayNew = errs.filter(function(e){ return e.date===yKey && !e.mastered; });
-  const reviewDue = data.errReview||[];
+  // 08-09 严格只排 nextReview≤今天 的待复习（第1轮=新增、第2/3轮=复习）
+  // 录题时新题已置第1轮 + nextReview=今天，故昨日新增的题（nextReview=昨天）天然落在今天，无需双来源
+  let reviewDueAll = errs.filter(function(e){ return !e.mastered && e.nextReview && e.nextReview<=todayKey(); });
   const topWeak = data.weakTop[0];
   const c1 = data.courseTop2[0], c2 = data.courseTop2[1];
   const items = [];
   let it;
-  // 08–09 错题重做（限制：新增×1 + 待复习≤5 + 总≤20 + 新增>15 取最近15道，其余自动顺延到明天）
+  // 08–09 错题重做（限制：待复习总数 + 前日顺延；单日≤15，总≤20，超量顺延至明日）
   const carry = arguments[2] || 0;  // 前日遗留的顺延题量（store.redoOverflow）
-  let redoNew = yesterdayNew.length + carry;
+  let redoNew = reviewDueAll.length + carry;
   let overNew = 0;
-  if(redoNew > 15){ overNew = redoNew - 15; redoNew = 15; yesterdayNew = yesterdayNew.slice(-15); }
-  const redoReview = Math.min(5, reviewDue.length);
-  const redoTotal = Math.min(20, redoNew + redoReview);
+  if(redoNew > 15){ overNew = redoNew - 15; redoNew = 15; }
+  const redoTotal = Math.min(20, redoNew);
   const rnParts = [];
   if(carry>0) rnParts.push('含前日顺延 '+carry+' 道');
   if(overNew>0) rnParts.push('今日先刷15道，余 '+overNew+' 道顺延至明日');
   const redoNote = rnParts.length ? '（'+rnParts.join('；')+'）' : '';
-  it = genDailyPlanItem('错题重做：昨日新增 '+redoNew+' 道 + 待复习 '+redoReview+' 道'+redoNote, '错题', '08:00', '09:00', '错题重做', Math.max(3, redoTotal));
+  it = genDailyPlanItem('错题重做：待复习 '+redoNew+' 道'+redoNote, '错题', '08:00', '09:00', '错题重做', Math.max(3, redoTotal));
   it.slotKey = 'redo'; items.push(it);
   items._redoOverflow = overNew; items._carry = carry;  // 供写入端持久化顺延题量
   // 09–12 网课第1节（新课占位，有顺延时会被「含顺延」替换）
@@ -14639,6 +14688,7 @@ function autoPullErrorStats(module, kp){
   const target = kp||'';
   let total=0, recent=0, lastD=null;
   store.errors.forEach(function(e){
+    if(e.mastered) return;                       // 已掌握不计入薄弱分
     if((e.module||'') !== (module||'')) return;
     if((e.kp||'') !== target) return;
     total++;
@@ -14789,6 +14839,7 @@ function genWeakFromErrors(){
   }
   const groups = {};
   store.errors.forEach(function(e){
+    if(e.mastered) return;                       // 已掌握不计入薄弱分
     const kp = (e.kp||'').trim();
     if(!kp || kp.indexOf('如：')===0) return;   // 跳过空 kp / 占位演示知识点（如：行程问题），不进表
     const k = (e.module||'未分类') + '|' + kp;
@@ -14819,6 +14870,7 @@ function syncWeakTableFromErrors(){
   const ago = new Date(); ago.setHours(0,0,0,0); ago.setDate(ago.getDate()-7);
   const map = {}; // key -> {module,kp,total,recent,lastD}
   store.errors.forEach(function(e){
+    if(e.mastered) return;                       // 已掌握不计入薄弱分
     const kp = (e.kp||'').trim();
     if(!kp || kp.indexOf('如：')===0) return;   // 跳过空 kp / 占位演示知识点（如：行程问题）
     const k = (e.module||'未分类') + '|' + kp;
@@ -15223,6 +15275,16 @@ function addError(){
 
   // 方案D：编辑模式 —— 若 _editingErrorId 存在，则替换 store.errors 中的对应条目
   const editingId = store._editingErrorId;
+  // 复习轮次字段：新题置第1轮 + 今天复习；编辑模式保留原值
+  let _reviewRound = 1, _correctCount = 0, _nextReview = todayKey();
+  if(editingId){
+    const _exist = store.errors.find(function(x){ return x.id===editingId; });
+    if(_exist){
+      _reviewRound = (typeof _exist.reviewRound==='number' && _exist.reviewRound>=1) ? _exist.reviewRound : 1;
+      _correctCount = (typeof _exist.correctCount==='number' && _exist.correctCount>=0) ? _exist.correctCount : 0;
+      _nextReview = _exist.nextReview || todayKey();
+    }
+  }
   const newErr = {
     id: editingId || ('err'+Date.now()+'_'+Math.floor(Math.random()*1000)),
     module,
@@ -15250,7 +15312,9 @@ function addError(){
     mastered: mastered,
     masteredDate: masteredDate,
     note: note.trim() || '',
-    nextReview: nextReview,
+    reviewRound: _reviewRound,
+    correctCount: _correctCount,
+    nextReview: _nextReview,
     parts: parts,
     summary: summary.trim() || undefined,
     kp: kp || undefined,
@@ -15423,8 +15487,17 @@ const BANK_ICONS = {
   '资料分析':'📊'
 };
 
+// 错题状态过滤：all=全部 / due=待复习(未掌握且 nextReview≤今天) / mastered=已掌握
+function errMatchesStatus(e, st){
+  if(!st || st==='all') return true;
+  if(st==='mastered') return !!e.mastered;
+  if(st==='due') return !e.mastered && e.nextReview && e.nextReview<=todayKey();
+  return true;
+}
+
 function renderErrors(){
   const filter = document.getElementById('errorFilter').value;
+  const status = (document.getElementById('errorStatusFilter')||{}).value || 'all';
   // 方案B：本子视图下选了具体模块，自动退出本子视图，转全局平铺该模块
   if(_errorsBookView && filter!=='all'){ _errorsBookView=''; }
   const list = document.getElementById('errorAllList');
@@ -15434,6 +15507,7 @@ function renderErrors(){
     const bf = _errorsBookFilter;
     let errors = (store.errors||[]).filter(function(e){ return e.bookId===bf || (e.key && e.key.indexOf(bf+'|')===0); }).reverse();
     if(filter!=='all') errors = errors.filter(function(e){ return e.module===filter; });
+    errors = errors.filter(function(e){ return errMatchesStatus(e, status); });
     const b = (typeof qbookById==='function') ? qbookById(bf) : null;
     const bName = b ? (b.name||'该题本') : '该题本';
     let html = '<div class="eb-back"><button type="button" class="btn btn-sm" onclick="clearBookErrorsFilter()">← 返回书架</button>'
@@ -15448,6 +15522,7 @@ function renderErrors(){
     const b = errorBookById(_errorsBookView);
     let errors = (store.errors||[]).filter(function(e){ return e.book===_errorsBookView; }).reverse();
     if(filter!=='all') errors = errors.filter(function(e){ return e.module===filter; });
+    errors = errors.filter(function(e){ return errMatchesStatus(e, status); });
     let html = '<div class="eb-back"><button type="button" class="btn btn-sm" onclick="closeBookView()">← 返回书架</button>'
       + (b? ' <span class="eb-back-name">'+escapeHtml(b.name)+'</span>' : '')
       + ' <span class="eb-back-cnt">'+errors.length+' 道</span></div>';
@@ -15464,6 +15539,7 @@ function renderErrors(){
   // 全局模块筛选：平铺所有该模块错题（不受本子限制）
   if(!_errorsBookView && !_errorsBookFilter && filter!=='all'){
     let errors = (store.errors||[]).filter(function(e){ return e.module===filter; }).reverse();
+    errors = errors.filter(function(e){ return errMatchesStatus(e, status); });
     let html = '<div class="eb-back"><button type="button" class="btn btn-sm" onclick="document.getElementById(\'errorFilter\').value=\'all\';renderErrors()">← 返回书架</button>'
       + '<span class="eb-back-name">🌐 全部错题 · '+escapeHtml(filter)+'</span>'
       + '<span class="eb-back-cnt">'+errors.length+' 道</span></div>';
@@ -15638,6 +15714,7 @@ function renderErrorItem(e){
     +       '<span class="mi-mod">' + escapeHtml(e.module || '未分类') + '</span>'
     +       (e.mastered ? '<span class="mi-kp" style="background:#E4F5E9;color:#2D7A4F">✅ 已掌握</span>' : '')
     +       (e.nextReview && e.nextReview<=todayKey() && !e.mastered ? '<span class="mi-kp" style="background:#FFF3DA;color:#B7791F">🔔 待复习 '+e.nextReview+'</span>' : '')
+    +       (e.reviewRound ? '<span class="mi-kp" style="background:#EDE7F6;color:#6b4fa8">🔄 第'+e.reviewRound+'轮</span>' : '')
     +       (e.kp ? '<span class="mi-kp">🧠 ' + escapeHtml(e.kp) + '</span>' : '')
     +       '<span class="mi-q-short">' + escapeHtml(qShort) + '</span>'
     +       (hasPhoto ? '<span class="mi-kp" style="background:#FFF0EA;color:#c0552b">📷 ' + e.photos.length + '</span>' : '')
@@ -15700,6 +15777,7 @@ function renderErrorItem(e){
   if(e.wrongReason) tags.push('❗ '+e.wrongReason);
   if(e.srcDetail) tags.push('📍 '+e.srcDetail);
   if(typeof e.wrongCount==='number') tags.push('🔁 错 '+e.wrongCount+' 次');
+  if(typeof e.correctCount==='number') tags.push('✅ 做对 '+e.correctCount+' 次');
   if(e.nextReview) tags.push('📆 复习 '+e.nextReview);
   if(e.masteredDate) tags.push('🎉 掌握于 '+e.masteredDate);
   if(tags.length){
