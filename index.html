@@ -12869,60 +12869,140 @@ function genDailyPlanItem(text, module, start, end, taskType, count){
 // 不叠加：已存在今日计划 → 应用时先询问是否替换
 // 兜底：数据不足（错题<5 或 题本做题<30）→ 标注"数据不足，参考模板"，提醒多录错题
 
-// 纯函数：根据三表数据生成 7 条固定时段（不含顺延）
+// 纯函数：根据三表数据生成 7 条固定时段（不含顺延）。每条带 slotKey，供「顺延合并」定位目标时段
 function buildTodayPlanSlots(data, today){
   const yKey = shiftDateKey(today, -1);
   const errs = store.errors||[];
-  const yesterdayNew = errs.filter(function(e){ return e.date===yKey && !e.mastered; });
+  // 昨天新增错题（未掌握）
+  let yesterdayNew = errs.filter(function(e){ return e.date===yKey && !e.mastered; });
   const reviewDue = data.errReview||[];
   const topWeak = data.weakTop[0];
   const c1 = data.courseTop2[0], c2 = data.courseTop2[1];
   const items = [];
-  // 08–09 错题重做（昨天新增×2 至少 3 道 + 复习日题）
-  const redoCount = Math.max(3, yesterdayNew.length*2) + reviewDue.length;
-  items.push(genDailyPlanItem('错题重做：昨日新增 '+yesterdayNew.length+' 道×2 + 待复习 '+reviewDue.length+' 道', '错题', '08:00', '09:00', '错题重做', redoCount));
-  // 09–12 网课第1节
-  if(c1) items.push(genDailyPlanItem('网课推进：'+c1.name+'（第1节）', getCourseModName(c1), '09:00', '12:00', '课程推进', 1));
-  else items.push(genDailyPlanItem('网课推进：暂无进行中课程，改为薄弱模块自由复习', '综合/其他', '09:00', '12:00', '课程推进', 0));
+  let it;
+  // 08–09 错题重做（限制：新增×1 + 待复习≤5 + 总≤20 + 新增>15 取最近15道，其余自动顺延到明天）
+  const carry = arguments[2] || 0;  // 前日遗留的顺延题量（store.redoOverflow）
+  let redoNew = yesterdayNew.length + carry;
+  let overNew = 0;
+  if(redoNew > 15){ overNew = redoNew - 15; redoNew = 15; yesterdayNew = yesterdayNew.slice(-15); }
+  const redoReview = Math.min(5, reviewDue.length);
+  const redoTotal = Math.min(20, redoNew + redoReview);
+  const rnParts = [];
+  if(carry>0) rnParts.push('含前日顺延 '+carry+' 道');
+  if(overNew>0) rnParts.push('今日先刷15道，余 '+overNew+' 道顺延至明日');
+  const redoNote = rnParts.length ? '（'+rnParts.join('；')+'）' : '';
+  it = genDailyPlanItem('错题重做：昨日新增 '+redoNew+' 道 + 待复习 '+redoReview+' 道'+redoNote, '错题', '08:00', '09:00', '错题重做', Math.max(3, redoTotal));
+  it.slotKey = 'redo'; items.push(it);
+  items._redoOverflow = overNew; items._carry = carry;  // 供写入端持久化顺延题量
+  // 09–12 网课第1节（新课占位，有顺延时会被「含顺延」替换）
+  if(c1) it = genDailyPlanItem('网课推进：'+c1.name+'（第1节）', getCourseModName(c1), '09:00', '12:00', '课程推进', 1);
+  else it = genDailyPlanItem('网课推进：暂无进行中课程，改为薄弱模块自由复习', '综合/其他', '09:00', '12:00', '课程推进', 0);
+  it.slotKey = 'courseM'; items.push(it);
   // 14–17 网课第2节
-  if(c2) items.push(genDailyPlanItem('网课推进：'+c2.name+'（第2节）', getCourseModName(c2), '14:00', '17:00', '课程推进', 1));
-  else items.push(genDailyPlanItem('网课推进：第2门进行中课程缺失，安排专项刷题', '综合/其他', '14:00', '17:00', '课程推进', 0));
+  if(c2) it = genDailyPlanItem('网课推进：'+c2.name+'（第2节）', getCourseModName(c2), '14:00', '17:00', '课程推进', 1);
+  else it = genDailyPlanItem('网课推进：第2门进行中课程缺失，安排专项刷题', '综合/其他', '14:00', '17:00', '课程推进', 0);
+  it.slotKey = 'courseA'; items.push(it);
   // 19–20 上午课程配套练习
   const m1 = c1 ? getCourseModName(c1) : '综合/其他';
-  items.push(genDailyPlanItem('上午课程配套练习（15–20道）', m1, '19:00', '20:00', '专项训练', 15));
+  it = genDailyPlanItem('上午课程配套练习（15–20道）', m1, '19:00', '20:00', '专项训练', 15);
+  it.slotKey = 'drillM'; items.push(it);
   // 20–21 下午课程配套练习
   const m2 = c2 ? getCourseModName(c2) : '综合/其他';
-  items.push(genDailyPlanItem('下午课程配套练习（15–20道）', m2, '20:00', '21:00', '专项训练', 15));
+  it = genDailyPlanItem('下午课程配套练习（15–20道）', m2, '20:00', '21:00', '专项训练', 15);
+  it.slotKey = 'drillA'; items.push(it);
   // 21–22 薄弱专项训练（联动3：优先薄弱项表「高优先级」Top1 知识点）
   const kpTop = data.weakKpTop;
   if(kpTop && kpTop.kp){
-    items.push(genDailyPlanItem('薄弱专项：'+kpTop.kp+'专项训练（10题·优先级高）', (kpTop.module||'综合/其他'), '21:00', '22:00', '专项训练', 10));
+    it = genDailyPlanItem('薄弱专项：'+kpTop.kp+'专项训练（10题·优先级高）', (kpTop.module||'综合/其他'), '21:00', '22:00', '专项训练', 10);
   } else if(topWeak){
-    items.push(genDailyPlanItem('薄弱专项：'+topWeak.module+(topWeak.topKp?('·'+topWeak.topKp):'')+(topWeak.topReason?(' → 主攻错因：'+topWeak.topReason):'')+'（10题·优先级'+topWeak.priority+'）', topWeak.module, '21:00', '22:00', '专项训练', 10));
+    it = genDailyPlanItem('薄弱专项：'+topWeak.module+(topWeak.topKp?('·'+topWeak.topKp):'')+(topWeak.topReason?(' → 主攻错因：'+topWeak.topReason):'')+'（10题·优先级'+topWeak.priority+'）', topWeak.module, '21:00', '22:00', '专项训练', 10);
   } else {
-    items.push(genDailyPlanItem('薄弱专项：按模块套题1组（15道）', '综合/其他', '21:00', '22:00', '专项训练', 15));
+    it = genDailyPlanItem('薄弱专项：按模块套题1组（15道）', '综合/其他', '21:00', '22:00', '专项训练', 15);
   }
+  it.slotKey = 'weak'; items.push(it);
   // 22–22:30 复盘+错题整理+闪卡
-  items.push(genDailyPlanItem('复盘+错题整理+闪卡：录入当天错题/填错因/复习10张闪卡/写3句复盘', '复盘', '22:00', '22:30', '复盘总结', 1));
+  it = genDailyPlanItem('复盘+错题整理+闪卡：录入当天错题/填错因/复习10张闪卡/写3句复盘', '复盘', '22:00', '22:30', '复盘总结', 1);
+  it.slotKey = 'review'; items.push(it);
   return items;
 }
 
-// 自动写入（boot 触发，不弹窗）：顺延 + 7 时段 + 清当日每日推荐 + 置 planAutoDate + 数据不足备注
+// 推断顺延任务属于哪个时段（老数据没 slotKey 时兜底）
+function inferSlotKey(p){
+  const t = p.taskType||'';
+  const s = p.start||'';
+  if(t==='错题重做') return 'redo';
+  if(t==='课程推进') return (s==='14:00') ? 'courseA' : 'courseM';
+  if(t==='复盘总结') return 'review';
+  if(t==='专项训练'){
+    if(s==='21:00') return 'weak';
+    return 'drill'; // 配套（drillM）
+  }
+  // 兜底按 start
+  if(s==='19:00'||s==='20:00') return 'drill';
+  if(s==='21:00') return 'weak';
+  return 'redo';
+}
+// 顺延替换当天新课（顺延优先）：courseM/courseA 用顺延文本覆盖新课，不叠加
+function mergeDeferReplace(slots, key, dp){
+  if(!dp) return;
+  const slot = slots.find(function(s){ return s.slotKey===key; });
+  if(!slot) return;
+  slot.text = '（含顺延）' + dp.text;
+  slot.count = dp.count||0;
+  slot.defer = true; slot.mergedDefer = true;
+}
+// 顺延叠加到当天对应时段（题量叠加 + 上限保护 + 标记）
+function mergeDeferAdd(slots, key, list){
+  if(!list || !list.length) return;
+  const slot = slots.find(function(s){ return s.slotKey===key; });
+  if(!slot) return;
+  let extra = 0; list.forEach(function(dp){ extra += (dp.count||0); });
+  slot.count = slot.count + extra;
+  if(key==='drillM'||key==='drillA') slot.count = Math.min(25, slot.count);   // 配套≤25
+  if(key==='weak') slot.count = Math.min(15, slot.count);                       // 薄弱≤15
+  if(key==='review') slot.count = Math.min(1, slot.count);                      // 复盘≤1
+  slot.text = '（含顺延）' + slot.text;
+  slot.defer = true; slot.mergedDefer = true;
+}
+// 把昨天未完成任务分散合并进今天的 7 个时段（8-9 只留错题重做，其余按类型归位）
+function mergeDefersIntoSlots(slots, deferList){
+  const defer = { redo:[], courseM:[], courseA:[], drillM:[], drillA:[], weak:[], review:[] };
+  deferList.forEach(function(p){
+    const sk = p.slotKey || inferSlotKey(p);
+    if(defer[sk]) defer[sk].push(p); else defer.redo.push(p);
+  });
+  // 错题重做：顺延题量合并进 8-9（总≤20）
+  if(defer.redo.length){
+    const s = slots.find(function(x){ return x.slotKey==='redo'; });
+    if(s){ let e=0; defer.redo.forEach(function(dp){ e += (dp.count||0); }); s.count = Math.min(20, s.count + e); s.defer = true; s.text = '（含顺延）' + s.text; }
+  }
+  // 网课：顺延优先替换新课（courseM 取第1条、courseA 取第2条，其余丢弃不新增行）
+  mergeDeferReplace(slots, 'courseM', defer.courseM[0]);
+  mergeDeferReplace(slots, 'courseA', defer.courseA[0]);
+  // 配套/薄弱/复盘：叠加题量 + 上限
+  mergeDeferAdd(slots, 'drillM', defer.drillM);
+  mergeDeferAdd(slots, 'drillA', defer.drillA);
+  mergeDeferAdd(slots, 'weak', defer.weak);
+  mergeDeferAdd(slots, 'review', defer.review);
+  return slots;
+}
+
+// 自动写入（boot 触发，不弹窗）：顺延分散合并到对应时段 + 7 固定时段 + 清当日每日推荐 + 置 planAutoDate + 数据不足备注
 function writeTodayPlan(manual, data){
   const today = todayKey();
   if(!store.plans[today]) store.plans[today] = [];
   const arr = store.plans[today];
-  // 顺延：昨天未完成
+  // 昨天未完成任务
   const yKey = shiftDateKey(today, -1);
   const yPlans = store.plans[yKey]||[];
   const deferList = yPlans.filter(function(p){ return p.status!=='已完成' && !p.done; });
-  deferList.forEach(function(p){
-    const it = genDailyPlanItem('↩️顺延：'+p.text, (p.module||'综合/其他'), '08:00', '09:00', (p.taskType||''), (p.count||0));
-    it.defer = true; arr.push(it);
-  });
   const deferCount = deferList.length;
-  const slots = buildTodayPlanSlots(data, today);
+  // 生成 7 个固定时段，并把顺延分散合并进对应时段（8-9 只留错题重做）
+  const carry = store.redoOverflow || 0;
+  const slots = buildTodayPlanSlots(data, today, carry);
+  mergeDefersIntoSlots(slots, deferList);
   slots.forEach(function(it){ arr.push(it); });
+  store.redoOverflow = (slots._redoOverflow || 0);  // 超 15 道的部分自动顺延到明天
   arr.forEach(function(p){ if(!p.todoId) ensurePlanTodo(p, today); });
   // 清掉当日「每日推荐」待办（避免每日待办里天天出现"复盘错题本15分钟"等，q-0）
   if(store.todos){ store.todos = store.todos.filter(function(td){ return !(td.src==='daily' && td.date===today); }); }
@@ -12981,13 +13061,13 @@ function regenTodayPlan(){
   renderGenWeakBox(data);
   const rowsBox = document.getElementById('genDailyRows');
   rowsBox.innerHTML = '';
-  // 顺延行（置顶）
-  (store.plans[yKey]||[]).filter(function(p){ return p.status!=='已完成' && !p.done; }).forEach(function(p){
-    addGenRow({text:'↩️顺延：'+p.text, module:(p.module||'综合/其他'), count:(p.count||0), start:'08:00', end:'09:00', intensity:'med', type:'defer'});
-  });
+  // 7 固定时段，顺延分散合并到对应时段（与自动生成一致）
+  const deferList = (store.plans[yKey]||[]).filter(function(p){ return p.status!=='已完成' && !p.done; });
+  const slots = buildTodayPlanSlots(data, today, store.redoOverflow||0);
+  mergeDefersIntoSlots(slots, deferList);
   // 7 固定时段（带 intensity/type 以便 🔁 换一条）
   const typeMap = {'错题重做':'review','课程推进':'course','专项训练':'drill','复盘总结':'review'};
-  buildTodayPlanSlots(data, today).forEach(function(d){
+  slots.forEach(function(d){
     addGenRow({text:d.text, module:d.module, count:d.count, start:d.start, end:d.end, intensity:'med', type:(typeMap[d.taskType]||'drill')});
   });
   store.dailyPlanNote = data.hasData ? '' : data.note;
@@ -13014,6 +13094,7 @@ function applyDailyPlan(){
     });
     store.plans[today].forEach(function(p){ if(!p.todoId) ensurePlanTodo(p, today); });
     if(store.todos){ store.todos = store.todos.filter(function(td){ return !(td.src==='daily' && td.date===today); }); }
+    store.redoOverflow = 0;  // 手动应用视为用户已接管，清空跨天顺延
     store.planAutoDate = today;
     store.dailyPlanNote = (readForDailyPlan().hasData) ? '' : readForDailyPlan().note;
     saveStore();
