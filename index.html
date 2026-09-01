@@ -13158,8 +13158,17 @@ function startPlanTomato(planId){
   if(td && typeof startTodoFocus==='function') startTodoFocus(td.id);
   else if(typeof toast==='function') toast('未找到可用待办，无法启动番茄钟');
 }
-// 手动编辑计划项：弹出表单（文字/时间/题量/任务类型），保存时标 manualEdited=true
+// 编辑计划项：按任务类型分流（课程→选课程 / 专项→选题本 / 其他→改文字）
 function editPlanItem(planId){
+  const today = todayKey();
+  const p = (store.plans[today]||[]).find(function(x){ return x.id===planId; });
+  if(!p) return;
+  if(p.taskType === '课程推进' && p.courseId){ showCoursePicker(planId); return; }
+  if((p.taskType === '专项训练' || p.taskType === '专项刷题') && p.qbookId){ showQbookPicker(planId); return; }
+  showPlanTextEdit(planId);
+}
+// 文字编辑表单（兜底入口：弹窗底部的「改文字…」小按钮也会走这里）
+function showPlanTextEdit(planId){
   const today = todayKey();
   const p = (store.plans[today]||[]).find(function(x){ return x.id===planId; });
   if(!p) return;
@@ -13181,6 +13190,99 @@ function editPlanItem(planId){
     + '<button onclick="closePopup()" style="background:#f0f0f0;color:#666;padding:7px 16px;border-radius:10px;border:none;cursor:pointer;">取消</button>'
     + '<button onclick="savePlanEdit(\''+planId+'\')" style="background:var(--pink-btn);color:#fff;padding:7px 18px;border-radius:10px;border:none;cursor:pointer;font-weight:700;">保存</button>'
     + '</div>');
+}
+// 课程选择器：把课程推进类任务的源换成另一门进行中课程
+function showCoursePicker(planId){
+  const today = todayKey();
+  const p = (store.plans[today]||[]).find(function(x){ return x.id===planId; });
+  if(!p) return;
+  const all = (typeof getAllCourses==='function') ? getAllCourses() : [];
+  const courses = all.map(function(o){ return o.c; }).filter(function(c){ return (c.status||'') !== '已完成'; });
+  if(courses.length === 0){
+    openPopup('🎓 选择课程', '<div style="padding:14px 4px;color:var(--text-sub);font-size:13px;text-align:center;">暂无进行中课程。<br/>先去「目标拆解」添加一门课程再回来。</div>'
+      + '<div style="display:flex;justify-content:space-between;margin-top:14px;"><button onclick="showPlanTextEdit(\''+planId+'\')" style="background:#f0f0f0;color:#666;padding:6px 12px;border-radius:10px;border:none;cursor:pointer;font-size:12px;">✏️ 改文字</button><button onclick="closePopup()" style="background:#f0f0f0;color:#666;padding:7px 16px;border-radius:10px;border:none;cursor:pointer;">关闭</button></div>');
+    return;
+  }
+  const items = courses.map(function(c){
+    const checked = c.id === p.courseId;
+    return '<div onclick="pickCourseForPlan(\''+p.id+'\',\''+c.id+'\')" style="padding:11px 13px;background:var(--pink-softest);border:1.5px solid '+(checked?'var(--pink-btn)':'var(--border)')+';border-radius:12px;margin-bottom:7px;cursor:pointer;display:flex;align-items:center;gap:8px;">'
+      + '<span style="flex:1;color:var(--text-main);font-size:13px;font-weight:'+(checked?'700':'500')+';">'+escapeHtml(c.name||'未命名课程')+'</span>'
+      + '<span style="color:var(--text-sub);font-size:11px;background:#fff;padding:2px 8px;border-radius:8px;">'+escapeHtml(getCourseModName(c))+'</span>'
+      + '<span style="color:'+(checked?'var(--pink-btn)':'transparent')+';font-weight:700;font-size:14px;">'+(checked?'✓':'')+'</span>'
+      + '</div>';
+  }).join('');
+  openPopup('🎓 选择课程', '<div style="font-size:12px;color:var(--text-sub);margin-bottom:10px;">点击下方课程即可把本条计划的「网课推进」换成它</div>' + items
+    + '<div style="display:flex;justify-content:space-between;margin-top:14px;"><button onclick="showPlanTextEdit(\''+planId+'\')" style="background:#f0f0f0;color:#666;padding:6px 12px;border-radius:10px;border:none;cursor:pointer;font-size:12px;">✏️ 改文字…</button><button onclick="closePopup()" style="background:#f0f0f0;color:#666;padding:7px 16px;border-radius:10px;border:none;cursor:pointer;">取消</button></div>');
+}
+function pickCourseForPlan(planId, courseId){
+  const today = todayKey();
+  const p = (store.plans[today]||[]).find(function(x){ return x.id===planId; });
+  if(!p) return;
+  const all = (typeof getAllCourses==='function') ? getAllCourses() : [];
+  const found = all.find(function(o){ return o.c && o.c.id===courseId; });
+  const c = found && found.c ? found.c : null;
+  if(!c){ if(typeof toast==='function') toast('未找到课程'); return; }
+  // 09-12=第1节，14-17=第2节，其他保持「第1节」默认
+  const suffix = (p.start==='14:00') ? '（第2节）' : '（第1节）';
+  p.text = '网课推进：'+(c.name||'')+suffix;
+  p.module = getCourseModName(c);
+  p.courseId = c.id;
+  p.manualEdited = true;
+  if(p.todoId && store.todos){
+    const td = store.todos.find(function(x){ return x.id===p.todoId; });
+    if(td){ td.text=p.text; td.mod=p.module; td.done=p.done; td.finished=p.done?today:''; }
+  }
+  saveStore(); closePopup();
+  if(document.getElementById('page-plan').classList.contains('active')) renderPlan();
+  if(typeof renderHome==='function') renderHome();
+  if(typeof toast==='function') toast('✅ 已换课程：'+(c.name||''));
+}
+// 题本选择器：把专项训练/专项刷题类任务的源换成另一本题本（已刷完置灰）
+function showQbookPicker(planId){
+  const today = todayKey();
+  const p = (store.plans[today]||[]).find(function(x){ return x.id===planId; });
+  if(!p) return;
+  const books = store.questionBooks || [];
+  if(books.length === 0){
+    openPopup('📚 选择题本', '<div style="padding:14px 4px;color:var(--text-sub);font-size:13px;text-align:center;">暂无题本。<br/>先去「题本」模块添加一本再回来。</div>'
+      + '<div style="display:flex;justify-content:space-between;margin-top:14px;"><button onclick="showPlanTextEdit(\''+planId+'\')" style="background:#f0f0f0;color:#666;padding:6px 12px;border-radius:10px;border:none;cursor:pointer;font-size:12px;">✏️ 改文字</button><button onclick="closePopup()" style="background:#f0f0f0;color:#666;padding:7px 16px;border-radius:10px;border:none;cursor:pointer;">关闭</button></div>');
+    return;
+  }
+  const items = books.map(function(b){
+    const remain = (typeof qbookRemain==='function') ? qbookRemain(b) : 0;
+    const isDone = remain === 0;
+    const checked = b.id === p.qbookId;
+    return '<div onclick="'+(isDone?'return;':'')+'pickQbookForPlan(\''+p.id+'\',\''+b.id+'\')" style="padding:11px 13px;background:var(--pink-softest);border:1.5px solid '+(checked?'var(--pink-btn)':'var(--border)')+';border-radius:12px;margin-bottom:7px;cursor:'+(isDone?'not-allowed':'pointer')+';display:flex;align-items:center;gap:8px;opacity:'+(isDone?'.55':'1')+';">'
+      + '<span style="flex:1;color:var(--text-main);font-size:13px;font-weight:'+(checked?'700':'500')+';">'+escapeHtml(b.name||'未命名题本')+'</span>'
+      + '<span style="color:var(--text-sub);font-size:11px;background:#fff;padding:2px 8px;border-radius:8px;">'+escapeHtml((typeof qbookSubjectLabel==='function')?qbookSubjectLabel(b.subject):(b.subject||''))+'</span>'
+      + '<span style="color:'+(isDone?'#aaa':'var(--text-sub)')+';font-size:11px;background:#fff;padding:2px 8px;border-radius:8px;">'+(isDone?'已刷完':'剩 '+remain+' 道')+'</span>'
+      + '<span style="color:'+(checked?'var(--pink-btn)':'transparent')+';font-weight:700;font-size:14px;">'+(checked?'✓':'')+'</span>'
+      + '</div>';
+  }).join('');
+  openPopup('📚 选择题本', '<div style="font-size:12px;color:var(--text-sub);margin-bottom:10px;">点击下方题本即可把本条计划的「专项刷题」换成它（已刷完置灰）</div>' + items
+    + '<div style="display:flex;justify-content:space-between;margin-top:14px;"><button onclick="showPlanTextEdit(\''+planId+'\')" style="background:#f0f0f0;color:#666;padding:6px 12px;border-radius:10px;border:none;cursor:pointer;font-size:12px;">✏️ 改文字…</button><button onclick="closePopup()" style="background:#f0f0f0;color:#666;padding:7px 16px;border-radius:10px;border:none;cursor:pointer;">取消</button></div>');
+}
+function pickQbookForPlan(planId, bookId){
+  const today = todayKey();
+  const p = (store.plans[today]||[]).find(function(x){ return x.id===planId; });
+  if(!p) return;
+  const b = (typeof qbookById==='function') ? qbookById(bookId) : null;
+  if(!b){ if(typeof toast==='function') toast('未找到题本'); return; }
+  const remain = (typeof qbookRemain==='function') ? qbookRemain(b) : 0;
+  p.text = '《'+(b.name||'题本')+'》专项刷题（剩余 '+(remain||0)+' 道）';
+  p.module = (typeof qbookSubjectLabel==='function') ? qbookSubjectLabel(b.subject) : (b.subject||'');
+  p.qbookId = b.id;
+  p.count = remain;
+  p.taskType = remain>0 ? '专项刷题' : '专项训练';
+  p.manualEdited = true;
+  if(p.todoId && store.todos){
+    const td = store.todos.find(function(x){ return x.id===p.todoId; });
+    if(td){ td.text=p.text; td.mod=p.module; td.done=p.done; td.finished=p.done?today:''; }
+  }
+  saveStore(); closePopup();
+  if(document.getElementById('page-plan').classList.contains('active')) renderPlan();
+  if(typeof renderHome==='function') renderHome();
+  if(typeof toast==='function') toast('✅ 已换题本：'+(b.name||''));
 }
 function savePlanEdit(planId){
   const today = todayKey();
@@ -13799,7 +13901,7 @@ function renderPlan(){
   const qbookTodos = (store.todos||[]).filter(function(td){ return td.src==='qbook' && td.date===today; });
   const courseTodos = (store.todos||[]).filter(function(td){ return td.src==='course' && td.date===today && !(td.planId || planCourseIds[td.courseId]); });
   const allItems = [];
-  plans.forEach(function(p){ allItems.push({ type:'plan', id:p.id, text:p.text, meta:p.module+(p.count?' · '+p.count+'题':''), done:p.done, start:p.start, end:p.end, taskType:p.taskType, defer:p.defer, status:p.status }); });
+  plans.forEach(function(p){ allItems.push({ type:'plan', id:p.id, text:p.text, meta:p.module+(p.count?' · '+p.count+'题':''), done:p.done, start:p.start, end:p.end, taskType:p.taskType, defer:p.defer, status:p.status, courseId:p.courseId||'', qbookId:p.qbookId||'' }); });
   qbookTodos.forEach(function(td){ allItems.push({ type:'qbook', id:td.id, text:td.text, meta:'题本', done:td.done }); });
   courseTodos.forEach(function(td){ allItems.push({ type:'course', id:td.id, text:td.text, meta:'课程', done:td.done }); });
   const doneCount = allItems.filter(function(x){ return x.done; }).length;
@@ -13825,7 +13927,13 @@ function renderPlan(){
       const delFn = it.type==='plan' ? "deletePlan('"+it.id+"')" : "delTodo('"+it.id+"')";
       // 仅「错题重做」任务行显示跳转按钮：唤起今日待复习错题刷题弹窗（其余任务行不出现）
       const jumpBtn = (it.type==='plan' && it.taskType==='错题重做') ? '<button class="plan-jump" onclick="startTodayReviewDrill(\''+it.id+'\')">打开今日待复习错题</button>' : '';
-      const editBtn = (it.type==='plan') ? '<button class="plan-edit" onclick="editPlanItem(\''+it.id+'\')" title="编辑任务文字/时间/题量/类型">✏️编辑</button>' : '';
+      // 编辑按钮：课程类显示「🎓换课」，专项类显示「📚换题本」，其他显示「✏️编辑」
+      let editLabel = '✏️编辑', editTitle = '编辑任务文字/时间/题量/类型';
+      if(it.type==='plan'){
+        if(it.taskType==='课程推进' && it.courseId){ editLabel = '🎓换课'; editTitle = '更换成另一门进行中的课程'; }
+        else if((it.taskType==='专项训练'||it.taskType==='专项刷题') && it.qbookId){ editLabel = '📚换题本'; editTitle = '更换成另一本题本（自动同步剩余题量）'; }
+      }
+      const editBtn = (it.type==='plan') ? '<button class="plan-edit" onclick="editPlanItem(\''+it.id+'\')" title="'+editTitle+'">'+editLabel+'</button>' : '';
       const pomoBtn = (it.type==='plan') ? '<button class="plan-pomo" onclick="startPlanTomato(\''+it.id+'\')" title="启动番茄钟，计时绑定本任务">🍅番茄钟</button>' : '';
       return `
       <div class="plan-item ${it.done?'done':''}">
