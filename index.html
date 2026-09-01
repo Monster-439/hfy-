@@ -714,6 +714,8 @@ body[data-color-theme="sky"]{
 .plan-tag.ctag{background:#E8F1FB;color:#3E6FA3;border:1px solid #BBD4EE}
 .plan-tag.ttag{background:#EFE6FB;color:#7A4FC0;border:1px solid #D8C4F0}
 .plan-tag.dtag{background:#FFF0D6;color:#B98A2E;border:1px solid #F0DCA8}
+.plan-jump{margin-left:6px;font-size:11px;padding:4px 10px;border-radius:10px;background:linear-gradient(135deg,var(--pink-btn),#7BC99E);color:#fff;border:none;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;}
+.plan-jump:active{opacity:.82;}
 /* 智能生成学习计划弹窗 */
 .gen-weak-box{background:var(--pink-softest);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:14px;}
 .gen-weak-title{font-size:13px;font-weight:700;color:var(--text-main);margin-bottom:8px;}
@@ -1039,6 +1041,7 @@ body[data-color-theme="sky"]{
 .quiz-header .qh-title{font-size:16px;font-weight:700;flex:1;}
 .quiz-header .qh-close{font-size:22px;cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(255,255,255,0.2);}
 .quiz-header .qh-close:hover{background:rgba(255,255,255,0.35);}
+.quiz-header .qh-timer{font-size:13px;font-weight:700;padding:0 4px;white-space:nowrap;font-variant-numeric:tabular-nums;}
 .quiz-progress{padding:12px 24px 0;font-size:12px;color:var(--text-sub);display:flex;align-items:center;gap:10px;}
 .quiz-progress-bar{flex:1;height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden;}
 .quiz-progress-fill{height:100%;background:linear-gradient(90deg,var(--pink-btn),#7BC99E);border-radius:3px;transition:width .3s;}
@@ -2782,10 +2785,10 @@ body.drawer-open .nav-cloud{display:none;}
   <div class="topic-card home-single" onclick="startBankDrill()">
     <div class="topic-card-head">
       <span class="ic">📝</span>
-      <span class="nm">题库演练</span>
+      <span class="nm">错题重做</span>
       <span class="arrow">›</span>
     </div>
-    <div class="topic-card-desc">PDF 题库 · 手动录入的题目。先选板块再开练 👇</div>
+    <div class="topic-card-desc">错题&导入题库，选板块即可快速刷题 👇</div>
     <div class="home-bm-chips bm-chips" id="homeBankModChips">
       <button class="bm-chip active" data-m="__all" onclick="event.stopPropagation();pickBankMod('__all', this)">全部</button>
       <button class="bm-chip" data-m="常识判断" onclick="event.stopPropagation();pickBankMod('常识判断', this)">常识</button>
@@ -3620,8 +3623,8 @@ body.drawer-open .nav-cloud{display:none;}
 
   <!-- 题库演练（置顶） -->
   <div class="card">
-    <div class="card-title"><span class="dot"></span>📝 题库演练</div>
-    <p class="import-empty" style="margin-bottom:10px;">合并「PDF 题库」与「手动录入」的题目，按模块开练。</p>
+    <div class="card-title"><span class="dot"></span>📝 错题重做</div>
+    <p class="import-empty" style="margin-bottom:10px;">合并「PDF 题库」「手动录入」与你的错题本，选板块即可快速刷题复习 👇</p>
     <div class="bm-chips" id="bankModChips">
       <button class="bm-chip active" data-m="__all" onclick="pickBankMod('__all', this)">全部</button>
       <button class="bm-chip" data-m="常识判断" onclick="pickBankMod('常识判断', this)">常识判断</button>
@@ -3637,7 +3640,7 @@ body.drawer-open .nav-cloud{display:none;}
       <select id="bankKpFilter" class="manual-sel" onchange="pickBankKp(this.value)"><option value="">全部知识点</option></select>
       <button class="btn btn-ghost btn-sm" id="bankKpClear" style="display:none;" onclick="pickBankKp('')">清除</button>
     </div>
-    <button class="btn" id="bankDrillBtn" onclick="startBankDrill()">开始全部演练（0 题）</button>
+    <button class="btn" id="bankDrillBtn" onclick="startBankDrill()">开始全部刷题（0 题）</button>
   </div>
 
   <!-- 导入 PDF 题库 -->
@@ -4207,6 +4210,7 @@ body.drawer-open .nav-cloud{display:none;}
   <div class="quiz-modal">
     <div class="quiz-header">
       <span class="qh-title" id="quizTitle">专项练习</span>
+      <span class="qh-timer" id="quizTimer">⏱ 00:00</span>
       <span class="qh-close" onclick="closeQuiz()">✕</span>
     </div>
     <div class="quiz-progress" id="quizProgressArea">
@@ -11564,7 +11568,8 @@ const QUESTION_BANK = {
 // 做题状态
 let quizState = {
   questions:[], currentIdx:0, selected:-1, answered:false,
-  correctCount:0, module:'', type:'', userAnswers:[]
+  correctCount:0, module:'', type:'', userAnswers:[],
+  timerStart:0, timerInt:0, fromPlanTaskId:'', finishedAll:false
 };
 
 // 解析重组：识别 "选项分析A:" "选项分析B:" ... "选项分析X:" 结构化段，
@@ -11711,6 +11716,7 @@ function buildExplainStructHtml(q){
 }
 
 function renderQuestion(){
+  startQuizTimer(); // 打开刷题弹窗自动开始计时（renderQuestion 每题都会调用，内部有防重复 guard）
   const q = quizState.questions[quizState.currentIdx];
   const total = quizState.questions.length;
   if(total < 5){
@@ -11891,6 +11897,7 @@ function skipQuestion(){
 }
 
 function showQuizResult(){
+  quizState.finishedAll = true; // 标记本组已刷完（用于计划跳转任务的自动打勾判定）
   const total = quizState.questions.length;
   const graded = quizState.questions.filter(function(q){ return (typeof q.answer === 'number' && q.answer >= 0); }).length;
   const correct = quizState.correctCount;
@@ -12032,12 +12039,106 @@ function collectQbookErrors(b, chapName, wrong, correct, srcLabel){
 }
 
 function closeQuiz(){
+  // 结算刷题计时：无论是否完成都记时长（对接时长统计/学习报告）；仅「计划跳转 + 刷完全部」才自动打勾并奖励
+  const mins = stopQuizTimer();
+  recordQuizStudyTime(mins, quizState.module || quizState.type || '刷题', !!(quizState.finishedAll && quizState.fromPlanTaskId));
+  if(quizState.finishedAll && quizState.fromPlanTaskId){
+    autoCompletePlanTask(quizState.fromPlanTaskId);
+  }
+  quizState.finishedAll = false;
+  quizState.fromPlanTaskId = '';
   document.getElementById('quizOverlay').classList.remove('show');
   document.getElementById('quizProgressArea').style.display = '';
   document.getElementById('quizFooter').style.display = '';
   // 刷新当前页面数据
   const activePage = document.querySelector('.nav-item.active').dataset.page;
   onPageShow(activePage);
+}
+
+// ---- 刷题计时 + 计划跳转「错题重做」自动完成 / 激励 ----
+function startQuizTimer(){
+  if(quizState.timerStart) return; // 防重复启动（renderQuestion 每题都会调用一次）
+  quizState.timerStart = Date.now();
+  const el = document.getElementById('quizTimer');
+  if(el) el.textContent = '⏱ 00:00';
+  quizState.timerInt = setInterval(function(){
+    const ms = Date.now() - (quizState.timerStart||Date.now());
+    const s = Math.floor(ms/1000);
+    const mm = String(Math.floor(s/60)).padStart(2,'0');
+    const ss = String(s%60).padStart(2,'0');
+    if(el) el.textContent = '⏱ '+mm+':'+ss;
+  }, 1000);
+}
+function stopQuizTimer(){
+  if(quizState.timerInt){ clearInterval(quizState.timerInt); quizState.timerInt = 0; }
+  const start = quizState.timerStart || 0;
+  quizState.timerStart = 0;
+  if(!start) return 0;
+  return Math.max(0, (Date.now() - start)/60000); // 分钟（浮点）
+}
+// 今日计划「错题重做」跳转：只加载「未掌握 且 nextReview<=今日」的可作答错题
+function startTodayReviewDrill(planId){
+  const due = (store.errors||[]).filter(function(e){
+    return e && e.module && !e.mastered && e.nextReview && e.nextReview<=todayKey();
+  });
+  const dueIds = {}; due.forEach(function(e){ dueIds[e.id]=true; });
+  const all = bankAllQuestions();
+  let pool = all.filter(function(x){ return x._fromError && dueIds[x._fromError] && (typeof x.answer==='number' && x.answer>=0); });
+  if(pool.length === 0){ toast('今天还没有待复习的错题~ 先去刷刷题积累错题吧'); return; }
+  quizState.questions = shuffleQuizQuestions(pool);
+  quizState.currentIdx = 0; quizState.selected = -1; quizState.answered = false;
+  quizState.correctCount = 0; quizState.userAnswers = [];
+  quizState.fromImport = true;
+  quizState.fromPlanTaskId = planId || '';
+  quizState.finishedAll = false;
+  quizState.module = '';
+  quizState.type = '错题重做';
+  document.getElementById('quizTitle').textContent = '错题重做 · 今日待复习（' + pool.length + ' 题）';
+  document.getElementById('quizOverlay').classList.add('show');
+  startQuizTimer();
+  renderQuestion();
+}
+// 刷题时长落账：写入时长统计 / 打卡日历 / 专注记录；计划完成额外发阳光 + 水滴
+function recordQuizStudyTime(minutes, mod, planComplete){
+  minutes = Math.round(minutes||0);
+  if(minutes < 0) minutes = 0;
+  ensureGarden();
+  const t = todayKey();
+  if(!store.moduleTime) store.moduleTime = {};
+  if(!store.focusLog) store.focusLog = [];
+  if(!store.checkins) store.checkins = {};
+  const g = store.garden;
+  // 时长统计 / 打卡日历：无论是否完成都记（学习报告按 checkins/moduleTime 聚合）
+  store.checkins[t] = (store.checkins[t]||0) + minutes/60;
+  store.moduleTime[mod||'综合/其他'] = (store.moduleTime[mod||'综合/其他']||0) + minutes;
+  // 刷题时长 → 水滴（每 5 分钟 1 滴）
+  const drops = Math.floor(minutes/5);
+  if(drops>0){ g.drops += drops; g.dropLog[t] = (g.dropLog[t]||0) + drops; }
+  if(minutes>=1){
+    store.focusLog.push({
+      id:'q'+(Date.now())+Math.floor(Math.random()*1000),
+      date:t, ts:Date.now(), min:minutes,
+      mod: mod||'综合/其他',
+      task: (quizState.type||'刷题'),
+      mode:'quiz', todoId:''
+    });
+  }
+  if(planComplete){
+    // 计划任务自动完成奖励：阳光 +5，额外水滴 +3
+    g.sunlight = Math.min(100,(g.sunlight||0)+5);
+    g.drops += 3; g.dropLog[t] = (g.dropLog[t]||0) + 3;
+    if(typeof renderGarden==='function') renderGarden();
+    setTimeout(function(){ if(typeof toast==='function') toast('🌟 错题重做计划完成！阳光 +5，水滴 +'+(drops+3)); }, 300);
+  }
+  saveStore();
+}
+// 计划任务自动打勾（仅当从计划跳转且刷完全部）
+function autoCompletePlanTask(planId){
+  if(!planId) return;
+  const t = todayKey();
+  if(!store.plans[t]) return;
+  const p = store.plans[t].find(function(x){ return x.id===planId; });
+  if(p && !p.done){ p.done = true; }
 }
 
 // ====================================================
@@ -13578,12 +13679,15 @@ function renderPlan(){
       const tag = it.type==='qbook' ? '<span class="plan-tag qtag">📚题本</span>' : (it.type==='course' ? '<span class="plan-tag ctag">🎓课程</span>' : '');
       const checkFn = it.type==='plan' ? "togglePlan('"+it.id+"')" : "toggleTodayItem('"+it.type+"','"+it.id+"')";
       const delFn = it.type==='plan' ? "deletePlan('"+it.id+"')" : "delTodo('"+it.id+"')";
+      // 仅「错题重做」任务行显示跳转按钮：唤起今日待复习错题刷题弹窗（其余任务行不出现）
+      const jumpBtn = (it.type==='plan' && it.taskType==='错题重做') ? '<button class="plan-jump" onclick="startTodayReviewDrill(\''+it.id+'\')">打开今日待复习错题</button>' : '';
       return `
       <div class="plan-item ${it.done?'done':''}">
         <div class="plan-check ${it.done?'checked':''}" onclick="${checkFn}"></div>
         ${t}${ttag}${deferTag}${tag}
         <span class="plan-text">${escapeHtml(it.text)}</span>
         <span class="plan-meta">${it.meta||''}</span>
+        ${jumpBtn}
         <span class="plan-del" onclick="${delFn}">✕</span>
       </div>
       `;
@@ -18515,7 +18619,7 @@ function updateBankDrillBtn(){
   if(kp){ pool = pool.filter(function(x){ return x.kp === kp; }); }
   const n = pool.length;
   const a = document.getElementById('bankDrillBtn');
-  if(a) a.textContent = (mod === '__all' ? '开始全部演练' : ('开始「' + mod + '」演练')) + (kp ? (' · '+kp) : '') + '（' + n + ' 题）';
+  if(a) a.textContent = (mod === '__all' ? '开始全部刷题' : ('开始「' + mod + '」刷题')) + (kp ? (' · '+kp) : '') + '（' + n + ' 题）';
   const b = document.getElementById('homeBankTotal');
   if(b) b.textContent = all.length;
   const chips = document.getElementById('bankModChips');
