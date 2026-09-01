@@ -16359,7 +16359,7 @@ function startImportDrill(sec){
   quizState.selected = -1;
   quizState.answered = false;
   quizState.correctCount = 0;
-  quizState.fromImport = true;
+  quizState.fromImport = true; quizState.fromPlanTaskId = ''; quizState.finishedAll = false;
   const moduleName = TOPICS[sec] ? TOPICS[sec].name : (sec==='exam' ? '试卷分析' : (sec==='error' ? '错题记录' : sec));
   quizState.module = moduleName;
   quizState.type = '真题演练';
@@ -18688,7 +18688,7 @@ function startBankDrill(){
   quizState.selected = -1;
   quizState.answered = false;
   quizState.correctCount = 0;
-  quizState.fromImport = true;
+  quizState.fromImport = true; quizState.fromPlanTaskId = ''; quizState.finishedAll = false;
   quizState.module = (mod === '__all') ? '' : mod;   // 空串=全部（按每题模块分别归账）
   quizState.type = '题库演练';
   document.getElementById('quizTitle').textContent = '我的题库 · 题库演练' + (mod!=='__all' ? (' · ' + mod) : '') + (kpFilter ? (' · '+kpFilter) : '');
@@ -18705,7 +18705,7 @@ function startBankPdfDrill(){
   quizState.selected = -1;
   quizState.answered = false;
   quizState.correctCount = 0;
-  quizState.fromImport = true;
+  quizState.fromImport = true; quizState.fromPlanTaskId = ''; quizState.finishedAll = false;
   quizState.module = '';   // 按每题所属模块分别归账到错题/累计
   quizState.type = '题库演练';
   document.getElementById('quizTitle').textContent = '我的题库 · PDF 题库演练';
