@@ -1191,6 +1191,35 @@ body:not([data-color-theme="sakura"]) .overview-hero::before{display:none;}
 .manual-item .mi-opts li:last-child{border-bottom:none;}
 .manual-item .mi-opt-letter{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--pink-main);color:var(--pink-btn);font-weight:700;font-size:12px;}
 .manual-item .mi-opt-ans{background:#f0fff4;border-radius:6px;padding:5px 8px;}
+.ro-field{background:#f3f0f7 !important;color:#8a7fa6 !important;cursor:not-allowed;border:1px dashed #d9cfe6 !important;}
+.err-view-toggle{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-left:6px;}
+.err-view-toggle button{font-size:12px;border:none;background:#fff;color:var(--text-sub);padding:3px 10px;cursor:pointer;}
+.err-view-toggle button.active{background:#6b4fa8;color:#fff;}
+/* 错题只读详情弹窗样式见下方统一块（避免重复定义） */
+.err-table-wrap{overflow-x:auto;margin-top:8px;border:1px solid var(--border);border-radius:10px;}
+.err-table{border-collapse:collapse;width:100%;font-size:12px;min-width:780px;}
+.err-table th,.err-table td{border-bottom:1px solid #f0e9f5;padding:7px 9px;text-align:left;vertical-align:top;white-space:nowrap;}
+.err-table th{background:#faf7fd;color:#6b4fa8;font-weight:700;position:sticky;top:0;}
+.err-table tr:hover td{background:#fcfaff;}
+.err-table .err-t-num{text-align:center;font-variant-numeric:tabular-nums;font-family:ui-monospace,Menlo,Consolas,monospace;}
+.err-table .err-t-q{max-width:240px;white-space:normal;color:var(--text);}
+.err-table .err-t-acts{white-space:nowrap;}
+/* 只读自动字段 + 错题只读详情弹窗 */
+input.ro-field{background:#f4f1f7;color:#8a7aa0;border:1px dashed #d7c9ea !important;cursor:not-allowed;}
+input.ro-field:focus{outline:none;}
+.err-detail-mask{position:fixed;inset:0;background:rgba(60,40,80,0.42);display:none;align-items:center;justify-content:center;z-index:9999;padding:18px;}
+.err-detail-mask.show{display:flex;}
+.err-detail-modal{background:#fffdfe;border-radius:16px;max-width:560px;width:100%;max-height:86vh;overflow-y:auto;padding:20px 22px;box-shadow:0 18px 50px rgba(80,50,110,0.28);animation:errDetailPop .18s ease;}
+@keyframes errDetailPop{from{transform:translateY(12px) scale(.98);opacity:.4;}to{transform:translateY(0) scale(1);opacity:1;}}
+.err-detail-modal h3{margin:0 0 8px;font-size:17px;color:#5a3d8a;}
+.err-detail-ro-tip{display:inline-block;font-size:11px;color:#9a7bbf;background:#f1ebfa;border:1px dashed #cdbbea;border-radius:8px;padding:4px 10px;margin-bottom:10px;}
+.err-detail-sec{margin:12px 0;}
+.err-detail-sec .t{font-size:12px;font-weight:700;color:#7a5bd8;margin-bottom:5px;}
+.err-detail-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.err-detail-stat{background:#faf6ff;border:1px solid #ece2f7;border-radius:10px;padding:9px 11px;}
+.err-detail-stat .k{font-size:11px;color:#9a86b8;margin-bottom:3px;}
+.err-detail-stat .v{font-size:16px;font-weight:700;color:#5a3d8a;}
+.err-detail-acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
 .manual-item .mi-opt-ans .mi-opt-letter{background:#7BC99E;color:#fff;}
 .manual-item .mi-opt-tag{margin-left:6px;font-size:11px;color:#5a7;background:#eaf7ee;padding:1px 6px;border-radius:6px;flex-shrink:0;}
 .manual-item .mi-a{font-size:12px;color:var(--pink-btn);margin-bottom:8px;}
@@ -3501,10 +3530,10 @@ body.drawer-open .nav-cloud{display:none;}
           <option value="语音">语音</option>
         </select>
         <span class="err-meta-lb">错</span>
-        <input id="errorWrongCount" type="number" min="1" max="99" step="1" value="1" class="manual-sel err-cnt" title="错误次数">
+        <input id="errorWrongCount" type="number" min="1" max="99" step="1" value="1" class="manual-sel err-cnt ro-field" title="错误次数（由间隔复习自动统计，不可手改）" readonly>
         <span class="err-meta-lb">次</span>
         <span class="err-meta-lb">复习</span>
-        <input id="errorNextReview" type="date" class="manual-sel" title="下次复习日（自动同步到「记忆复习」）">
+        <input id="errorNextReview" type="date" class="manual-sel ro-field" title="下次复习日（由间隔复习自动更新，不可手改）" readonly>
         <label class="err-master-chk"><input type="checkbox" id="errorMastered" onchange="onErrorMasteredChange()"> 已掌握</label>
         <input id="errorMasteredDate" type="date" class="manual-sel" title="掌握日期（勾选已掌握自动填今天）" style="display:none">
       </div>
@@ -3571,11 +3600,19 @@ body.drawer-open .nav-cloud{display:none;}
           <option value="due">🔔 待复习</option>
           <option value="mastered">✅ 已掌握</option>
         </select>
+        <span class="err-view-toggle">
+          <button type="button" id="errViewCard" class="active" onclick="setErrorView('card')">🗂 卡片</button>
+          <button type="button" id="errViewTable" onclick="setErrorView('table')">▦ 表格</button>
+        </span>
       </span>
     </div>
     <div id="errorAllList"></div>
   </div>
 </div>
+
+  <div class="err-detail-mask" id="errDetailMask" onclick="if(event.target===this)closeErrDetail()">
+    <div class="err-detail-modal" id="errDetailModal"></div>
+  </div>
 
 <!-- ===== 我的题库 ===== -->
 <div class="page" id="page-bank">
@@ -15495,12 +15532,67 @@ function errMatchesStatus(e, st){
   return true;
 }
 
+// 表格视图：4 个自动统计字段以只读文本列呈现，仅用于批量观测 / 规则校验 / 问题排查，不可编辑
+function buildErrorTable(errors){
+  const tk = todayKey();
+  let h = '<div class="err-table-wrap"><table class="err-table"><thead><tr>'
+    + '<th>模块</th><th>来源</th><th>题干</th>'
+    + '<th class="err-t-num">❌ 错题次数</th>'
+    + '<th class="err-t-num">✅ 累计做对</th>'
+    + '<th class="err-t-num">🔄 复习轮次</th>'
+    + '<th>📆 下次复习</th>'
+    + '<th>状态</th><th>操作</th>'
+    + '</tr></thead><tbody>';
+  errors.forEach(function(e){
+    const q = ((e.question && e.question.trim()) ? e.question : (e.content||'')) || '';
+    const qShort = q.length>26 ? q.slice(0,26)+'…' : q;
+    const title = escapeHtml(q).replace(/"/g,'&quot;');
+    const due = !e.mastered && e.nextReview && e.nextReview<=tk;
+    const st = e.mastered ? '<span style="color:#2D7A4F">✅ 已掌握</span>'
+      : (due ? '<span style="color:#B7791F">🔔 待复习</span>' : '<span style="color:#8a7fa6">复习中</span>');
+    h += '<tr>'
+      + '<td>'+escapeHtml(e.module||'未分类')+'</td>'
+      + '<td>'+escapeHtml(e.srcLabel||e.book||'—')+'</td>'
+      + '<td class="err-t-q" title="'+title+'">'+escapeHtml(qShort||'(图片错题)')+'</td>'
+      + '<td class="err-t-num">'+(typeof e.wrongCount==='number'?e.wrongCount:'-')+'</td>'
+      + '<td class="err-t-num">'+(typeof e.correctCount==='number'?e.correctCount:'-')+'</td>'
+      + '<td class="err-t-num">第 '+(e.reviewRound||1)+' 轮</td>'
+      + '<td>'+(e.nextReview ? escapeHtml(e.nextReview) : '—')+'</td>'
+      + '<td>'+st+'</td>'
+      + '<td class="err-t-acts">'
+      +   '<button type="button" class="btn btn-sm" onclick="showErrorReadOnly(\''+e.id+'\')">👁 详情</button> '
+      +   '<button type="button" class="btn btn-sm" onclick="editError(\''+e.id+'\')">✏️ 编辑</button>'
+      + '</td>'
+      + '</tr>';
+  });
+  h += '</tbody></table></div>'
+    + '<div style="font-size:11px;color:#9a86b8;margin-top:6px;">⚙️ 错题次数 / 累计做对 / 复习轮次 / 下次复习 为自动化统计列，此处只读，不可修改</div>';
+  return h;
+}
+
+// 卡片 / 表格统一分派：视图模式存 store.errorViewMode 并持久化
+function renderErrListHtml(errors, emptyMsg){
+  if(!errors || !errors.length) return '<div class="empty-state"><span class="emoji">❌</span>'+(emptyMsg||'暂无错题')+'</div>';
+  if(store.errorViewMode==='table') return buildErrorTable(errors);
+  let h = '<ul class="manual-group-list">';
+  errors.forEach(function(e){ h += renderErrorItem(e); });
+  return h + '</ul>';
+}
+
+function setErrorView(m){
+  store.errorViewMode = (m==='table') ? 'table' : 'card';
+  try{ saveStore(); }catch(_){}
+  renderErrors();
+}
+
 function renderErrors(){
   const filter = document.getElementById('errorFilter').value;
   const status = (document.getElementById('errorStatusFilter')||{}).value || 'all';
   // 方案B：本子视图下选了具体模块，自动退出本子视图，转全局平铺该模块
   if(_errorsBookView && filter!=='all'){ _errorsBookView=''; }
   const list = document.getElementById('errorAllList');
+  const vm = (store.errorViewMode==='table') ? 'table' : 'card';
+  try{ document.getElementById('errViewCard').classList.toggle('active', vm==='card'); document.getElementById('errViewTable').classList.toggle('active', vm==='table'); }catch(_){}
 
   // 联动：重做错题（来自题本）— 独立分支，按 bookId 过滤
   if(_errorsBookFilter){
@@ -15512,8 +15604,7 @@ function renderErrors(){
     const bName = b ? (b.name||'该题本') : '该题本';
     let html = '<div class="eb-back"><button type="button" class="btn btn-sm" onclick="clearBookErrorsFilter()">← 返回书架</button>'
       + '<span class="eb-back-name">🔁 重做：'+escapeHtml(bName)+'</span><span class="eb-back-cnt">'+errors.length+' 道</span></div>';
-    if(errors.length===0) html += '<div class="empty-state"><span class="emoji">❌</span>暂无错题</div>';
-    else { html += '<ul class="manual-group-list">'; errors.forEach(function(e){ html += renderErrorItem(e); }); html += '</ul>'; }
+    html += renderErrListHtml(errors, '暂无错题');
     list.innerHTML = html; syncTopicErrors(); return;
   }
 
@@ -15526,13 +15617,7 @@ function renderErrors(){
     let html = '<div class="eb-back"><button type="button" class="btn btn-sm" onclick="closeBookView()">← 返回书架</button>'
       + (b? ' <span class="eb-back-name">'+escapeHtml(b.name)+'</span>' : '')
       + ' <span class="eb-back-cnt">'+errors.length+' 道</span></div>';
-    if(errors.length===0){
-      html += '<div class="empty-state"><span class="emoji">❌</span>这本子还没有错题</div>';
-    } else {
-      html += '<ul class="manual-group-list">';
-      errors.forEach(function(e){ html += renderErrorItem(e); });
-      html += '</ul>';
-    }
+    html += renderErrListHtml(errors, '这本子还没有错题');
     list.innerHTML = html; syncTopicErrors(); return;
   }
 
@@ -15543,13 +15628,7 @@ function renderErrors(){
     let html = '<div class="eb-back"><button type="button" class="btn btn-sm" onclick="document.getElementById(\'errorFilter\').value=\'all\';renderErrors()">← 返回书架</button>'
       + '<span class="eb-back-name">🌐 全部错题 · '+escapeHtml(filter)+'</span>'
       + '<span class="eb-back-cnt">'+errors.length+' 道</span></div>';
-    if(errors.length===0){
-      html += '<div class="empty-state"><span class="emoji">❌</span>暂无该模块错题</div>';
-    } else {
-      html += '<ul class="manual-group-list">';
-      errors.forEach(function(e){ html += renderErrorItem(e); });
-      html += '</ul>';
-    }
+    html += renderErrListHtml(errors, '暂无该模块错题');
     list.innerHTML = html; syncTopicErrors(); return;
   }
 
@@ -15721,7 +15800,7 @@ function renderErrorItem(e){
     +     '</summary>'
     +     '<div class="mi-detail">'
     +       '<div class="mi-acts-detail" style="margin:6px 0 8px;display:flex;gap:6px;justify-content:flex-end;">'
-    +         '<button type="button" class="btn btn-sm mi-act-view">👁 详情</button>'
+    +         '<button type="button" class="btn btn-sm mi-act-view" onclick="event.stopPropagation();event.preventDefault();showErrorReadOnly(\'' + e.id + '\')">👁 详情</button>'
     +         '<button type="button" class="btn btn-sm" onclick="event.stopPropagation();event.preventDefault();editError(\'' + e.id + '\')" title="修改此题的题干/选项/解析/图片" style="margin-left:4px">✏️ 编辑</button>'
     +         '<button type="button" class="btn btn-sm btn-danger" onclick="event.stopPropagation();event.preventDefault();if(confirm(\'确定删除此错题？\'))deleteError(\'' + e.id + '\')" style="margin-left:4px">✕</button>'
     +       '</div>'
@@ -15797,6 +15876,61 @@ function renderErrorItem(e){
   html += '</div></details></li>';
   return html;
 }
+
+// 只读详情弹窗：展示题干/选项/答案/解析/图片 + 4 个自动统计字段，无编辑入口（仅「去编辑」跳转）
+function showErrorReadOnly(id){
+  const e = (store.errors||[]).find(function(x){ return x.id===id; });
+  const box = document.getElementById('errDetailModal');
+  if(!e || !box){ return; }
+  const ansArr = (Array.isArray(e.answerArr) && e.answerArr.length) ? e.answerArr : (typeof e.answer==='number' && e.answer>=0 ? [e.answer] : []);
+  const hasFull = !!(e.options && e.options.some(function(s){ return !!s; }) && ansArr.length>0);
+  const qText = (e.question && e.question.trim()) ? e.question : (e.content || '');
+  const hasPhoto = Array.isArray(e.photos) && e.photos.length > 0;
+  let h = '<h3>'+escapeHtml(e.module||'未分类')+(e.mastered?' · ✅已掌握':'')+'</h3>';
+  h += '<span class="err-detail-ro-tip">⚙️ 自动统计字段 · 仅由刷题/复习自动化更新，不可在此修改</span>';
+  h += '<div class="err-detail-sec"><div class="t">📌 题干</div><div style="font-size:13px;line-height:1.7;white-space:pre-wrap;">'+escapeHtml(qText||'(图片错题)').replace(/\n/g,'<br>')+'</div></div>';
+  if(hasFull){
+    const letters=['A','B','C','D'];
+    h += '<div class="err-detail-sec"><div class="t">✅ 选项与答案</div><ol class="mi-opts" style="margin:4px 0;padding-left:18px;">';
+    (e.options||[]).forEach(function(opt,idx){ if(!opt) return; const isAns=ansArr.indexOf(idx)>=0; h+='<li style="'+(isAns?'color:#2D7A4F;font-weight:600;':'')+'">'+letters[idx]+'. '+escapeHtml(opt).replace(/\n/g,'<br>')+(isAns?' ✓':'')+'</li>'; });
+    h += '</ol></div>';
+  }
+  if(e.parts && e.parts.some(function(s){ return !!s; })){
+    const letters2=['A','B','C','D'];
+    h += '<div class="err-detail-sec"><div class="t">📋 各选项分析</div><div style="font-size:12px;line-height:1.7;color:var(--text-sub);">';
+    (e.parts||[]).forEach(function(p,idx){ if(!p) return; h+='<div style="padding:2px 0;"><b>'+(letters2[idx]||'')+'：</b>'+escapeHtml(p).replace(/\n/g,'<br>')+'</div>'; });
+    h += '</div></div>';
+  }
+  if(e.summary){ h += '<div class="err-detail-sec"><div class="t">📋 总论</div><div style="font-size:12px;line-height:1.7;color:var(--text-sub);white-space:pre-wrap;">'+escapeHtml(e.summary).replace(/\n/g,'<br>')+'</div></div>'; }
+  else if(!hasFull && !hasPhoto && e.explain){ h += '<div class="err-detail-sec"><div class="t">📋 解析</div><div style="font-size:12px;line-height:1.7;color:var(--text-sub);white-space:pre-wrap;">'+escapeHtml(e.explain).replace(/\n/g,'<br>')+'</div></div>'; }
+  if(hasPhoto){
+    h += '<div class="err-detail-sec"><div class="t">📷 错题原图（'+e.photos.length+' 张）</div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">';
+    h += e.photos.map(function(src){ return '<img src="'+src+'" onclick="window.open(\''+src+'\',\'_blank\')" style="max-width:160px;max-height:200px;border-radius:8px;border:1px solid #E5D6C8;cursor:zoom-in;object-fit:contain"/>'; }).join('');
+    h += '</div></div>';
+  }
+  h += '<div class="err-detail-sec"><div class="t">📊 复习统计（自动）</div><div class="err-detail-stats">'
+     +   '<div class="err-detail-stat"><div class="k">❌ 错题次数</div><div class="v">'+(typeof e.wrongCount==='number'?e.wrongCount:'-')+'</div></div>'
+     +   '<div class="err-detail-stat"><div class="k">✅ 累计做对次数</div><div class="v">'+(typeof e.correctCount==='number'?e.correctCount:'-')+'</div></div>'
+     +   '<div class="err-detail-stat"><div class="k">🔄 当前复习轮次</div><div class="v">第 '+(e.reviewRound||1)+' 轮</div></div>'
+     +   '<div class="err-detail-stat"><div class="k">📆 下次复习日期</div><div class="v">'+(e.nextReview||'未排')+'</div></div>'
+     + '</div></div>';
+  const meta = [];
+  if(e.qType) meta.push('🏷 '+e.qType);
+  if(e.level) meta.push('⚡ '+e.level);
+  if(e.wrongReason) meta.push('❗ '+e.wrongReason);
+  if(e.srcDetail) meta.push('📍 '+e.srcDetail);
+  if(e.kp) meta.push('🧠 '+e.kp);
+  if(e.masteredDate) meta.push('🎉 掌握于 '+e.masteredDate);
+  if(meta.length){ h += '<div class="err-detail-sec"><div class="t">🏷 标签</div><div style="display:flex;flex-wrap:wrap;gap:6px;">'+meta.map(function(t){ return '<span class="mi-tag">'+escapeHtml(t)+'</span>'; }).join('')+'</div></div>'; }
+  if(e.note){ h += '<div class="err-detail-sec"><div class="t">📝 我的反思</div><div style="font-size:12px;line-height:1.7;color:var(--text-sub);white-space:pre-wrap;">'+escapeHtml(e.note).replace(/\n/g,'<br>')+'</div></div>'; }
+  h += '<div class="err-detail-acts">'
+     +   '<button type="button" class="btn btn-sm" onclick="closeErrDetail()">关闭</button>'
+     +   '<button type="button" class="btn btn-sm" style="background:#6b4fa8;color:#fff;border:none;" onclick="closeErrDetail();editError(\''+e.id+'\')">✏️ 去编辑</button>'
+     + '</div>';
+  box.innerHTML = h;
+  document.getElementById('errDetailMask').classList.add('show');
+}
+function closeErrDetail(){ const m=document.getElementById('errDetailMask'); if(m) m.classList.remove('show'); }
 
 // ====================================================
 //  初始化
