@@ -777,6 +777,11 @@ body[data-color-theme="sky"]{
 .plan-time{flex:0 0 auto;font-size:11px;color:#E05A8A;background:#fde8e8;padding:2px 8px;border-radius:8px;white-space:nowrap;font-weight:700;}
 .plan-meta{font-size:11px;color:var(--text-sub);background:#fff;padding:2px 8px;border-radius:8px;}
 .plan-del{color:#e88;cursor:pointer;font-size:16px;flex-shrink:0;}
+.plan-edit,.plan-pomo{margin-left:6px;font-size:11px;padding:4px 9px;border-radius:10px;cursor:pointer;white-space:nowrap;flex-shrink:0;border:none;font-weight:700;line-height:1.4;}
+.plan-edit{background:#EDE3FB;color:#7A4FC0;}
+.plan-edit:active{opacity:.82;}
+.plan-pomo{background:#FFF0D6;color:#B98A2E;}
+.plan-pomo:active{opacity:.82;}
 /* 按模块统计：可编辑 + 可删除 */
 .ms-row{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--pink-main);border-radius:12px;margin-bottom:8px;border:2px solid transparent;transition:all .2s;}
 .ms-row:hover{border-color:var(--pink-highlight);}
@@ -7103,6 +7108,9 @@ function saveQuestionBook(id){
   } else {
     store.questionBooks.push({ id:'qb_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, subject:subject, total:total, done:done, correct:correct, time:time, deadline:deadline, notes:notes, chapters:chapters, todayPlanDate:'', createdAt:Date.now(), updatedAt:Date.now() });
   }
+  // 题本全部刷完 → 回写今日计划：对应「专项刷题」任务自动标记已完成
+  const _finishedBook = id ? qbookById(id) : (store.questionBooks[store.questionBooks.length-1]);
+  if(_finishedBook && (_finishedBook.total||0)>0 && (_finishedBook.done||0) >= (_finishedBook.total||0)) syncPlanFromQbook(_finishedBook.id);
   saveStore(); closeQbookPopup(); renderQuestionBooks();
 }
 function readQbookChaptersFromDom(){
@@ -7269,6 +7277,11 @@ function commitQuestionBookStats(tdId){
   b.updatedAt = Date.now();
   if(td) td.finished = todayKey();
   if(b.todayPlanDate===todayKey()) b._todayDone = true;
+  // 题本全部刷完 → 回写今日计划：对应「专项刷题」任务自动标记已完成
+  try{
+    const _agg = (typeof qbookAggregate==='function') ? qbookAggregate(b) : {total:b.total||0, done:b.done||0};
+    if((_agg.total||0)>0 && (_agg.done||0) >= (_agg.total||0)) syncPlanFromQbook(b.id);
+  }catch(e){}
   const wrong = Math.max(0, done - correct);
   if(wrong>0) collectQbookErrors(b, chapName, wrong, correct, '题本');
   if(done>0){
@@ -7336,6 +7349,8 @@ function commitQuestionBookProgress(id){
   // 顶层聚合
   const agg = qbookAggregate(b);
   b.total = agg.total; b.done = agg.done; b.correct = agg.correct; b.updatedAt = Date.now();
+  // 题本全部刷完 → 回写今日计划：对应「专项刷题」任务自动标记已完成
+  if((agg.total||0)>0 && (agg.done||0) >= (agg.total||0)) syncPlanFromQbook(b.id);
   const wrong = Math.max(0, addDone - addCorrect);
   if(wrong>0) collectQbookErrors(b, chapName, wrong, addCorrect, '题本');
   // 联动：题本记录写入当日做题档案（供学习日历叠加 📚 图标 + 周报统计）
@@ -7496,6 +7511,8 @@ function qbookPlusOne(id){
   const agg = qbookAggregate(b);
   b.total = agg.total; b.done = agg.done; b.correct = agg.correct;
   b.updatedAt = Date.now();
+  // 题本全部刷完 → 回写今日计划：对应专项刷题任务自动标记已完成
+  if((b.total||0)>0 && (b.done||0) >= (b.total||0)) syncPlanFromQbook(b.id);
   saveStore(); renderQuestionBooks();
   if(typeof toast==='function') toast('已 +1 题，进度 '+Math.round((b.done/(b.total||1))*100)+'%');
 }
@@ -13008,6 +13025,8 @@ function addGenRow(rowObj){
   row.dataset.mod = rowObj.module || '';
   row.dataset.start = rowObj.start || '';
   row.dataset.end = rowObj.end || '';
+  row.dataset.qbookId = rowObj.qbookId || '';        // 题本联动透传
+  row.dataset.taskType = rowObj.taskType || planTypeLabel(rowObj.type) || '综合/其他';  // 任务类型透传（保留「专项刷题」等）
   const opts = PLAN_MODULE_OPTS.map(function(o){
     return '<option value="'+o+'"'+(o===rowObj.module?' selected':'')+'>'+o+'</option>';
   }).join('');
@@ -13041,7 +13060,9 @@ function addThisGenRow(btnEl){
     if(typeof toast==='function') toast('已加入过类似计划（未重复添加）');
     return;
   }
-  const p = {id:'p'+Date.now()+Math.floor(Math.random()*1000), text:text, module:mod, count:count, start:start, end:end, done:false, status:'未开始', taskType:planTypeLabel(row.dataset.type), defer:false, gen:true};
+  const taskType = row.dataset.taskType || planTypeLabel(row.dataset.type);
+  const p = {id:'p'+Date.now()+Math.floor(Math.random()*1000), text:text, module:mod, count:count, start:start, end:end, done:false, status:'未开始', taskType:taskType, defer:false, gen:true};
+  if(row.dataset.qbookId) p.qbookId = row.dataset.qbookId;  // 题本联动透传
   store.plans[today].push(p);
   ensurePlanTodo(p, today);
   saveStore();
@@ -13067,6 +13088,120 @@ function shiftDateKey(key, delta){
 }
 function genDailyPlanItem(text, module, start, end, taskType, count){
   return { id:'p'+Date.now()+'_'+Math.floor(Math.random()*1000), text:text, module:module||'综合/其他', count:count||0, start:start, end:end, done:false, status:'未开始', taskType:taskType, defer:false, gen:true };
+}
+// ===== 三大新增功能辅助函数（手动编辑 / 题本联动 / 番茄钟绑定） =====
+// 模块中文名 → TOPICS key（用于把计划 module 反查回 subject 匹配题本）
+function topicKeyByModuleName(name){
+  if(!name) return '';
+  for(const k in TOPICS){ if(TOPICS[k].name===name) return k; }
+  return '';
+}
+// 单个题本剩余待刷题量（章节优先，否则用顶层 total-done）
+function qbookRemain(b){
+  if(!b) return 0;
+  if(Array.isArray(b.chapters) && b.chapters.length){
+    return b.chapters.reduce(function(s,c){ return s + Math.max(0,(c.total||0)-(c.done||0)); },0);
+  }
+  return Math.max(0,(b.total||0)-(b.done||0));
+}
+// 按 subject（TOPICS key）聚合：返回 {remain, book}（选剩余量最大且>0 的题本）
+function qbookRemainingByModule(subject){
+  let remain=0, book=null;
+  (store.questionBooks||[]).forEach(function(b){
+    if(b.subject!==subject) return;
+    const r = qbookRemain(b);
+    if(r>0 && (!book || r>remain)){ remain=r; book=b; }
+  });
+  return {remain:remain, book:book};
+}
+// 把题本剩余量注入「专项」类计划条目：注入成功返回 true（题本剩余>0）
+function linkPlanToQbook(it, moduleName){
+  const subj = topicKeyByModuleName(moduleName);
+  if(!subj) return false;
+  const info = qbookRemainingByModule(subj);
+  if(!info.book || info.remain<=0) return false;
+  it.qbookId = info.book.id;
+  it.count = info.remain;
+  it.taskType = '专项刷题';
+  it.text = '《'+(info.book.name||'题本')+'》专项刷题（剩余 '+info.remain+' 道）';
+  return true;
+}
+// 题本刷完回写今日计划：对应专项任务自动标记已完成
+function syncPlanFromQbook(bookId){
+  if(!bookId) return;
+  const today = todayKey();
+  const plans = store.plans[today]||[];
+  let changed=false;
+  plans.forEach(function(p){
+    if(p.qbookId===bookId && !p.done){ p.done=true; p.status='已完成'; changed=true; }
+  });
+  // 兼容：通过关联待办的 planId 一并标记（覆盖 link 字段缺失的场景）
+  if(store.todos){
+    store.todos.forEach(function(td){
+      if(td.src==='plan' && td.planId){
+        const pp = plans.find(function(x){ return x.id===td.planId; });
+        if(pp && pp.qbookId===bookId && !pp.done){ pp.done=true; pp.status='已完成'; changed=true; }
+      }
+    });
+  }
+  if(changed){
+    try{ saveStore(); }catch(e){}
+    if(document.getElementById('page-plan').classList.contains('active')) renderPlan();
+  }
+}
+// 计划项启动番茄钟：确保已同步待办后唤起番茄钟并绑定计时
+function startPlanTomato(planId){
+  const today = todayKey();
+  const p = (store.plans[today]||[]).find(function(x){ return x.id===planId; });
+  if(!p){ if(typeof toast==='function') toast('未找到该计划项'); return; }
+  const td = ensurePlanTodo(p, today);
+  if(td && typeof startTodoFocus==='function') startTodoFocus(td.id);
+  else if(typeof toast==='function') toast('未找到可用待办，无法启动番茄钟');
+}
+// 手动编辑计划项：弹出表单（文字/时间/题量/任务类型），保存时标 manualEdited=true
+function editPlanItem(planId){
+  const today = todayKey();
+  const p = (store.plans[today]||[]).find(function(x){ return x.id===planId; });
+  if(!p) return;
+  const types = ['专项训练','专项刷题','课程推进','错题重做','复盘总结','综合/其他'];
+  const typeOpts = types.map(function(t){ return '<option value="'+t+'"'+(p.taskType===t?' selected':'')+'>'+t+'</option>'; }).join('');
+  const html = '<div style="display:flex;flex-direction:column;gap:10px;margin-top:6px;text-align:left">'
+    + '<label style="font-size:12px;color:#888;">任务内容<input type="text" id="editPlanText" value="'+String(p.text||'').replace(/"/g,'&quot;')+'" style="margin-top:4px;width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;box-sizing:border-box;color:var(--text-main);background:#fff;"></label>'
+    + '<div style="display:flex;gap:8px;">'
+    + '<label style="flex:1;font-size:12px;color:#888;">开始<input type="time" id="editPlanStart" value="'+(p.start||'')+'" style="margin-top:4px;width:100%;padding:7px 8px;border:1px solid var(--border);border-radius:8px;font-size:12px;box-sizing:border-box;color:var(--text-main);background:#fff;color-scheme:light;"></label>'
+    + '<label style="flex:1;font-size:12px;color:#888;">结束<input type="time" id="editPlanEnd" value="'+(p.end||'')+'" style="margin-top:4px;width:100%;padding:7px 8px;border:1px solid var(--border);border-radius:8px;font-size:12px;box-sizing:border-box;color:var(--text-main);background:#fff;color-scheme:light;"></label>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;">'
+    + '<label style="flex:1;font-size:12px;color:#888;">题量<input type="number" id="editPlanCount" min="0" value="'+(p.count||0)+'" style="margin-top:4px;width:100%;padding:7px 8px;border:1px solid var(--border);border-radius:8px;font-size:13px;box-sizing:border-box;color:var(--text-main);background:#fff;"></label>'
+    + '<label style="flex:1;font-size:12px;color:#888;">任务类型<select id="editPlanType" style="margin-top:4px;width:100%;padding:7px 6px;border:1px solid var(--border);border-radius:8px;font-size:13px;box-sizing:border-box;color:var(--text-main);background:#fff;">'+typeOpts+'</select></label>'
+    + '</div>'
+    + '<div style="font-size:11px;color:#a08bb8;">提示：保存后该条会标记为「手动修改」，下次自动生成不会覆盖它。</div>'
+    + '</div>';
+  openPopup('✏️ 编辑计划项', html + '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">'
+    + '<button onclick="closePopup()" style="background:#f0f0f0;color:#666;padding:7px 16px;border-radius:10px;border:none;cursor:pointer;">取消</button>'
+    + '<button onclick="savePlanEdit(\''+planId+'\')" style="background:var(--pink-btn);color:#fff;padding:7px 18px;border-radius:10px;border:none;cursor:pointer;font-weight:700;">保存</button>'
+    + '</div>');
+}
+function savePlanEdit(planId){
+  const today = todayKey();
+  const p = (store.plans[today]||[]).find(function(x){ return x.id===planId; });
+  if(!p) return;
+  const text = (document.getElementById('editPlanText').value||'').trim();
+  if(!text){ if(typeof toast==='function') toast('任务内容不能为空'); return; }
+  p.text = text;
+  p.start = document.getElementById('editPlanStart').value || '';
+  p.end = document.getElementById('editPlanEnd').value || '';
+  p.count = parseInt(document.getElementById('editPlanCount').value,10)||0;
+  p.taskType = document.getElementById('editPlanType').value || p.taskType;
+  p.manualEdited = true;
+  if(p.todoId && store.todos){
+    const td = store.todos.find(function(x){ return x.id===p.todoId; });
+    if(td){ td.text=p.text; td.mod=p.module; td.done=p.done; td.finished=p.done?today:''; }
+  }
+  saveStore(); closePopup();
+  if(document.getElementById('page-plan').classList.contains('active')) renderPlan();
+  if(typeof renderHome==='function') renderHome();
+  if(typeof toast==='function') toast('✅ 已保存修改');
 }
 // manual=true 表示手动点击按钮触发（会弹 toast 提示）
 // ===== 合并后的「每日计划」生成（原「一键生成」与「每日计划自动生成」二合一） =====
@@ -13110,11 +13245,11 @@ function buildTodayPlanSlots(data, today){
   // 19–20 上午课程配套练习
   const m1 = c1 ? getCourseModName(c1) : '综合/其他';
   it = genDailyPlanItem('上午课程配套练习（15–20道）', m1, '19:00', '20:00', '专项训练', 15);
-  it.slotKey = 'drillM'; items.push(it);
+  it.slotKey = 'drillM'; items.push(it); linkPlanToQbook(it, m1);  // 题本联动：有剩余则注入「专项刷题」
   // 20–21 下午课程配套练习
   const m2 = c2 ? getCourseModName(c2) : '综合/其他';
   it = genDailyPlanItem('下午课程配套练习（15–20道）', m2, '20:00', '21:00', '专项训练', 15);
-  it.slotKey = 'drillA'; items.push(it);
+  it.slotKey = 'drillA'; items.push(it); linkPlanToQbook(it, m2);  // 题本联动：有剩余则注入「专项刷题」
   // 21–22 薄弱专项训练（联动3：优先薄弱项表「高优先级」Top1 知识点）
   const kpTop = data.weakKpTop;
   if(kpTop && kpTop.kp){
@@ -13124,7 +13259,7 @@ function buildTodayPlanSlots(data, today){
   } else {
     it = genDailyPlanItem('薄弱专项：按模块套题1组（15道）', '综合/其他', '21:00', '22:00', '专项训练', 15);
   }
-  it.slotKey = 'weak'; items.push(it);
+  it.slotKey = 'weak'; items.push(it); linkPlanToQbook(it, (kpTop&&kpTop.module)||(topWeak&&topWeak.module)||'综合/其他');  // 题本联动：薄弱模块对应题本有剩余则注入
   // 22–22:30 复盘+错题整理+闪卡
   it = genDailyPlanItem('复盘+错题整理+闪卡：录入当天错题/填错因/复习10张闪卡/写3句复盘', '复盘', '22:00', '22:30', '复盘总结', 1);
   it.slotKey = 'review'; items.push(it);
@@ -13271,9 +13406,9 @@ function regenTodayPlan(){
   const slots = buildTodayPlanSlots(data, today, store.redoOverflow||0);
   mergeDefersIntoSlots(slots, deferList);
   // 7 固定时段（带 intensity/type 以便 🔁 换一条）
-  const typeMap = {'错题重做':'review','课程推进':'course','专项训练':'drill','复盘总结':'review'};
+  const typeMap = {'错题重做':'review','课程推进':'course','专项训练':'drill','复盘总结':'review','专项刷题':'drill'};
   slots.forEach(function(d){
-    addGenRow({text:d.text, module:d.module, count:d.count, start:d.start, end:d.end, intensity:'med', type:(typeMap[d.taskType]||'drill')});
+    addGenRow({text:d.text, module:d.module, count:d.count, start:d.start, end:d.end, intensity:'med', type:(typeMap[d.taskType]||'drill'), taskType:d.taskType, qbookId:d.qbookId});
   });
   store.dailyPlanNote = data.hasData ? '' : data.note;
   document.getElementById('genPlanModal').classList.add('show');
@@ -13285,7 +13420,9 @@ function applyDailyPlan(){
   const rows = Array.prototype.slice.call(document.querySelectorAll('#genDailyRows .gen-row'));
   if(rows.length===0){ toast('还没有可应用的计划'); return; }
   const doWrite = function(){
-    store.plans[today] = []; // 先清空当天，重新生成（不叠加）
+    // 保留手动改过的条目（不覆盖），其余用弹窗行覆盖（kept + fresh 合并）
+    const kept = (store.plans[today]||[]).filter(function(x){ return x.manualEdited === true; });
+    const fresh = [];
     rows.forEach(function(row){
       const text = row.querySelector('.gen-text').value.trim();
       if(!text) return;
@@ -13293,10 +13430,13 @@ function applyDailyPlan(){
       const end = row.querySelector('.gen-end').value || '';
       const mod = row.querySelector('.gen-mod').value;
       const count = parseInt(row.querySelector('.gen-count').value,10) || 0;
-      const p = genDailyPlanItem(text, mod, start, end, planTypeLabel(row.dataset.type), count);
+      const taskType = row.dataset.taskType || planTypeLabel(row.dataset.type);
+      const p = genDailyPlanItem(text, mod, start, end, taskType, count);
       if(row.dataset.type==='defer') p.defer = true;
-      store.plans[today].push(p);
+      if(row.dataset.qbookId) p.qbookId = row.dataset.qbookId;  // 题本联动透传
+      fresh.push(p);
     });
+    store.plans[today] = kept.concat(fresh);
     store.plans[today].forEach(function(p){ if(!p.todoId) ensurePlanTodo(p, today); });
     if(store.todos){ store.todos = store.todos.filter(function(td){ return !(td.src==='daily' && td.date===today); }); }
     store.redoOverflow = 0;  // 手动应用视为用户已接管，清空跨天顺延
@@ -13650,6 +13790,10 @@ function renderPlan(){
     if(sa===sb) return (a.defer?-1:0) - (b.defer?-1:0);
     return sa.localeCompare(sb);
   });
+  // 同步：每条计划都生成一条番茄钟「今日待办」（兼容旧数据，缺 todoId 的补建）
+  let _needTodoSync = false;
+  plans.forEach(function(p){ if(!p.todoId){ ensurePlanTodo(p, today); _needTodoSync = true; } });
+  if(_needTodoSync){ try{ saveStore(); }catch(e){} }
   const planCourseIds = {};
   plans.forEach(function(p){ if(p.courseId) planCourseIds[p.courseId] = true; });
   const qbookTodos = (store.todos||[]).filter(function(td){ return td.src==='qbook' && td.date===today; });
@@ -13681,13 +13825,15 @@ function renderPlan(){
       const delFn = it.type==='plan' ? "deletePlan('"+it.id+"')" : "delTodo('"+it.id+"')";
       // 仅「错题重做」任务行显示跳转按钮：唤起今日待复习错题刷题弹窗（其余任务行不出现）
       const jumpBtn = (it.type==='plan' && it.taskType==='错题重做') ? '<button class="plan-jump" onclick="startTodayReviewDrill(\''+it.id+'\')">打开今日待复习错题</button>' : '';
+      const editBtn = (it.type==='plan') ? '<button class="plan-edit" onclick="editPlanItem(\''+it.id+'\')" title="编辑任务文字/时间/题量/类型">✏️编辑</button>' : '';
+      const pomoBtn = (it.type==='plan') ? '<button class="plan-pomo" onclick="startPlanTomato(\''+it.id+'\')" title="启动番茄钟，计时绑定本任务">🍅番茄钟</button>' : '';
       return `
       <div class="plan-item ${it.done?'done':''}">
         <div class="plan-check ${it.done?'checked':''}" onclick="${checkFn}"></div>
         ${t}${ttag}${deferTag}${tag}
         <span class="plan-text">${escapeHtml(it.text)}</span>
         <span class="plan-meta">${it.meta||''}</span>
-        ${jumpBtn}
+        ${jumpBtn}${editBtn}${pomoBtn}
         <span class="plan-del" onclick="${delFn}">✕</span>
       </div>
       `;
