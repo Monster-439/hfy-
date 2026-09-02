@@ -13026,6 +13026,7 @@ function addGenRow(rowObj){
   row.dataset.start = rowObj.start || '';
   row.dataset.end = rowObj.end || '';
   row.dataset.qbookId = rowObj.qbookId || '';        // 题本联动透传
+  row.dataset.courseId = rowObj.courseId || '';      // 课程联动透传
   row.dataset.taskType = rowObj.taskType || planTypeLabel(rowObj.type) || '综合/其他';  // 任务类型透传（保留「专项刷题」等）
   const opts = PLAN_MODULE_OPTS.map(function(o){
     return '<option value="'+o+'"'+(o===rowObj.module?' selected':'')+'>'+o+'</option>';
@@ -13063,6 +13064,7 @@ function addThisGenRow(btnEl){
   const taskType = row.dataset.taskType || planTypeLabel(row.dataset.type);
   const p = {id:'p'+Date.now()+Math.floor(Math.random()*1000), text:text, module:mod, count:count, start:start, end:end, done:false, status:'未开始', taskType:taskType, defer:false, gen:true};
   if(row.dataset.qbookId) p.qbookId = row.dataset.qbookId;  // 题本联动透传
+  if(row.dataset.courseId) p.courseId = row.dataset.courseId;  // 课程联动透传
   store.plans[today].push(p);
   ensurePlanTodo(p, today);
   saveStore();
@@ -13163,8 +13165,9 @@ function editPlanItem(planId){
   const today = todayKey();
   const p = (store.plans[today]||[]).find(function(x){ return x.id===planId; });
   if(!p) return;
-  if(p.taskType === '课程推进' && p.courseId){ showCoursePicker(planId); return; }
-  if((p.taskType === '专项训练' || p.taskType === '专项刷题') && p.qbookId){ showQbookPicker(planId); return; }
+  // 只看任务类型分流（不能要求 courseId/qbookId：自动生成与存量旧数据可能没带这两个字段）
+  if(p.taskType === '课程推进'){ showCoursePicker(planId); return; }
+  if(p.taskType === '专项训练' || p.taskType === '专项刷题'){ showQbookPicker(planId); return; }
   showPlanTextEdit(planId);
 }
 // 文字编辑表单（兜底入口：弹窗底部的「改文字…」小按钮也会走这里）
@@ -13339,10 +13342,12 @@ function buildTodayPlanSlots(data, today){
   // 09–12 网课第1节（新课占位，有顺延时会被「含顺延」替换）
   if(c1) it = genDailyPlanItem('网课推进：'+c1.name+'（第1节）', getCourseModName(c1), '09:00', '12:00', '课程推进', 1);
   else it = genDailyPlanItem('网课推进：暂无进行中课程，改为薄弱模块自由复习', '综合/其他', '09:00', '12:00', '课程推进', 0);
+  if(c1) it.courseId = c1.id;  // 课程联动：记录来源课程，供「🎓换课」选择器定位当前选中
   it.slotKey = 'courseM'; items.push(it);
   // 14–17 网课第2节
   if(c2) it = genDailyPlanItem('网课推进：'+c2.name+'（第2节）', getCourseModName(c2), '14:00', '17:00', '课程推进', 1);
   else it = genDailyPlanItem('网课推进：第2门进行中课程缺失，安排专项刷题', '综合/其他', '14:00', '17:00', '课程推进', 0);
+  if(c2) it.courseId = c2.id;  // 同上
   it.slotKey = 'courseA'; items.push(it);
   // 19–20 上午课程配套练习
   const m1 = c1 ? getCourseModName(c1) : '综合/其他';
@@ -13510,7 +13515,7 @@ function regenTodayPlan(){
   // 7 固定时段（带 intensity/type 以便 🔁 换一条）
   const typeMap = {'错题重做':'review','课程推进':'course','专项训练':'drill','复盘总结':'review','专项刷题':'drill'};
   slots.forEach(function(d){
-    addGenRow({text:d.text, module:d.module, count:d.count, start:d.start, end:d.end, intensity:'med', type:(typeMap[d.taskType]||'drill'), taskType:d.taskType, qbookId:d.qbookId});
+    addGenRow({text:d.text, module:d.module, count:d.count, start:d.start, end:d.end, intensity:'med', type:(typeMap[d.taskType]||'drill'), taskType:d.taskType, qbookId:d.qbookId, courseId:d.courseId});
   });
   store.dailyPlanNote = data.hasData ? '' : data.note;
   document.getElementById('genPlanModal').classList.add('show');
@@ -13536,6 +13541,7 @@ function applyDailyPlan(){
       const p = genDailyPlanItem(text, mod, start, end, taskType, count);
       if(row.dataset.type==='defer') p.defer = true;
       if(row.dataset.qbookId) p.qbookId = row.dataset.qbookId;  // 题本联动透传
+  if(row.dataset.courseId) p.courseId = row.dataset.courseId;  // 课程联动透传
       fresh.push(p);
     });
     store.plans[today] = kept.concat(fresh);
@@ -13928,10 +13934,11 @@ function renderPlan(){
       // 仅「错题重做」任务行显示跳转按钮：唤起今日待复习错题刷题弹窗（其余任务行不出现）
       const jumpBtn = (it.type==='plan' && it.taskType==='错题重做') ? '<button class="plan-jump" onclick="startTodayReviewDrill(\''+it.id+'\')">打开今日待复习错题</button>' : '';
       // 编辑按钮：课程类显示「🎓换课」，专项类显示「📚换题本」，其他显示「✏️编辑」
+      // 只按 taskType 判断（courseId/qbookId 在旧数据/自动生成里可能缺失，不能作为条件）
       let editLabel = '✏️编辑', editTitle = '编辑任务文字/时间/题量/类型';
       if(it.type==='plan'){
-        if(it.taskType==='课程推进' && it.courseId){ editLabel = '🎓换课'; editTitle = '更换成另一门进行中的课程'; }
-        else if((it.taskType==='专项训练'||it.taskType==='专项刷题') && it.qbookId){ editLabel = '📚换题本'; editTitle = '更换成另一本题本（自动同步剩余题量）'; }
+        if(it.taskType==='课程推进'){ editLabel = '🎓换课'; editTitle = '更换成另一门进行中的课程'; }
+        else if(it.taskType==='专项训练'||it.taskType==='专项刷题'){ editLabel = '📚换题本'; editTitle = '更换成另一本题本（自动同步剩余题量）'; }
       }
       const editBtn = (it.type==='plan') ? '<button class="plan-edit" onclick="editPlanItem(\''+it.id+'\')" title="'+editTitle+'">'+editLabel+'</button>' : '';
       const pomoBtn = (it.type==='plan') ? '<button class="plan-pomo" onclick="startPlanTomato(\''+it.id+'\')" title="启动番茄钟，计时绑定本任务">🍅番茄钟</button>' : '';
