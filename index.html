@@ -13091,6 +13091,13 @@ function shiftDateKey(key, delta){
 function genDailyPlanItem(text, module, start, end, taskType, count){
   return { id:'p'+Date.now()+'_'+Math.floor(Math.random()*1000), text:text, module:module||'综合/其他', count:count||0, start:start, end:end, done:false, status:'未开始', taskType:taskType, defer:false, gen:true };
 }
+// 课程的「下一节」序号：已学 N 节 → 下一次是 N+1；若 N 已达 total 则不再递增
+function nextLessonNumber(c){
+  if(!c) return 1;
+  const done = c.done||0, total = c.total||0;
+  if(total > 0) return Math.min(done + 1, total);
+  return done + 1;
+}
 // ===== 三大新增功能辅助函数（手动编辑 / 题本联动 / 番茄钟绑定） =====
 // 模块中文名 → TOPICS key（用于把计划 module 反查回 subject 匹配题本）
 function topicKeyByModuleName(name){
@@ -13225,9 +13232,9 @@ function pickCourseForPlan(planId, courseId){
   const found = all.find(function(o){ return o.c && o.c.id===courseId; });
   const c = found && found.c ? found.c : null;
   if(!c){ if(typeof toast==='function') toast('未找到课程'); return; }
-  // 09-12=第1节，14-17=第2节，其他保持「第1节」默认
-  const suffix = (p.start==='14:00') ? '（第2节）' : '（第1节）';
-  p.text = '网课推进：'+(c.name||'')+suffix;
+  // 节数=课程真实下一节序号（按 done/total 算），不写死「第1节/第2节」
+  const lessonN = (typeof nextLessonNumber==='function') ? nextLessonNumber(c) : 1;
+  p.text = '网课推进：'+(c.name||'')+'（第'+lessonN+'节）';
   p.module = getCourseModName(c);
   p.courseId = c.id;
   p.manualEdited = true;
@@ -13339,13 +13346,13 @@ function buildTodayPlanSlots(data, today){
   it = genDailyPlanItem('错题重做：待复习 '+redoNew+' 道'+redoNote, '错题', '08:00', '09:00', '错题重做', Math.max(3, redoTotal));
   it.slotKey = 'redo'; items.push(it);
   items._redoOverflow = overNew; items._carry = carry;  // 供写入端持久化顺延题量
-  // 09–12 网课第1节（新课占位，有顺延时会被「含顺延」替换）
-  if(c1) it = genDailyPlanItem('网课推进：'+c1.name+'（第1节）', getCourseModName(c1), '09:00', '12:00', '课程推进', 1);
+  // 09–12 网课第1节（节数=下一节序号，按课程真实进度算：已学 8 节 → 显示「第9节」）
+  if(c1) it = genDailyPlanItem('网课推进：'+c1.name+'（第'+nextLessonNumber(c1)+'节）', getCourseModName(c1), '09:00', '12:00', '课程推进', 1);
   else it = genDailyPlanItem('网课推进：暂无进行中课程，改为薄弱模块自由复习', '综合/其他', '09:00', '12:00', '课程推进', 0);
   if(c1) it.courseId = c1.id;  // 课程联动：记录来源课程，供「🎓换课」选择器定位当前选中
   it.slotKey = 'courseM'; items.push(it);
-  // 14–17 网课第2节
-  if(c2) it = genDailyPlanItem('网课推进：'+c2.name+'（第2节）', getCourseModName(c2), '14:00', '17:00', '课程推进', 1);
+  // 14–17 网课第2节（同样按真实进度算下一节）
+  if(c2) it = genDailyPlanItem('网课推进：'+c2.name+'（第'+nextLessonNumber(c2)+'节）', getCourseModName(c2), '14:00', '17:00', '课程推进', 1);
   else it = genDailyPlanItem('网课推进：第2门进行中课程缺失，安排专项刷题', '综合/其他', '14:00', '17:00', '课程推进', 0);
   if(c2) it.courseId = c2.id;  // 同上
   it.slotKey = 'courseA'; items.push(it);
