@@ -12118,6 +12118,27 @@ function startTodayReviewDrill(planId){
     console.warn('[错题重做] 计划 '+due.length+' 道，题池 '+pool.length+' 道，未匹配 '+(due.length-pool.length)+' 道');
   }
   if(pool.length === 0){ toast('今天还没有待复习的错题~ 先去刷刷题积累错题吧'); return; }
+  // 【修复#3】按计划截断：与 buildTodayPlanSlots 的「单日≤15」保持一致，超出按 nextReview 升序取最早该复习的 LIMIT 道
+  // 避免文案说「今日先刷15道」但实际一次性塞 29 道给用户刷
+  const LIMIT = 15;
+  const totalDueCount = due.length;
+  if(pool.length > LIMIT){
+    const errMap = {};
+    (store.errors||[]).forEach(function(e){ if(e) errMap[e.id] = e; });
+    pool = pool.slice().sort(function(a, b){
+      const ea = errMap[a._fromError], eb = errMap[b._fromError];
+      const na = (ea && ea.nextReview) || '', nb = (eb && eb.nextReview) || '';
+      // 升序：nextReview 越早越优先
+      if(na !== nb) return na < nb ? -1 : 1;
+      // 同 nextReview 时按 reviewRound 升序（第1轮先刷，新题优先）
+      const ra = (ea && ea.reviewRound) || 1, rb = (eb && eb.reviewRound) || 1;
+      if(ra !== rb) return ra - rb;
+      return 0;
+    }).slice(0, LIMIT);
+  }
+  if(planId && totalDueCount > LIMIT){
+    toast('按计划刷 '+LIMIT+' 道（共 '+totalDueCount+' 道待复习，余 '+(totalDueCount-LIMIT)+' 道自动顺延至明日）');
+  }
   quizState.questions = shuffleQuizQuestions(pool);
   quizState.currentIdx = 0; quizState.selected = -1; quizState.answered = false;
   quizState.correctCount = 0; quizState.userAnswers = [];
@@ -12126,7 +12147,11 @@ function startTodayReviewDrill(planId){
   quizState.finishedAll = false;
   quizState.module = '';
   quizState.type = '错题重做';
-  document.getElementById('quizTitle').textContent = '错题重做 · 今日待复习（' + pool.length + ' 题）';
+  // 【修复#3】标题同时显示"刷 X / 共 Y 道"，让用户立刻看到余数与计划的对账关系
+  const titleEl = document.getElementById('quizTitle');
+  if(titleEl) titleEl.textContent = totalDueCount > LIMIT
+    ? ('错题重做 · 今日待复习（刷 '+LIMIT+' / 共 '+totalDueCount+' 道）')
+    : ('错题重做 · 今日待复习（'+pool.length+' 题）');
   document.getElementById('quizOverlay').classList.add('show');
   startQuizTimer();
   renderQuestion();
