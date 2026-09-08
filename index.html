@@ -6914,7 +6914,7 @@ function renderCourses(){
       if(dl<0) cWarn='<span style="font-size:10px;color:#E5484D;background:#fde8e8;padding:1px 6px;border-radius:8px">⚠️ 逾期</span>';
       else if(dl<=7) cWarn='<span style="font-size:10px;color:#e8a13a;background:#fdf3e6;padding:1px 6px;border-radius:8px">⏰ 剩'+dl+'天</span>';
     }
-    let card='<div style="background:#fff;border-radius:14px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:3px solid '+cColor+';display:flex;flex-direction:column;gap:6px">';
+    let card='<div data-course-id="'+c.id+'" style="background:#fff;border-radius:14px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:3px solid '+cColor+';display:flex;flex-direction:column;gap:6px">';
     card+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
       +'<span style="font-weight:700;font-size:14px;color:#444;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(c.name||'课程')+'</span>'
       +'<span style="cursor:pointer;font-size:12px;color:#888" onclick="editGoalCourse(\''+m.id+'\',\''+c.id+'\')" title="编辑">✏️</span>'
@@ -7460,7 +7460,7 @@ function renderQuestionBooks(){
     const overdue = b.deadline && bPct<100 && goalDaysLeft(b.deadline)<0;
     const chs = Array.isArray(b.chapters) ? b.chapters : [];
     const chapOpen = !!b._chapOpen;
-    let card = '<div style="background:#fff;border-radius:14px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:3px solid '+bColor+(overdue?';box-shadow:0 0 0 2px #E5484D':'')+';display:flex;flex-direction:column;gap:6px">';
+    let card = '<div data-qbook-id="'+b.id+'" style="background:#fff;border-radius:14px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:3px solid '+bColor+(overdue?';box-shadow:0 0 0 2px #E5484D':'')+';display:flex;flex-direction:column;gap:6px">';
     card += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
     card += '<span style="font-weight:700;font-size:14px;color:#444;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(b.name||'题本')+'</span>';
     if(isToday) card += '<span style="font-size:10px;color:#A86BC4;background:#F3ECFB;padding:1px 6px;border-radius:8px">📅 今日</span>';
@@ -12177,6 +12177,70 @@ function startTodayReviewDrill(planId){
   startQuizTimer();
   renderQuestion();
 }
+// ---- 每日计划 → 「对应地方」入口跳转 ----
+// 课程推进：跳到课程页 + 滚动到那门课 + 闪烁高亮
+function enterCourseFromPlan(planId){
+  if(!planId) return;
+  ensureGoals();
+  const today = todayKey();
+  const p = (store.plans[today]||[]).find(function(x){ return x.id===planId; });
+  if(!p){ if(typeof toast==='function') toast('找不到这条计划了'); return; }
+  if(!p.courseId){ if(typeof toast==='function') toast('这条计划还没关联到具体课程'); return; }
+  // 确认课程存在
+  let found = false;
+  (store.goals.milestones||[]).forEach(function(m){
+    (m.courses||[]).forEach(function(c){ if(c.id===p.courseId) found = true; });
+  });
+  if(!found){ if(typeof toast==='function') toast('找不到这门课了，可能已删除'); return; }
+  showPage('courses');
+  // 等 onPageShow('courses') → renderCourses() 写完 DOM 后再定位
+  setTimeout(function(){
+    const card = document.querySelector('#page-courses [data-course-id="'+p.courseId+'"]');
+    if(!card) return;
+    try{ card.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){}
+    // 闪烁高亮 1.2s（不依赖 CSS，新卡片老 CSS 都能用）
+    card.style.transition = 'box-shadow .25s';
+    const prev = card.style.boxShadow;
+    card.style.boxShadow = '0 0 0 3px rgba(125,168,240,.85), 0 4px 14px rgba(125,168,240,.35)';
+    setTimeout(function(){ card.style.boxShadow = prev; }, 1200);
+  }, 80);
+}
+// 专项训练 / 专项刷题：跳到题本页 + 滚动到那本题本 + 闪烁高亮
+function enterQbookFromPlan(planId){
+  if(!planId) return;
+  ensureQuestionBooks();
+  const today = todayKey();
+  const p = (store.plans[today]||[]).find(function(x){ return x.id===planId; });
+  if(!p){ if(typeof toast==='function') toast('找不到这条计划了'); return; }
+  if(!p.qbookId){ if(typeof toast==='function') toast('这条计划还没关联到具体题本'); return; }
+  const b = (store.questionBooks||[]).find(function(x){ return x.id===p.qbookId; });
+  if(!b){ if(typeof toast==='function') toast('找不到这本题本了，可能已删除'); return; }
+  showPage('qbook');
+  setTimeout(function(){
+    const card = document.querySelector('#page-qbook [data-qbook-id="'+p.qbookId+'"]');
+    if(!card) return;
+    try{ card.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){}
+    card.style.transition = 'box-shadow .25s';
+    const prev = card.style.boxShadow;
+    card.style.boxShadow = '0 0 0 3px rgba(125,168,240,.85), 0 4px 14px rgba(125,168,240,.35)';
+    setTimeout(function(){ card.style.boxShadow = prev; }, 1200);
+  }, 80);
+}
+// 复盘总结：跳到复盘页 + 选中今日 + 滚到长文反思输入框
+function openReviewFromPlan(planId){
+  if(!planId) return;
+  showPage('review');
+  try{ setReviewDate(todayKey()); }catch(_){}
+  // 复盘页面有月历/横滑条 + 长文反思输入框；200ms 后滚到输入框并聚焦
+  setTimeout(function(){
+    const ta = document.querySelector('#page-review textarea, #page-review .review-textarea');
+    if(ta){
+      try{ ta.scrollIntoView({behavior:'smooth', block:'center'}); ta.focus({preventScroll:true}); }catch(_){}
+    }else if(typeof toast==='function'){
+      toast('🌙 已到「内容复盘」页，请写今日复盘～');
+    }
+  }, 220);
+}
 // 刷题时长落账：写入时长统计 / 打卡日历 / 专注记录；计划完成额外发阳光 + 水滴
 function recordQuizStudyTime(minutes, mod, planComplete){
   minutes = Math.round(minutes||0);
@@ -14002,9 +14066,24 @@ function renderPlan(){
       const tag = it.type==='qbook' ? '<span class="plan-tag qtag">📚题本</span>' : (it.type==='course' ? '<span class="plan-tag ctag">🎓课程</span>' : '');
       const checkFn = it.type==='plan' ? "togglePlan('"+it.id+"')" : "toggleTodayItem('"+it.type+"','"+it.id+"')";
       const delFn = it.type==='plan' ? "deletePlan('"+it.id+"')" : "delTodo('"+it.id+"')";
-      // 仅「错题重做」任务行显示跳转按钮：唤起今日待复习错题刷题弹窗（其余任务行不出现）
-      const jumpBtn = (it.type==='plan' && it.taskType==='错题重做') ? '<button class="plan-jump" onclick="startTodayReviewDrill(\''+it.id+'\')">打开今日待复习错题</button>' : '';
-      // 编辑按钮：课程类显示「🎓换课」，专项类显示「📚换题本」，其他显示「✏️编辑」
+      // 主入口按钮：按 taskType 跳到「我应该去的对应地方」（替代统一的"🍅番茄钟"）
+      // 错题重做→打开错题重做弹窗；课程推进→进入课程页 + 滚动高亮；专项→进入题本页 + 滚动高亮；复盘→去复盘页；其他→🍅番茄钟兜底
+      let entryBtn = '';
+      if(it.type==='plan'){
+        if(it.taskType==='错题重做'){
+          entryBtn = '<button class="plan-jump" onclick="startTodayReviewDrill(\''+it.id+'\')" title="打开今日待复习错题列表，直接进入错题重做">📝 打开今日错题</button>';
+        } else if(it.taskType==='课程推进'){
+          entryBtn = '<button class="plan-jump" onclick="enterCourseFromPlan(\''+it.id+'\')" title="进入这门课程详情页（自动滚动并高亮）">🎓 进入课程</button>';
+        } else if(it.taskType==='专项训练' || it.taskType==='专项刷题'){
+          entryBtn = '<button class="plan-jump" onclick="enterQbookFromPlan(\''+it.id+'\')" title="进入这本题本开始刷题（自动滚动并高亮）">📚 进入题本</button>';
+        } else if(it.taskType==='复盘总结'){
+          entryBtn = '<button class="plan-jump" onclick="openReviewFromPlan(\''+it.id+'\')" title="去内容复盘页写今日复盘">📋 写复盘</button>';
+        } else {
+          // 兜底：taskType 未匹配时（如「综合/其他」/自定义），保留番茄钟
+          entryBtn = '<button class="plan-pomo" onclick="startPlanTomato(\''+it.id+'\')" title="启动番茄钟，计时绑定本任务">🍅番茄钟</button>';
+        }
+      }
+      // 次按钮（改 plan 配置用）：课程类换课、专项类换题本、其他编辑任务
       // 只按 taskType 判断（courseId/qbookId 在旧数据/自动生成里可能缺失，不能作为条件）
       let editLabel = '✏️编辑', editTitle = '编辑任务文字/时间/题量/类型';
       if(it.type==='plan'){
@@ -14012,14 +14091,13 @@ function renderPlan(){
         else if(it.taskType==='专项训练'||it.taskType==='专项刷题'){ editLabel = '📚换题本'; editTitle = '更换成另一本题本（自动同步剩余题量）'; }
       }
       const editBtn = (it.type==='plan') ? '<button class="plan-edit" onclick="editPlanItem(\''+it.id+'\')" title="'+editTitle+'">'+editLabel+'</button>' : '';
-      const pomoBtn = (it.type==='plan') ? '<button class="plan-pomo" onclick="startPlanTomato(\''+it.id+'\')" title="启动番茄钟，计时绑定本任务">🍅番茄钟</button>' : '';
       return `
       <div class="plan-item ${it.done?'done':''}">
         <div class="plan-check ${it.done?'checked':''}" onclick="${checkFn}"></div>
         ${t}${ttag}${deferTag}${tag}
         <span class="plan-text">${escapeHtml(it.text)}</span>
         <span class="plan-meta">${it.meta||''}</span>
-        ${jumpBtn}${editBtn}${pomoBtn}
+        ${entryBtn}${editBtn}
         <span class="plan-del" onclick="${delFn}">✕</span>
       </div>
       `;
