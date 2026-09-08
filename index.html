@@ -6600,12 +6600,25 @@ function startCourseFocus(msId, cId){
   if(inp) inp.value = todoText;
   if(typeof toast==='function') toast('已定位到番茄钟，模块：'+modName+' 🍅');
 }
-// 课程模块识别：① c.linked ② c.name 扫 TOPICS.name ③ 兜底"综合/其他"
+// 课程模块识别：① c.linked ② c.name 扫别名（短词优先，图推/图形 → 图形推理，遵循"图推就是图形推理，不要算到判断推理"）③ 兜底"综合/其他"
+// 别名顺序要点：'图推'/'图形' 必须最靠前（用户明确规则）；'常识' 必须在 '判断' 之前，否则"常识判断"会被误判为判断推理。
 function getCourseModName(c){
   if(c && c.linked && TOPICS[c.linked]) return TOPICS[c.linked].name;
   if(c && c.name){
-    for(const k in TOPICS){
-      if(c.name.indexOf(TOPICS[k].name)>=0) return TOPICS[k].name;
+    const COURSE_MOD_ALIAS = [
+      { key:'图形推理', words:['图推','图形推理','图形'] },        // 最高优先：图推/图形 → 图形推理
+      { key:'常识判断', words:['常识判断','常识'] },               // 必须在'判断'之前
+      { key:'判断推理', words:['判断推理','判断'] },
+      { key:'资料分析', words:['资料分析','资料'] },
+      { key:'言语理解', words:['言语理解','言语'] },
+      { key:'数量关系', words:['数量关系','数量'] },
+      { key:'时政热点', words:['时政热点','时政'] }
+    ];
+    for(let i=0;i<COURSE_MOD_ALIAS.length;i++){
+      const a = COURSE_MOD_ALIAS[i];
+      for(let j=0;j<a.words.length;j++){
+        if(c.name.indexOf(a.words[j])>=0) return a.key;
+      }
     }
   }
   return '综合/其他';
@@ -22381,9 +22394,21 @@ function addFocus(minutes, modOverride, opts){
     });
   }
   // 联动：番茄完成 → 题本 / 课程进度自动 +1
-      if(td && td.src==='qbook' && td.qbookId){
+    // 兼容 src='plan'：每日计划行的 🍅 按钮走的是 ensurePlanTodo 创建的 src='plan' 待办（不是 'course'/'qbook'），
+    // 但它通过 td.planId 反查到 plan 上的 courseId/qbookId 即可触发课程/题本联动。原条件仅匹配 src==='course'/'qbook'，
+    // 会导致「计划行启动番茄钟完成 → 不弹  做 1 节 弹窗、不 +1」的 bug。
+    let _triggerQbookId = (td && td.qbookId) || '';
+    let _triggerCourseId = (td && td.courseId) || '';
+    if(td && td.src==='plan' && td.planId && store.plans[t]){
+      const _p = store.plans[t].find(function(x){ return x.id===td.planId; });
+      if(_p){
+        _triggerQbookId = _triggerQbookId || _p.qbookId || '';
+        _triggerCourseId = _triggerCourseId || _p.courseId || '';
+      }
+    }
+      if(td && _triggerQbookId){
         ensureQuestionBooks();
-        const b = qbookById(td.qbookId);
+        const b = qbookById(_triggerQbookId);
         if(b){
           const chs = Array.isArray(b.chapters) ? b.chapters : [];
           if(chs.length){
@@ -22400,12 +22425,12 @@ function addFocus(minutes, modOverride, opts){
           if(b.todayPlanDate===t) b._todayDone = true;
           setTimeout(function(){ if(typeof toast==='function') toast('📚 题本进度 +1'); }, 320);
           // 联动：番茄完成 → 自动弹「记录本次」并预填番茄分钟数
-          setTimeout(function(){ try{ autoOpenPostFocusPopup('qbook', td.qbookId, minutes); }catch(e){} }, 900);
+          setTimeout(function(){ try{ autoOpenPostFocusPopup('qbook', _triggerQbookId, minutes); }catch(e){} }, 900);
         }
       }
-      if(td && td.src==='course' && td.courseId && store.goals && store.goals.milestones){
+      if(td && _triggerCourseId && store.goals && store.goals.milestones){
         for(const m of store.goals.milestones){
-          const c = (m.courses||[]).find(function(x){ return x.id===td.courseId; });
+          const c = (m.courses||[]).find(function(x){ return x.id===_triggerCourseId; });
           if(c){
             if(!((c.done||0) >= (c.total||0)) || !(c.total>0)) c.done = (c.done||0)+1;
             c._todayDone = (c.todayPlanDate||'')===t;
