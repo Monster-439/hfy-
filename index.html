@@ -6394,7 +6394,10 @@ function saveGoalCourse(msId, cId){
   } else {
     m.courses.push({ id:'cs_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, platform:platform, total:total, done:done, linked:linked, lessonMin:lessonMin, deadline:deadline, note:note, status:status, planFinish:planFinish });
   }
+  // 课程页面（#page-courses）也是同一份 course 数据，需同时刷新；否则用户改完数字课程卡片不更新，要强刷才能看到
   saveStore(); closeGoalsPopup(); renderGoals();
+  if(typeof renderCourses==='function') renderCourses();
+  if(typeof renderHome==='function') renderHome();
 }
 function deleteGoalCourse(msId, cId){
   ensureGoals();
@@ -6402,7 +6405,10 @@ function deleteGoalCourse(msId, cId){
   if(!m) return;
   if(typeof confirm==='function' && !confirm('删除这门课程？')) return;
   m.courses = (m.courses||[]).filter(function(x){ return x.id!==cId; });
+  // 课程页面（#page-courses）也用同一份数据，删后必须同步刷新，否则卡片残留
   saveStore(); renderGoals();
+  if(typeof renderCourses==='function') renderCourses();
+  if(typeof renderHome==='function') renderHome();
 }
 function viewCourseLesson(msId, cId){
   ensureGoals();
@@ -6433,8 +6439,10 @@ function viewCourseLesson(msId, cId){
     if(!m.achievedAt) m.achievedAt = Date.now();
     if(typeof celebrateMilestone==='function') celebrateMilestone(m);
   }
+  // 课程页面（#page-courses）也显示这门课的进度，➕ 按钮直接 c.done++ 后需同步刷新
   saveStore();
   renderGoals();
+  if(typeof renderCourses==='function') renderCourses();
   if(typeof renderPlan==='function') renderPlan();
   if(typeof renderTodoList==='function') renderTodoList();
   if(typeof toast==='function') toast('已学 1 节《'+c.name+'》📚 已记打卡·待办·计划');
