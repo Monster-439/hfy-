@@ -4378,14 +4378,18 @@ function migrateExplainStruct(){
   if(changed) saveStore();
 }
 // 一次性迁移：从网课进度进番茄钟留下的 src='course' 待办，原写死 mod='综合/其他'，改用 c.linked / 课程名 重新识别
+// 【修复】旧守卫 `if(td.mod && td.mod!=='综合/其他') return;` 只放过默认值的 todo，
+// 但早期代码在 startCourseFocus 里就硬写死过 '言语理解'/'判断推理' 等具体模块，
+// 错值会一路留在 localStorage，番茄页模块下拉与「⚡ 跳到 X」按钮就一直显示错的。
+// 现在改为：只要新算出的 mod 与当前 mod 不一致就刷新（不会无限循环——同一课刷新一次就稳定了），
+// 同时回写 c.linked 让下次走 TOPICS 直查，不再走 name 模糊匹配。
+const COURSE_MOD_KEYS = ['常识判断','时政热点','言语理解','图形推理','判断推理','数量关系','资料分析','申论'];
 function migrateCourseTodos(){
   if(!ensureGoals || !store.todos) return;
   ensureGoals();
   let changed = false;
   store.todos.forEach(function(td){
     if(td.src!=='course') return;
-    // 只刷新那些还是默认值的，且能从 ref/courseId 回查到课程
-    if(td.mod && td.mod!=='综合/其他') return;
     const msId = td.ref && td.ref.msId;
     const cId = td.ref && td.ref.cId || td.courseId;
     if(!cId) return;
@@ -4393,11 +4397,20 @@ function migrateCourseTodos(){
     if(!m) return;
     const c = (m.courses||[]).find(function(x){ return x.id===cId; });
     if(!c) return;
+    // 先把课程名反查成的 module key 固化到 c.linked（自愈），下次就能走 TOPICS 直查
+    if(!c.linked){
+      const nm = getCourseModName(c);
+      const k = Object.keys(TOPICS).find(function(k){ return TOPICS[k].name === nm; });
+      if(k){ c.linked = k; changed = true; }
+    }
     const newMod = getCourseModName(c);
     if(newMod && newMod !== td.mod){
-      td.mod = newMod;
-      if(td.ref && !td.ref.msId) td.ref.msId = m.id;
-      changed = true;
+      // 只在 newMod 是已知模块或确实是 '综合/其他' 时刷新，避免乱写
+      if(COURSE_MOD_KEYS.indexOf(newMod) >= 0 || newMod === '综合/其他'){
+        td.mod = newMod;
+        if(td.ref && !td.ref.msId) td.ref.msId = m.id;
+        changed = true;
+      }
     }
   });
   if(changed) saveStore();
