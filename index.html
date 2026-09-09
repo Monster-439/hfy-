@@ -4236,6 +4236,68 @@ body.drawer-open .nav-cloud{display:none;}
 //  数据层 - localStorage 持久化
 // ====================================================
 const STORE_KEY = 'xckq_workbench_v1';
+// ====================================================
+// ⚠️【TDZ 红线 - boot 早期依赖】
+// migrateCourseTodos 在 ~4241 行 boot 早期就被调，
+// 它依赖的常量必须在它之前声明；函数依赖的其它常量子对象（TOPICS / linkCoursesByName / getCourseModName）
+// 必须彻底不引用，否则会触发 "Cannot access '<X>' before initialization"。
+// 本段挪到此处，保证 boot 调用时所有 const 都已就绪。
+// ====================================================
+// 内联版"模块名反查"：纯字符串匹配，不读 TOPICS 对象。
+// 与 getCourseModName 的差异：没有 c.linked 直查（boot 早期 TOPICS 还没声明，拿不到）。
+// 场景覆盖：c.linked 没填 + c.name 含别名（如「图推」/「图形推理」/「图形」）→ 返回对应模块名。
+// 别名顺序要点：「图推/图形」必须最靠前；「常识」必须在「判断」之前（否则「常识判断」被误判为判断推理）。
+const COURSE_MOD_ALIAS_INLINE = [
+  { key:'图形推理', words:['图推','图形推理','图形'] },
+  { key:'常识判断', words:['常识判断','常识'] },
+  { key:'判断推理', words:['判断推理','判断'] },
+  { key:'资料分析', words:['资料分析','资料'] },
+  { key:'言语理解', words:['言语理解','言语'] },
+  { key:'数量关系', words:['数量关系','数量'] },
+  { key:'时政热点', words:['时政热点','时政'] }
+];
+function inlineCourseModName(c){
+  if(c && c.name){
+    for(let i=0;i<COURSE_MOD_ALIAS_INLINE.length;i++){
+      const a=COURSE_MOD_ALIAS_INLINE[i];
+      for(let j=0;j<a.words.length;j++){
+        if(c.name.indexOf(a.words[j])>=0) return a.key;
+      }
+    }
+  }
+  return '综合/其他';
+}
+const COURSE_MOD_KEYS = ['常识判断','时政热点','言语理解','图形推理','判断推理','数量关系','资料分析','申论'];
+const MOD_NAME_TO_TOPIC_KEY = {
+  '常识判断':'common','时政热点':'politics','言语理解':'verbal','图形推理':'figure',
+  '判断推理':'reasoning','数量关系':'quantity','资料分析':'data','申论':'shenlun'
+};
+function migrateCourseTodos(){
+  if(!ensureGoals || !store.todos) return;
+  ensureGoals();
+  let changed = false;
+  store.todos.forEach(function(td){
+    if(td.src!=='course') return;
+    const msId = td.ref && td.ref.msId;
+    const cId = td.ref && td.ref.cId || td.courseId;
+    if(!cId) return;
+    const m = (store.goals.milestones||[]).find(function(x){ return x.id===msId; }) || store.goals.milestones.find(function(x){ return (x.courses||[]).some(function(c){ return c.id===cId; }); });
+    if(!m) return;
+    const c = (m.courses||[]).find(function(x){ return x.id===cId; });
+    if(!c) return;
+    // 【TDZ 修复】用 inlineCourseModName 替代 getCourseModName——后者引用 TOPICS，boot 早期 TDZ
+    const newMod = inlineCourseModName(c);
+    if(newMod && newMod !== td.mod){
+      // 只在 newMod 是已知模块或确实是 '综合/其他' 时刷新，避免乱写
+      if(COURSE_MOD_KEYS.indexOf(newMod) >= 0 || newMod === '综合/其他'){
+        td.mod = newMod;
+        if(td.ref && !td.ref.msId) td.ref.msId = m.id;
+        changed = true;
+      }
+    }
+  });
+  if(changed) saveStore();
+}
 let store = loadStore();
 migrateExplainStruct(); // 兼容旧版单框 explain，自动转结构化解析
 migrateCourseTodos();   // 兼容旧版课程序列，待办里历史写的 mod='综合/其他' 自动按课程名/关联重识别
@@ -4388,59 +4450,9 @@ function migrateExplainStruct(){
 // 与 getCourseModName 的差异：没有 c.linked 直查（boot 早期 TOPICS 还没声明，拿不到）。
 // 场景覆盖：c.linked 没填 + c.name 含别名（如「图推」/「图形推理」/「图形」）→ 返回对应模块名。
 // 别名顺序要点：「图推/图形」必须最靠前；「常识」必须在「判断」之前（否则「常识判断」被误判为判断推理）。
-const COURSE_MOD_ALIAS_INLINE = [
-  { key:'图形推理', words:['图推','图形推理','图形'] },
-  { key:'常识判断', words:['常识判断','常识'] },
-  { key:'判断推理', words:['判断推理','判断'] },
-  { key:'资料分析', words:['资料分析','资料'] },
-  { key:'言语理解', words:['言语理解','言语'] },
-  { key:'数量关系', words:['数量关系','数量'] },
-  { key:'时政热点', words:['时政热点','时政'] }
-];
-function inlineCourseModName(c){
-  if(c && c.name){
-    for(let i=0;i<COURSE_MOD_ALIAS_INLINE.length;i++){
-      const a=COURSE_MOD_ALIAS_INLINE[i];
-      for(let j=0;j<a.words.length;j++){
-        if(c.name.indexOf(a.words[j])>=0) return a.key;
-      }
-    }
-  }
-  return '综合/其他';
-}
-const COURSE_MOD_KEYS = ['常识判断','时政热点','言语理解','图形推理','判断推理','数量关系','资料分析','申论'];
-const MOD_NAME_TO_TOPIC_KEY = {
-  '常识判断':'common','时政热点':'politics','言语理解':'verbal','图形推理':'figure',
-  '判断推理':'reasoning','数量关系':'quantity','资料分析':'data','申论':'shenlun'
-};
-function migrateCourseTodos(){
-  if(!ensureGoals || !store.todos) return;
-  ensureGoals();
-  let changed = false;
-  store.todos.forEach(function(td){
-    if(td.src!=='course') return;
-    const msId = td.ref && td.ref.msId;
-    const cId = td.ref && td.ref.cId || td.courseId;
-    if(!cId) return;
-    const m = (store.goals.milestones||[]).find(function(x){ return x.id===msId; }) || store.goals.milestones.find(function(x){ return (x.courses||[]).some(function(c){ return c.id===cId; }); });
-    if(!m) return;
-    const c = (m.courses||[]).find(function(x){ return x.id===cId; });
-    if(!c) return;
-    // 【TDZ 修复】用 inlineCourseModName 替代 getCourseModName——后者引用 TOPICS，boot 早期 TDZ
-    const newMod = inlineCourseModName(c);
-    if(newMod && newMod !== td.mod){
-      // 只在 newMod 是已知模块或确实是 '综合/其他' 时刷新，避免乱写
-      if(COURSE_MOD_KEYS.indexOf(newMod) >= 0 || newMod === '综合/其他'){
-        td.mod = newMod;
-        if(td.ref && !td.ref.msId) td.ref.msId = m.id;
-        changed = true;
-      }
-    }
-  });
-  if(changed) saveStore();
-}
 // c.linked 自愈：必须在 TOPICS 声明之后才调（在 ~4652 行附近有 try/catch 包住调用点）。
 // 不在 migrateCourseTodos 里做，避免 TDZ。本函数依赖 TOPICS，所以绝不能在 boot 早期调。
+// （注：COURSE_MOD_ALIAS_INLINE / inlineCourseModName / COURSE_MOD_KEYS / MOD_NAME_TO_TOPIC_KEY / migrateCourseTodos 已挪到 boot 早期 ~4250 行附近，避免 TDZ）
 function linkCoursesByName(){
   if(!store || !store.goals || !store.goals.milestones) return;
   let changed = false;
