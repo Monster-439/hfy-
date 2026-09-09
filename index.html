@@ -4298,9 +4298,59 @@ function migrateCourseTodos(){
   });
   if(changed) saveStore();
 }
+// 【TDZ 修复】题本 subject 自愈：按 b.name 二次推断 + 修正 b.subject + 回写 src='qbook' todo.mod
+// 复现：用户的《2026版图推700题》subject 被错标成 'reasoning'（判断推理），导致番茄页「正在攻克」下拉显示「判断推理」
+// 跟之前「图推被识别为言语理解」同根因——b.subject 错值永不自愈
+// 整段挪到 boot 早期（紧跟 migrateCourseTodos 之后），避免依赖 TOPICS 导致 TDZ
+const QBOOK_SUBJECT_KEYS = ['common','politics','verbal','reasoning','figure','quantity','data'];
+const QBOOK_SUBJECT_NAME_TO_KEY = [
+  { key:'figure',    words:['图推','图形推理','图形'] },  // 最高优先（与课程别名顺序一致）
+  { key:'common',    words:['常识判断','常识'] },
+  { key:'reasoning', words:['判断推理','逻辑判断','定义判断','类比推理','判断'] },
+  { key:'data',      words:['资料分析','资料'] },
+  { key:'verbal',    words:['言语理解','片段阅读','逻辑填空','语句表达','言语'] },
+  { key:'quantity',  words:['数量关系','数量'] },
+  { key:'politics',  words:['时政热点','时政'] }
+];
+function inlineQbookSubjectKey(name){
+  if(!name) return '';
+  for(let i=0;i<QBOOK_SUBJECT_NAME_TO_KEY.length;i++){
+    const a = QBOOK_SUBJECT_NAME_TO_KEY[i];
+    for(let j=0;j<a.words.length;j++){
+      if(name.indexOf(a.words[j])>=0) return a.key;
+    }
+  }
+  return '';
+}
+function migrateQuestionBooks(){
+  if(!Array.isArray(store.questionBooks)) return;
+  let changed = false;
+  store.questionBooks.forEach(function(b){
+    if(!b || !b.name) return;
+    const newKey = inlineQbookSubjectKey(b.name);
+    if(!newKey || QBOOK_SUBJECT_KEYS.indexOf(newKey)<0) return;
+    if(b.subject !== newKey){
+      const oldKey = b.subject;
+      b.subject = newKey;
+      // 回写所有关联的 src='qbook' todo 的 mod：把 key 转成中文名（与番茄页 tomatoModule 下拉对齐）
+      const newName = ({common:'常识判断',politics:'时政热点',verbal:'言语理解',reasoning:'判断推理',figure:'图形推理',quantity:'数量关系',data:'资料分析'})[newKey] || newKey;
+      if(Array.isArray(store.todos)){
+        store.todos.forEach(function(td){
+          if(td && td.src==='qbook' && td.qbookId===b.id && td.mod !== newName){
+            td.mod = newName;
+          }
+        });
+      }
+      changed = true;
+      console.log('[migrateQuestionBooks] 题本《'+b.name+'》: subject '+oldKey+' → '+newKey);
+    }
+  });
+  if(changed) saveStore();
+}
 let store = loadStore();
 migrateExplainStruct(); // 兼容旧版单框 explain，自动转结构化解析
 migrateCourseTodos();   // 兼容旧版课程序列，待办里历史写的 mod='综合/其他' 自动按课程名/关联重识别
+migrateQuestionBooks(); // 兼容旧版题本序列，subject 错值按 name 二次推断
 
 // 「今日计划」改用日期（todayPlanDate）判断：勾选时写当天，渲染只显示 todayPlanDate===今天。
 // 跨日自动隐身（数据留痕），无需启动清理逻辑。
