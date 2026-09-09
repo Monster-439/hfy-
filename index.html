@@ -4368,6 +4368,8 @@ function inlineQbookSubjectKey(name){
 function migrateQuestionBooks(){
   if(!Array.isArray(store.questionBooks)) return;
   let changed = false;
+  // key→中文名（与 qbookSubjectLabel / tomatoModule 下拉对齐）
+  const KEY_TO_NAME = {common:'常识判断',politics:'时政热点',verbal:'言语理解',reasoning:'判断推理',figure:'图形推理',quantity:'数量关系',data:'资料分析'};
   store.questionBooks.forEach(function(b){
     if(!b || !b.name) return;
     const newKey = inlineQbookSubjectKey(b.name);
@@ -4375,14 +4377,27 @@ function migrateQuestionBooks(){
     if(b.subject !== newKey){
       const oldKey = b.subject;
       b.subject = newKey;
-      // 回写所有关联的 src='qbook' todo 的 mod：把 key 转成中文名（与番茄页 tomatoModule 下拉对齐）
-      const newName = ({common:'常识判断',politics:'时政热点',verbal:'言语理解',reasoning:'判断推理',figure:'图形推理',quantity:'数量关系',data:'资料分析'})[newKey] || newKey;
+      const newName = KEY_TO_NAME[newKey] || newKey;
+      // ① 回写 src='qbook' todo.mod
       if(Array.isArray(store.todos)){
         store.todos.forEach(function(td){
           if(td && td.src==='qbook' && td.qbookId===b.id && td.mod !== newName){
             td.mod = newName;
           }
         });
+      }
+      // ② 回写所有日期桶的 plan.module（扫所有 plans[qdate] 中 qbookId===b.id 的）
+      // —— 避免题本 subject 改了但 plan.module 留旧值，导致首页/计划列表还显示「判断推理」
+      if(store.plans){
+        for(const dateKey in store.plans){
+          if(!Array.isArray(store.plans[dateKey])) continue;
+          store.plans[dateKey].forEach(function(p){
+            if(p && p.qbookId===b.id && p.module !== newName){
+              p.module = newName;
+              changed = true;
+            }
+          });
+        }
       }
       changed = true;
       console.log('[migrateQuestionBooks] 题本《'+b.name+'》: subject '+oldKey+' → '+newKey);
@@ -14239,6 +14254,20 @@ function renderPlan(){
     });
     if(_needTodoSync){ try{ saveStore(); }catch(e){} }
   }
+  // 【脏数据兜底】实时按 qbook.name 重算 plan.module —— 题本 subject 改了但 plan.module 留旧值会显示错标签
+  // （如《图推700题》题本 subject 改 figure 但 plan.module 还是「判断推理」）
+  if(typeof inlineQbookSubjectKey==='function' && Array.isArray(store.questionBooks)){
+    plans.forEach(function(p){
+      if(p && p.qbookId && !p.courseId){
+        const b = store.questionBooks.find(function(o){ return o && o.id===p.qbookId; });
+        if(b && b.subject){
+          const newName = ({common:'常识判断',politics:'时政热点',verbal:'言语理解',reasoning:'判断推理',figure:'图形推理',quantity:'数量关系',data:'资料分析'})[b.subject] || b.subject;
+          if(newName && newName !== p.module){ p.module = newName; _needTodoSync = true; }
+        }
+      }
+    });
+    if(_needTodoSync){ try{ saveStore(); }catch(e){} }
+  }
   const planCourseIds = {};
   plans.forEach(function(p){ if(p.courseId) planCourseIds[p.courseId] = true; });
   const qbookTodos = (store.todos||[]).filter(function(td){ return td.src==='qbook' && td.date===today; });
@@ -23114,9 +23143,12 @@ function autoPickTodayTodo(){
   if(!pick || pick.value) return; // 已有选择就别抢
   const today = todayKey();
   const todos = store.todos || [];
-  const qb = todos.find(function(td){ return !td.done && td.date===today && td.src==='qbook'; });
+  // 【优先级修正】course > qbook，但 qbook 必须真实关联 qbookId（防止 src='qbook' 但其实是「错题/复盘」等非题本 todo 抢焦点）
   const cs = todos.find(function(td){ return !td.done && td.date===today && td.src==='course'; });
-  const td = qb || cs;
+  const qb = todos.find(function(td){
+    return !td.done && td.date===today && td.src==='qbook' && td.qbookId && (!td.text || !/错题|复盘|闪卡|待复习|复习\s*\d+/.test(td.text));
+  });
+  const td = cs || qb;
   if(!td) return;
   if(![].slice.call(pick.options).some(function(o){ return o.value===td.id; })) return;
   pick.value = td.id;
