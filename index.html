@@ -23085,17 +23085,31 @@ function startTodoFocus(id){
   toast('已带入待办：「'+td.text+'」，开始专注吧～');
 }
 // 番茄钟：关联待办下拉
+// 【错题/复盘类过滤】番茄钟是「刷题/课程」专注计时器，「错题整理/复盘」类 todo 不应该进入番茄钟。
+// 这些 todo 一律不在 pick 中展示（即使 store.todos 里只有这一项可挑也不行——必须用「自定义/不选」）。
+// 避免：用户从课程页点 🍅 进入番茄钟后，pick.value 被自动选成了「复盘」todo，模块被错误同步。
+const NON_TOMATO_TODO_RE = /错题|复盘|闪卡|待复习|复习\s*\d+|错因/;
+function isNonTomatoTodo(td){
+  if(!td) return false;
+  if(!td.text) return false;
+  return NON_TOMATO_TODO_RE.test(td.text);
+}
 function renderTomatoTodoPick(){
   const pick = document.getElementById('tomatoTodoPick');
   if(!pick) return;
   if(!store.todos) store.todos = [];
-  const pending = store.todos.filter(x=>!x.done);
+  // ① 只展示「番茄钟友好」的 todo：src='course' / src='qbook' 或 src='plan' 但不是「错题/复盘」类
+  const eligible = store.todos.filter(function(td){
+    if(td.done) return false;
+    if(isNonTomatoTodo(td)) return false; // 错题/复盘类不显示
+    return true;
+  });
   const cur = pick.value;
   pick.innerHTML = '<option value="">自定义 / 不选</option>'
-    + pending.map(td=>'<option value="'+td.id+'">'+escapeHtml(td.text)+'</option>').join('');
-  // 保持当前选择（若仍待办中）
-  if(cur && pending.some(x=>x.id===cur)) pick.value = cur;
-  else if(tomatoTodoId && pending.some(x=>x.id===tomatoTodoId)) pick.value = tomatoTodoId;
+    + eligible.map(function(td){ return '<option value="'+td.id+'">'+escapeHtml(td.text)+'</option>'; }).join('');
+  // ② 保持当前选择（仅当它在 eligible 中）
+  if(cur && eligible.some(x=>x.id===cur)) pick.value = cur;
+  else if(tomatoTodoId && eligible.some(x=>x.id===tomatoTodoId)) pick.value = tomatoTodoId;
   else pick.value = '';
 }
 function pickTomatoTodo(){
@@ -23104,6 +23118,16 @@ function pickTomatoTodo(){
   if(v){
     const td = (store.todos||[]).find(x=>x.id===v);
     if(td){
+      // 【守卫】错题/复盘类 todo 拒绝进入番茄钟——清掉 pick.value 并提示
+      if(isNonTomatoTodo(td)){
+        pick.value = '';
+        tomatoTodoId = '';
+        tomatoTask = '';
+        const inp = document.getElementById('tomatoTaskInput');
+        if(inp) inp.value = '';
+        if(typeof toast==='function') toast('📋 这是「错题/复盘」类任务，请用 📋 写复盘 按钮去复盘页～');
+        return;
+      }
       tomatoTask = td.text; tomatoTodoId = td.id;
       const inp = document.getElementById('tomatoTaskInput');
       if(inp) inp.value = td.text;
@@ -23143,12 +23167,18 @@ function autoPickTodayTodo(){
   if(!pick || pick.value) return; // 已有选择就别抢
   const today = todayKey();
   const todos = store.todos || [];
-  // 【优先级修正】course > qbook，但 qbook 必须真实关联 qbookId（防止 src='qbook' 但其实是「错题/复盘」等非题本 todo 抢焦点）
-  const cs = todos.find(function(td){ return !td.done && td.date===today && td.src==='course'; });
-  const qb = todos.find(function(td){
-    return !td.done && td.date===today && td.src==='qbook' && td.qbookId && (!td.text || !/错题|复盘|闪卡|待复习|复习\s*\d+/.test(td.text));
-  });
-  const td = cs || qb;
+  // 【优先级修正】course > qbook > plan（带 qbookId/courseId 的 plan）；一律排除错题/复盘/闪卡类
+  // 排除策略：文本含「错题/复盘/闪卡/复习N道」或「错因」的 todo 一律不进入番茄钟
+  const eligible = function(td){
+    if(!td || td.done) return false;
+    if(td.date && td.date!==today) return false;
+    if(isNonTomatoTodo(td)) return false;
+    return true;
+  };
+  const cs = todos.find(function(td){ return eligible(td) && td.src==='course'; });
+  const qb = todos.find(function(td){ return eligible(td) && td.src==='qbook' && td.qbookId; });
+  const pl = todos.find(function(td){ return eligible(td) && td.src==='plan' && (td.qbookId || td.courseId); });
+  const td = cs || qb || pl;
   if(!td) return;
   if(![].slice.call(pick.options).some(function(o){ return o.value===td.id; })) return;
   pick.value = td.id;
