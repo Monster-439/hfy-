@@ -19879,6 +19879,27 @@ const BLOOM_TITLES = [
 const COIN_PER_CHECKIN = 7; // 每累计 7 个专注打卡日送 1 金币
 const AWAY_DAYS = 3;        // 我的小花：连续 N 天没来「打卡日历」打卡 → 相思病（成长变慢），去打卡即可治愈
 const EVENT_COOLDOWN_MS = 24*3600*1000; // 驱虫/化解后冷却期：期间两端都不重新长虫，且云端带虫会被强制清掉（解决跨端互相覆盖）
+// ── 长虫概率模型（2026-09-09 重做）──
+// 原实现把长虫挂在「干旱 → 相思病 → 长虫」else if 链尾部，导致只要处于干旱/相思病就永远轮不到判定，
+// 出现「越认真照顾越容易长虫、完全放着不管反而不长虫」的反直觉现象（实测佛系用户 60 天仅长 1.9 次、半数人零长虫）。
+// 现在改为：独立判定 + 按「照顾疏密度」动态概率，疏于照顾 → 花虚弱 → 更容易生虫。
+const BUG_P_MIN = 0.12;       // 精心照顾时的长虫概率
+const BUG_P_MAX = 0.38;       // 完全疏于照顾时的长虫概率
+const BUG_P_WEAK_RATIO = 0.6; // 处于干旱/相思病（花虚弱）时，虫子顶替该事件的概率 = 基础概率 × 此系数
+// 照顾疏密度：0 = 精心照顾，1 = 完全疏于照顾（浇水间隔 + 打卡间隔 综合，各占一半权重）
+function neglectLevel(days, calGap){
+  const careGap = Math.max(0, (typeof days==='number' ? days : 99) - 1);    // 当天浇过水 → 0
+  const calGapN = Math.max(0, (typeof calGap==='number' ? calGap : 99) - 1); // 当天打过卡 → 0
+  return Math.max(0, Math.min(1, (careGap/3 + calGapN/4) / 2));
+}
+// 当前长虫概率（跨天结算 & 浇水 共用）：先读真实数据算疏密度，再线性插值
+function bugChanceNow(g){
+  const gg = g || store.garden; if(!gg) return BUG_P_MIN;
+  const tk = (typeof todayKey==='function') ? todayKey() : '';
+  const days   = gg.lastCare       ? (typeof daysBetween==='function' ? daysBetween(gg.lastCare, tk) : 0) : 99;
+  const calGap = gg.lastCalCheckin ? (typeof daysBetween==='function' ? daysBetween(gg.lastCalCheckin, tk) : 0) : 99;
+  return BUG_P_MIN + (BUG_P_MAX - BUG_P_MIN) * neglectLevel(days, calGap);
+}
 
 // ===== 成就墙 + 抽卡养花 =====
 const ACHIEVEMENTS = [
@@ -20478,8 +20499,21 @@ function renderGarden(){  ensureGarden();
     if(days>=2 && !g.gardenEvent.type && g.weather!=='rain'){ g.gardenEvent = {type:'dry', since:todayKey()}; }
     // 相思病：连续 N 天没来「打卡日历」打卡 → 小花想你生病（成长变慢）；与干旱(没浇水)区分，治愈=去打卡
     else if(calGap>=AWAY_DAYS && !g.gardenEvent.type){ g.gardenEvent = {type:'away', since:todayKey()}; }
-    // 长虫：认真照顾也免不了被虫子盯上，跨天结算 22% 概率被动出现（冷却期内不重新长虫），让"除虫"机制保持可见
-    else if(!g.gardenEvent.type && (Date.now()-(g.gardenEventClearedAt||0)) >= EVENT_COOLDOWN_MS && Math.random()<0.22){ g.gardenEvent = {type:'bug', since:todayKey()}; }
+    // ── 长虫：独立判定（不再挂在 else if 链尾部）──
+    // 【修复】原先长虫排在「干旱 → 相思病 → 长虫」链的最后一项，只要处于干旱/相思病就永远轮不到判定，
+    // 造成「越认真照顾花越容易长虫、完全放着不管反而不长虫」的反直觉现象（实测：佛系用户 60 天仅 1.9 次，半数人零长虫）。
+    // 现在两条规则：① 无事件 → 按「照顾疏密度」概率自然生虫（照顾好 12% → 疏于照顾 38%）
+    //              ② 正处于干旱/相思病 → 花虚弱，虫子趁虚而入，有概率顶替该事件（概率 ×0.6，避免完全抢掉原事件体验）
+    if((Date.now()-(g.gardenEventClearedAt||0)) >= EVENT_COOLDOWN_MS){
+      const _bugP = BUG_P_MIN + (BUG_P_MAX - BUG_P_MIN) * neglectLevel(days, calGap);
+      const _evNow = g.gardenEvent.type;
+      if(!_evNow){
+        if(Math.random()<_bugP){ g.gardenEvent = {type:'bug', since:todayKey()}; }
+      } else if(_evNow==='dry' || _evNow==='away'){
+        if(Math.random()<_bugP*BUG_P_WEAK_RATIO){ g.gardenEvent = {type:'bug', since:todayKey()}; }
+      }
+      // 烂根(root) 不参与顶替：那是浇水过多的独立后果，需用「控根剂」化解
+    }
     // 健康连续天数：健康度>=70 才算"养得好"
     if(g.health>=70){ g.healthyStreak = (g.healthyStreak||0)+1; } else { g.healthyStreak = 0; }
     g._lastTick = todayKey();
@@ -21434,8 +21468,9 @@ function waterFlower(tierIdx){
     setTimeout(()=>toast('💧 浇太多次啦，土壤积水烂根了！用「控根剂」化解～'), 400);
     saveStore(); renderGardenEvent();
   }
-  // 长虫：每次浇水 15% 随机（冷却期内不重新长虫，避免驱虫后两端反复出现）
-  else if(Math.random()<0.15 && !g.gardenEvent.type && (Date.now()-(g.gardenEventClearedAt||0)) >= EVENT_COOLDOWN_MS){
+  // 长虫：每次浇水（刚被照顾过，概率偏低；主要触发点已移到跨天结算）
+  // 【修复】原先固定 15%，等于「认真浇水的人反而更容易长虫」→ 改为读真实疏密度动态取值（刚浇完水 neglect 低 → 概率接近 12%）
+  else if(Math.random()<bugChanceNow(g) && !g.gardenEvent.type && (Date.now()-(g.gardenEventClearedAt||0)) >= EVENT_COOLDOWN_MS){
     g.gardenEvent = {type:'bug', since:tk};
     setTimeout(()=>toast('🐛 哎呀长虫子了！用「除虫药」化解，不然暂停成长～'), 400);
     saveStore(); renderGardenEvent();
