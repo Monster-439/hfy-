@@ -4377,17 +4377,37 @@ function migrateExplainStruct(){
   }
   if(changed) saveStore();
 }
-// 一次性迁移：从网课进度进番茄钟留下的 src='course' 待办，原写死 mod='综合/其他'，改用 c.linked / 课程名 重新识别
-// 【修复】旧守卫 `if(td.mod && td.mod!=='综合/其他') return;` 只放过默认值的 todo，
-// 但早期代码在 startCourseFocus 里就硬写死过 '言语理解'/'判断推理' 等具体模块，
-// 错值会一路留在 localStorage，番茄页模块下拉与「⚡ 跳到 X」按钮就一直显示错的。
-// 现在改为：只要新算出的 mod 与当前 mod 不一致就刷新（不会无限循环——同一课刷新一次就稳定了）。
-// 同时回写 c.linked 让下次走 TOPICS 直查，不再走 name 模糊匹配。
-//
-// 【TDZ 防御】migrateCourseTodos 是在 boot 早期（约 4241 行）被调，
-// 而 TOPICS 在 ~4550 行才声明；本函数内部**严禁直接引用 TOPICS 对象**，
-// 否则会触发 "Cannot access 'TOPICS' before initialization"，
-// 同时 c.linked 的回写也放到 linkCoursesByName() 里（TOPICS 声明之后）单独调。
+// ====================================================
+// ⚠️【TDZ 红线】本段代码在 boot 早期（约 4241 行）就可能被调（migrateCourseTodos），
+// 严禁直接引用 TOPICS 对象；只能依赖本段内本地声明的 COURSE_MOD_ALIAS_INLINE / COURSE_MOD_KEYS / MOD_NAME_TO_TOPIC_KEY。
+// 任何对 TOPICS / getCourseModName / linkCoursesByName 的引用都会触发
+// "Cannot access 'TOPICS' before initialization"，让整条迁移在第一条 todo 上崩。
+// 真实教训：上一版在这函数里调 getCourseModName(c)，用户控制台直接报 TDZ，红字刷屏。
+// ====================================================
+// 内联版"模块名反查"：纯字符串匹配，不读 TOPICS 对象。
+// 与 getCourseModName 的差异：没有 c.linked 直查（boot 早期 TOPICS 还没声明，拿不到）。
+// 场景覆盖：c.linked 没填 + c.name 含别名（如「图推」/「图形推理」/「图形」）→ 返回对应模块名。
+// 别名顺序要点：「图推/图形」必须最靠前；「常识」必须在「判断」之前（否则「常识判断」被误判为判断推理）。
+const COURSE_MOD_ALIAS_INLINE = [
+  { key:'图形推理', words:['图推','图形推理','图形'] },
+  { key:'常识判断', words:['常识判断','常识'] },
+  { key:'判断推理', words:['判断推理','判断'] },
+  { key:'资料分析', words:['资料分析','资料'] },
+  { key:'言语理解', words:['言语理解','言语'] },
+  { key:'数量关系', words:['数量关系','数量'] },
+  { key:'时政热点', words:['时政热点','时政'] }
+];
+function inlineCourseModName(c){
+  if(c && c.name){
+    for(let i=0;i<COURSE_MOD_ALIAS_INLINE.length;i++){
+      const a=COURSE_MOD_ALIAS_INLINE[i];
+      for(let j=0;j<a.words.length;j++){
+        if(c.name.indexOf(a.words[j])>=0) return a.key;
+      }
+    }
+  }
+  return '综合/其他';
+}
 const COURSE_MOD_KEYS = ['常识判断','时政热点','言语理解','图形推理','判断推理','数量关系','资料分析','申论'];
 const MOD_NAME_TO_TOPIC_KEY = {
   '常识判断':'common','时政热点':'politics','言语理解':'verbal','图形推理':'figure',
@@ -4406,7 +4426,8 @@ function migrateCourseTodos(){
     if(!m) return;
     const c = (m.courses||[]).find(function(x){ return x.id===cId; });
     if(!c) return;
-    const newMod = getCourseModName(c);
+    // 【TDZ 修复】用 inlineCourseModName 替代 getCourseModName——后者引用 TOPICS，boot 早期 TDZ
+    const newMod = inlineCourseModName(c);
     if(newMod && newMod !== td.mod){
       // 只在 newMod 是已知模块或确实是 '综合/其他' 时刷新，避免乱写
       if(COURSE_MOD_KEYS.indexOf(newMod) >= 0 || newMod === '综合/其他'){
@@ -4418,7 +4439,8 @@ function migrateCourseTodos(){
   });
   if(changed) saveStore();
 }
-// c.linked 自愈（必须在 TOPICS 声明之后才调；不在 migrateCourseTodos 里做，避免 TDZ）
+// c.linked 自愈：必须在 TOPICS 声明之后才调（在 ~4652 行附近有 try/catch 包住调用点）。
+// 不在 migrateCourseTodos 里做，避免 TDZ。本函数依赖 TOPICS，所以绝不能在 boot 早期调。
 function linkCoursesByName(){
   if(!store || !store.goals || !store.goals.milestones) return;
   let changed = false;
