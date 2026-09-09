@@ -12488,6 +12488,12 @@ function goPage(page){
 // 计划写入后自动生成一条关联待办；完成状态双向同步；删除计划同步移除待办。
 function ensurePlanTodo(p, dateKey){
   if(!store.todos) store.todos = [];
+  // 【自愈】验证 p.todoId 指向的 todo 是否真的存在；如果不存在就清掉这个无效引用，
+  // 避免「plan.todoId 指向已删除的 todo」导致的 orphan plan 永远补建不回来
+  // （症状：计划页显示 8 条计划，番茄页今日待办只显示 3 条每日推荐，看不到计划关联待办）
+  if(p.todoId && !store.todos.find(x=>x.id===p.todoId)){
+    p.todoId = null;
+  }
   let td = p.todoId ? store.todos.find(x=>x.id===p.todoId) : null;
   if(td){
     // 已关联：同步内容 / 模块 / 完成状态
@@ -12505,10 +12511,20 @@ function ensurePlanTodo(p, dateKey){
 function syncTodayPlanTodos(){
   const today = todayKey();
   const plans = store.plans[today]||[];
-  plans.forEach(function(p){ if(!p.todoId) ensurePlanTodo(p, today); });
+  // 【自愈】先把所有 plan 的 orphan todoId 清掉（plan.todoId 指向已不存在的 todo），
+  // 不然下面的 if(!p.todoId) 判定仍然 false，ensurePlanTodo 永远走不到「新建」分支
+  plans.forEach(function(p){
+    if(p.todoId && !store.todos.find(function(x){ return x.id===p.todoId; })){
+      p.todoId = null;
+    }
+  });
+  plans.forEach(function(p){ ensurePlanTodo(p, today); });
   if(store.todos){
+    // 【bug 修复】valid 的 key 应该是 plan.id（不是 plan.todoId），
+    // 因为 td.planId 指向的是 plan.id —— 之前的代码用 todoId 作 key，
+    // 会把所有 src='plan' 的 todo 误判为 orphan 并清掉 src=''
     const valid = {};
-    plans.forEach(function(p){ if(p.todoId) valid[p.todoId]=true; });
+    plans.forEach(function(p){ valid[p.id]=true; });
     store.todos.forEach(function(td){
       if(td.planId && !valid[td.planId]){ td.planId = null; td.src = ''; }
     });
