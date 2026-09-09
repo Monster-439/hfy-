@@ -4381,9 +4381,18 @@ function migrateExplainStruct(){
 // 【修复】旧守卫 `if(td.mod && td.mod!=='综合/其他') return;` 只放过默认值的 todo，
 // 但早期代码在 startCourseFocus 里就硬写死过 '言语理解'/'判断推理' 等具体模块，
 // 错值会一路留在 localStorage，番茄页模块下拉与「⚡ 跳到 X」按钮就一直显示错的。
-// 现在改为：只要新算出的 mod 与当前 mod 不一致就刷新（不会无限循环——同一课刷新一次就稳定了），
+// 现在改为：只要新算出的 mod 与当前 mod 不一致就刷新（不会无限循环——同一课刷新一次就稳定了）。
 // 同时回写 c.linked 让下次走 TOPICS 直查，不再走 name 模糊匹配。
+//
+// 【TDZ 防御】migrateCourseTodos 是在 boot 早期（约 4241 行）被调，
+// 而 TOPICS 在 ~4550 行才声明；本函数内部**严禁直接引用 TOPICS 对象**，
+// 否则会触发 "Cannot access 'TOPICS' before initialization"，
+// 同时 c.linked 的回写也放到 linkCoursesByName() 里（TOPICS 声明之后）单独调。
 const COURSE_MOD_KEYS = ['常识判断','时政热点','言语理解','图形推理','判断推理','数量关系','资料分析','申论'];
+const MOD_NAME_TO_TOPIC_KEY = {
+  '常识判断':'common','时政热点':'politics','言语理解':'verbal','图形推理':'figure',
+  '判断推理':'reasoning','数量关系':'quantity','资料分析':'data','申论':'shenlun'
+};
 function migrateCourseTodos(){
   if(!ensureGoals || !store.todos) return;
   ensureGoals();
@@ -4397,12 +4406,6 @@ function migrateCourseTodos(){
     if(!m) return;
     const c = (m.courses||[]).find(function(x){ return x.id===cId; });
     if(!c) return;
-    // 先把课程名反查成的 module key 固化到 c.linked（自愈），下次就能走 TOPICS 直查
-    if(!c.linked){
-      const nm = getCourseModName(c);
-      const k = Object.keys(TOPICS).find(function(k){ return TOPICS[k].name === nm; });
-      if(k){ c.linked = k; changed = true; }
-    }
     const newMod = getCourseModName(c);
     if(newMod && newMod !== td.mod){
       // 只在 newMod 是已知模块或确实是 '综合/其他' 时刷新，避免乱写
@@ -4412,6 +4415,22 @@ function migrateCourseTodos(){
         changed = true;
       }
     }
+  });
+  if(changed) saveStore();
+}
+// c.linked 自愈（必须在 TOPICS 声明之后才调；不在 migrateCourseTodos 里做，避免 TDZ）
+function linkCoursesByName(){
+  if(!store || !store.goals || !store.goals.milestones) return;
+  let changed = false;
+  store.goals.milestones.forEach(function(m){
+    (m.courses||[]).forEach(function(c){
+      if(c && c.linked && TOPICS[c.linked]) return;   // 已有且有效就跳过
+      if(c && c.name){
+        const mod = getCourseModName(c);
+        const k = MOD_NAME_TO_TOPIC_KEY[mod];
+        if(k && TOPICS[k]){ c.linked = k; changed = true; }
+      }
+    });
   });
   if(changed) saveStore();
 }
@@ -4582,6 +4601,8 @@ const TOPICS = {
 };
 
 // 知识体系导图（左右延展树状结构，最深 3 层）
+// TOPICS 已声明 → c.linked 自愈（之前在 migrateCourseTodos 里做会触发 TDZ，挪到这里）
+try{ if(typeof linkCoursesByName==='function') linkCoursesByName(); }catch(e){}
 const MINDMAP_DATA = {
   verbal: { name:'言语理解与表达', icon:'📖', children:[
     { name:'逻辑填空', children:[
