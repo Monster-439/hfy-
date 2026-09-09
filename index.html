@@ -4298,7 +4298,50 @@ function migrateCourseTodos(){
   });
   if(changed) saveStore();
 }
-// 【TDZ 修复】题本 subject 自愈：按 b.name 二次推断 + 修正 b.subject + 回写 src='qbook' todo.mod
+// 【脏数据兜底】课程模块自愈：扫所有 milestones.courses，按 c.name 二次推断模块（不用 c.linked，避免 linked=null 时显示错值）
+// 同时回写：① c.linked ② 所有 src='course' && courseId===c.id 的 todo.mod ③ 所有 plan.courseId===c.id 的 plan.module
+// 复现：用户「超格专刷刷·图推」改名后，关联的 plan.module 还停留在「言语理解」→ 计划页显示错标签 + 番茄页模块统计跟着错
+// TDZ：c.mod 自愈不需要 TOPICS（这里只回写 key），但 c.linked 推断需要 MOD_NAME_TO_TOPIC_KEY；挪到 boot 早期在 migrateQuestionBooks 之前声明
+function migrateCourseModules(){
+  if(!store || !store.goals || !Array.isArray(store.goals.milestones)) return;
+  let changed = false;
+  store.goals.milestones.forEach(function(m){
+    if(!m || !Array.isArray(m.courses)) return;
+    m.courses.forEach(function(c){
+      if(!c || !c.name) return;
+      // ① 按 c.name 二次推断
+      const newName = inlineCourseModName(c);
+      const newLinked = MOD_NAME_TO_TOPIC_KEY[newName] || null;
+      // ② 修 c.linked
+      if(c.linked !== newLinked){
+        c.linked = newLinked;
+        changed = true;
+      }
+      // ③ 回写所有关联 src='course' todo.mod
+      if(Array.isArray(store.todos)){
+        store.todos.forEach(function(td){
+          if(td && td.src==='course' && td.courseId===c.id && td.mod !== newName){
+            td.mod = newName;
+            changed = true;
+          }
+        });
+      }
+      // ④ 回写所有 plan.module（plans 是按日期分桶的，扫所有日期）
+      if(store.plans){
+        for(const dateKey in store.plans){
+          if(!Array.isArray(store.plans[dateKey])) continue;
+          store.plans[dateKey].forEach(function(p){
+            if(p && p.courseId===c.id && p.module !== newName){
+              p.module = newName;
+              changed = true;
+            }
+          });
+        }
+      }
+    });
+  });
+  if(changed) saveStore();
+}
 // 复现：用户的《2026版图推700题》subject 被错标成 'reasoning'（判断推理），导致番茄页「正在攻克」下拉显示「判断推理」
 // 跟之前「图推被识别为言语理解」同根因——b.subject 错值永不自愈
 // 整段挪到 boot 早期（紧跟 migrateCourseTodos 之后），避免依赖 TOPICS 导致 TDZ
@@ -4350,6 +4393,7 @@ function migrateQuestionBooks(){
 let store = loadStore();
 migrateExplainStruct(); // 兼容旧版单框 explain，自动转结构化解析
 migrateCourseTodos();   // 兼容旧版课程序列，待办里历史写的 mod='综合/其他' 自动按课程名/关联重识别
+migrateCourseModules(); // 【脏数据兜底】课程 c.linked/plan.module/todo.mod 三处联动自愈（避免 c.name 改了但 plan.module 没刷新）
 migrateQuestionBooks(); // 兼容旧版题本序列，subject 错值按 name 二次推断
 
 // 「今日计划」改用日期（todayPlanDate）判断：勾选时写当天，渲染只显示 todayPlanDate===今天。
@@ -14180,6 +14224,21 @@ function renderPlan(){
   let _needTodoSync = false;
   plans.forEach(function(p){ if(!p.todoId){ ensurePlanTodo(p, today); _needTodoSync = true; } });
   if(_needTodoSync){ try{ saveStore(); }catch(e){} }
+  // 【脏数据兜底】实时按 c.name 重算 plan.module——避免 c.name 改了但 plan.module 没刷新导致显示错标签
+  // （如"超格专刷刷·图推"显示为"言语理解"）。boot 期 migrateCourseModules 已做同样清理，这里双保险。
+  if(typeof inlineCourseModName==='function'){
+    plans.forEach(function(p){
+      if(p && p.courseId){
+        const all = (typeof getAllCourses==='function') ? getAllCourses() : [];
+        const found = all.find(function(o){ return o.c && o.c.id===p.courseId; });
+        if(found && found.c){
+          const newMod = inlineCourseModName(found.c);
+          if(newMod && newMod !== p.module){ p.module = newMod; _needTodoSync = true; }
+        }
+      }
+    });
+    if(_needTodoSync){ try{ saveStore(); }catch(e){} }
+  }
   const planCourseIds = {};
   plans.forEach(function(p){ if(p.courseId) planCourseIds[p.courseId] = true; });
   const qbookTodos = (store.todos||[]).filter(function(td){ return td.src==='qbook' && td.date===today; });
