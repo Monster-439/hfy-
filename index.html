@@ -12494,6 +12494,15 @@ function ensurePlanTodo(p, dateKey){
   if(p.todoId && !store.todos.find(x=>x.id===p.todoId)){
     p.todoId = null;
   }
+  // 【自愈】校验 p.todoId 指向的 todo 是否真的属于这个 plan：td.planId 应等于 p.id。
+  // 脏数据场景：planA.todoId 错误指向了 planB 的 todo（双向不一致），
+  // 复用错的 todo 会导致 startPlanTomato → startTodoFocus 把「图推」错带成「复盘」等。
+  if(p.todoId){
+    const _claimed = store.todos.find(x=>x.id===p.todoId);
+    if(_claimed && _claimed.planId && _claimed.planId !== p.id){
+      p.todoId = null; // 错的关联，清掉让下面走新建分支
+    }
+  }
   let td = p.todoId ? store.todos.find(x=>x.id===p.todoId) : null;
   if(td){
     // 已关联：同步内容 / 模块 / 完成状态
@@ -14150,20 +14159,27 @@ function renderPlan(){
       const tag = it.type==='qbook' ? '<span class="plan-tag qtag">📚题本</span>' : (it.type==='course' ? '<span class="plan-tag ctag">🎓课程</span>' : '');
       const checkFn = it.type==='plan' ? "togglePlan('"+it.id+"')" : "toggleTodayItem('"+it.type+"','"+it.id+"')";
       const delFn = it.type==='plan' ? "deletePlan('"+it.id+"')" : "delTodo('"+it.id+"')";
-      // 主入口按钮：按 taskType 跳到「我应该去的对应地方」（替代统一的"🍅番茄钟"）
-      // 错题重做→打开错题重做弹窗；课程推进→进入课程页 + 滚动高亮；专项→进入题本页 + 滚动高亮；复盘→去复盘页；其他→🍅番茄钟兜底
+      // 主入口按钮：先按 taskType 跳到「我应该去的对应地方」；taskType 不匹配（如「综合/其他」/脏数据/没设）时
+      // 按 plan.text 二次推断——避免脏数据 taskType 把「网课推进」错带进 🍅 番茄钟、把「复盘」错带进 🍅。
+      // 错题重做→打开错题重做弹窗；课程推进→进入课程页 + 滚动高亮；专项→进入题本页 + 滚动高亮；复盘→去复盘页；都不像→🍅番茄钟兜底
       let entryBtn = '';
       if(it.type==='plan'){
-        if(it.taskType==='错题重做'){
+        const txt = String(it.text||'');
+        const txtClean = txt.replace(/^[（(]含顺延[）)]\s*/, ''); // 去掉顺延前缀
+        const isReview = it.taskType==='错题重做' || /错题.*重做|待复习|复习\s*\d+\s*道/.test(txtClean);
+        const isCourse = it.taskType==='课程推进' || /^网课推进/.test(txtClean);
+        const isQbook  = (it.taskType==='专项训练' || it.taskType==='专项刷题') || /专项刷题|专项训练|《[^》]+》/.test(txtClean);
+        const isReviewSum = it.taskType==='复盘总结' || (/复盘/.test(txtClean) && !isReview); // 含「复盘」但不是「错题重做」
+        if(isReview){
           entryBtn = '<button class="plan-jump" onclick="startTodayReviewDrill(\''+it.id+'\')" title="打开今日待复习错题列表，直接进入错题重做">📝 打开今日错题</button>';
-        } else if(it.taskType==='课程推进'){
+        } else if(isCourse){
           entryBtn = '<button class="plan-jump" onclick="enterCourseFromPlan(\''+it.id+'\')" title="进入这门课程详情页（自动滚动并高亮）">🎓 进入课程</button>';
-        } else if(it.taskType==='专项训练' || it.taskType==='专项刷题'){
+        } else if(isQbook){
           entryBtn = '<button class="plan-jump" onclick="enterQbookFromPlan(\''+it.id+'\')" title="进入这本题本开始刷题（自动滚动并高亮）">📚 进入题本</button>';
-        } else if(it.taskType==='复盘总结'){
+        } else if(isReviewSum){
           entryBtn = '<button class="plan-jump" onclick="openReviewFromPlan(\''+it.id+'\')" title="去内容复盘页写今日复盘">📋 写复盘</button>';
         } else {
-          // 兜底：taskType 未匹配时（如「综合/其他」/自定义），保留番茄钟
+          // 真正的兜底：taskType/text 都推断不出的不明任务（如手动添加的自由任务），保留番茄钟
           entryBtn = '<button class="plan-pomo" onclick="startPlanTomato(\''+it.id+'\')" title="启动番茄钟，计时绑定本任务">🍅番茄钟</button>';
         }
       }
