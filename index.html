@@ -6785,10 +6785,11 @@ function startCourseFocus(msId, cId){
   if(inp) inp.value = todoText;
   if(typeof toast==='function') toast('已定位到番茄钟，模块：'+modName+' 🍅');
 }
-// 课程模块识别：① c.linked ② c.name 扫别名（短词优先，图推/图形 → 图形推理，遵循"图推就是图形推理，不要算到判断推理"）③ 兜底"综合/其他"
-// 别名顺序要点：'图推'/'图形' 必须最靠前（用户明确规则）；'常识' 必须在 '判断' 之前，否则"常识判断"会被误判为判断推理。
+// 课程模块识别：① c.name 扫别名（短词优先，图推/图形 → 图形推理，遵循"图推就是图形推理，不要算到判断推理"） ② c.linked 兜底 ③ "综合/其他"
+// 【顺序调整 2026-09-10】别名匹配必须在 c.linked 之前——c.linked 是脏数据兜底字段，
+// 用户改 c.name 后 c.linked 可能还停留在旧值（例如图推课 c.linked='verbal' 但 c.name='超格夸夸刷·图推'），
+// 走 c.linked 优先会让图推永远返回「言语理解」。别名顺序要点：'图推'/'图形' 必须最靠前（用户明确规则）；'常识' 必须在 '判断' 之前，否则"常识判断"会被误判为判断推理。
 function getCourseModName(c){
-  if(c && c.linked && TOPICS[c.linked]) return TOPICS[c.linked].name;
   if(c && c.name){
     const COURSE_MOD_ALIAS = [
       { key:'图形推理', words:['图推','图形推理','图形'] },        // 最高优先：图推/图形 → 图形推理
@@ -6806,6 +6807,8 @@ function getCourseModName(c){
       }
     }
   }
+  // c.linked 仅作兜底（c.name 匹配不到模块名时使用）
+  if(c && c.linked && TOPICS[c.linked]) return TOPICS[c.linked].name;
   return '综合/其他';
 }
 // 扁平化收集所有里程碑下的网课，返回 [{m, c}]
@@ -13535,6 +13538,15 @@ function showCoursePicker(planId){
   const p = (store.plans[today]||[]).find(function(x){ return x.id===planId; });
   if(!p) return;
   const all = (typeof getAllCourses==='function') ? getAllCourses() : [];
+  // 【脏数据兜底】弹窗打开前，对当前计划按 c.name 实时重算 p.module（解决"图推课显示言语理解"）
+  // 改 getCourseModName 顺序后兜底可省略，但 boot 没跑过的脏数据场景下仍需这一手
+  if(p.courseId && typeof inlineCourseModName==='function'){
+    const found = all.find(function(o){ return o.c && o.c.id===p.courseId; });
+    if(found && found.c){
+      const newMod = inlineCourseModName(found.c);
+      if(newMod && newMod !== p.module){ p.module = newMod; try{ saveStore(); }catch(e){} }
+    }
+  }
   const courses = all.map(function(o){ return o.c; }).filter(function(c){ return (c.status||'') !== '已完成'; });
   if(courses.length === 0){
     openPopup('🎓 选择课程', '<div style="padding:14px 4px;color:var(--text-sub);font-size:13px;text-align:center;">暂无进行中课程。<br/>先去「目标拆解」添加一门课程再回来。</div>'
