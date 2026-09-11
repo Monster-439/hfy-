@@ -5415,6 +5415,37 @@ function errorBookIdByModule(module){
   const b = (store.errorBooks||[]).find(function(x){ return x.name === module; });
   return b ? b.id : '';
 }
+// 【找回消失的题】按 module 名宽松归本：先精确匹配本子名，再用简称别名（时政→时政热点、图推→图形推理…）
+// 别名顺序红线：'常识' 必须在 '判断' 之前（否则「常识判断」误归判断推理）；'图推/图形' 最优先
+function errorBookIdByNameLoose(name){
+  const BOOK_ALIAS = [
+    { name:'图形推理', words:['图推','图形'] },
+    { name:'常识判断', words:['常识'] },
+    { name:'判断推理', words:['判断'] },
+    { name:'资料分析', words:['资料'] },
+    { name:'言语理解', words:['言语'] },
+    { name:'数量关系', words:['数量'] },
+    { name:'时政热点', words:['时政'] }
+  ];
+  ensureErrorBooks();
+  const s = String(name||'');
+  const exact = (store.errorBooks||[]).find(function(b){ return b.name===s; });
+  if(exact) return exact.id;
+  for(let i=0;i<BOOK_ALIAS.length;i++){
+    for(let j=0;j<BOOK_ALIAS[i].words.length;j++){
+      if(s.indexOf(BOOK_ALIAS[i].words[j])>=0){
+        const hit = (store.errorBooks||[]).find(function(b){ return b.name===BOOK_ALIAS[i].name; });
+        if(hit) return hit.id;
+        break;
+      }
+    }
+  }
+  return '';
+}
+// 错题的本子归属是否失效（book 为空 / 指向已删除的本子）→ 书架「未归类」卡片可见，绝不静默丢失
+function isUnfiledErr(e){
+  return !(e && e.book && (store.errorBooks||[]).some(function(b){ return b.id===e.book; }));
+}
 // 老数据迁移：answer 数字→数组；补新字段默认值；老错题按 module 归入同名预建本
 // 注意：level/reason 迁移时留空（不硬塞「中等」），只有用户主动选过才显示标签
 function migrateErrorFields(){
@@ -5442,8 +5473,9 @@ function migrateErrorFields(){
     if(e.nextReview === undefined){ e.nextReview = ''; changed = true; }
     // 老错题（未掌握且未设复习日）→ 置今天，使其自然进入「待复习」池
     if(!e.mastered && !e.nextReview){ e.nextReview = todayKey(); changed = true; }
-    if(!e.book){
-      const bid = errorBookIdByModule(e.module);
+    // 【找回消失的题】book 为空或指向已删除的本子 → 按 module 精确→别名宽松归本；归不进的走书架「未归类」卡片，绝不静默丢
+    if(isUnfiledErr(e)){
+      const bid = errorBookIdByNameLoose(e.module);
       if(bid){ e.book = bid; changed = true; }
     }
   });
@@ -13701,25 +13733,29 @@ function buildTodayPlanSlots(data, today){
   // 08-09 严格只排 nextReview≤今天 的待复习（第1轮=新增、第2/3轮=复习）
   // 录题时新题已置第1轮 + nextReview=今天，故昨日新增的题（nextReview=昨天）天然落在今天，无需双来源
   let reviewDueAll = errs.filter(function(e){ return !e.mastered && e.nextReview && e.nextReview<=todayKey(); });
+  // 08–09 错题重做（限制：待复习总数 + 前日顺延；单日≤15，总≤20，超量顺延至明日）
+  // 【根治顺延雪球】旧逻辑 totalDue = 池子 + store.redoOverflow —— 但昨日顺延的题 nextReview≤今天，
+  // 本就还在 reviewDueAll 池里，再加 carry 等于同一批题算两遍；且 overflow=totalDue-15 次日继续滚，
+  // 数字雪球越滚越大（真实 23 道滚到「75 道」）。改为只信真实池子，顺延数从池内推导（自然衰减）：
+  // arguments[2]（旧 store.redoOverflow）保留签名兼容但不再参与计算。
+  const totalDue = reviewDueAll.length;
+  const carryShown = reviewDueAll.filter(function(e){ return e.nextReview && e.nextReview < todayKey(); }).length;  // 展示用：池里从之前顺延来的题量
   const topWeak = data.weakTop[0];
   const c1 = data.courseTop2[0], c2 = data.courseTop2[1];
   const items = [];
   let it;
-  // 08–09 错题重做（限制：待复习总数 + 前日顺延；单日≤15，总≤20，超量顺延至明日）
-  const carry = arguments[2] || 0;  // 前日遗留的顺延题量（store.redoOverflow）
-  const totalDue = reviewDueAll.length + carry;  // 【修复文案歧义】真正的待复习总数（昨日顺延 + 今日新到）
   let redoNew = totalDue;
   let overNew = 0;
   if(redoNew > 15){ overNew = redoNew - 15; redoNew = 15; }
   const redoTotal = Math.min(20, redoNew);
   const rnParts = [];
-  if(carry>0) rnParts.push('含前日顺延 '+carry+' 道');
+  if(carryShown>0) rnParts.push('含前日顺延 '+carryShown+' 道');
   if(overNew>0) rnParts.push('今日先刷15道，余 '+overNew+' 道顺延至明日');
   const redoNote = rnParts.length ? '（'+rnParts.join('；')+'）' : '';
   // 文案显示「待复习 N 道」必须用 totalDue，否则读者会把修剪后的 15 误以为是总数，与 carry/overNew 数字对不上
   it = genDailyPlanItem('错题重做：待复习 '+totalDue+' 道'+redoNote, '错题', '08:00', '09:00', '错题重做', Math.max(3, redoTotal));
   it.slotKey = 'redo'; items.push(it);
-  items._redoOverflow = overNew; items._carry = carry;  // 供写入端持久化顺延题量
+  items._redoOverflow = overNew; items._carry = carryShown;  // 供写入端持久化顺延题量（_carry 仅展示语义）
   // 09–12 网课第1节（节数=下一节序号，按课程真实进度算：已学 8 节 → 显示「第9节」）
   if(c1) it = genDailyPlanItem('网课推进：'+c1.name+'（第'+nextLessonNumber(c1)+'节）', getCourseModName(c1), '09:00', '12:00', '课程推进', 1);
   else it = genDailyPlanItem('网课推进：暂无进行中课程，改为薄弱模块自由复习', '综合/其他', '09:00', '12:00', '课程推进', 0);
@@ -13826,7 +13862,7 @@ function writeTodayPlan(manual, data){
   const deferList = yPlans.filter(function(p){ return p.status!=='已完成' && !p.done; });
   const deferCount = deferList.length;
   // 生成 7 个固定时段，并把顺延分散合并进对应时段（8-9 只留错题重做）
-  const carry = store.redoOverflow || 0;
+  const carry = store.redoOverflow || 0;  // 【雪球根治后仅占位兼容】buildTodayPlanSlots 已不再使用该值参与计算
   const slots = buildTodayPlanSlots(data, today, carry);
   mergeDefersIntoSlots(slots, deferList);
   slots.forEach(function(it){ arr.push(it); });
@@ -16443,12 +16479,15 @@ function renderErrors(){
   // 本子内视图
   if(_errorsBookView){
     const b = errorBookById(_errorsBookView);
-    let errors = (store.errors||[]).filter(function(e){ return e.book===_errorsBookView; }).reverse();
+    let errors = (_errorsBookView==='_unfiled')
+      ? (store.errors||[]).filter(function(e){ return isUnfiledErr(e); }).reverse()
+      : (store.errors||[]).filter(function(e){ return e.book===_errorsBookView; }).reverse();
     if(filter!=='all') errors = errors.filter(function(e){ return e.module===filter; });
     errors = errors.filter(function(e){ return errMatchesStatus(e, status); });
     let html = '<div class="eb-back"><button type="button" class="btn btn-sm" onclick="closeBookView()">← 返回书架</button>'
-      + (b? ' <span class="eb-back-name">'+escapeHtml(b.name)+'</span>' : '')
-      + ' <span class="eb-back-cnt">'+errors.length+' 道</span></div>';
+      + '<span class="eb-back-name">'+(_errorsBookView==='_unfiled' ? '🗂 未归类错题' : ' '+escapeHtml(b?b.name:''))+'</span>'
+      + ' <span class="eb-back-cnt">'+errors.length+' 道</span></div>'
+      + (_errorsBookView==='_unfiled' ? '<div class="eb-tip" style="margin:4px 0 8px">这些题原来的本子被删过、或来源模块没匹配上科目本子。数据都在，点开可补全/移动。</div>' : '');
     html += renderErrListHtml(errors, '这本子还没有错题');
     list.innerHTML = html; syncTopicErrors(); return;
   }
@@ -16488,6 +16527,19 @@ function renderErrors(){
       +   '</div>'
       + '</div>';
   });
+  // 【找回消失的题】book 失效（空/指向已删本子）的错题 → 「🗂 未归类」卡片，一题都不许静默消失
+  const unfiled = (store.errors||[]).filter(function(e){ return isUnfiledErr(e); });
+  if(unfiled.length){
+    const ufUnmastered = unfiled.filter(function(e){ return !e.mastered; }).length;
+    html += '<div class="eb-book" style="--bk:#b9a48c" onclick="openBookView(\'_unfiled\')">'
+      +   '<div class="eb-book-spine"></div>'
+      +   '<div class="eb-book-cover">'
+      +     '<div class="eb-book-icon">🗂</div>'
+      +     '<div class="eb-book-name">未归类</div>'
+      +     '<div class="eb-book-stats">'+unfiled.length+' 道 · 未掌握 '+ufUnmastered+'</div>'
+      +   '</div>'
+      + '</div>';
+  }
   html += '</div>';
   list.innerHTML = html;
   syncTopicErrors();
@@ -16772,7 +16824,39 @@ function closeErrDetail(){ const m=document.getElementById('errDetailMask'); if(
 document.getElementById('examDate').value = todayKey();
 renderHome();
 migrateEbbinghaus();
+// 【自愈】今日已写入的「错题重做：待复习 N 道」行按真实池子重算文案（雪球根治后把历史写坏的 75 类数字刷正）
+// 保留「（含顺延）」前缀与手动编辑过的行（manualEdited 不动）
+function migrateRedoPlanText(){
+  if(!store.plans) return;
+  const today = todayKey();
+  const arr = store.plans[today];
+  if(!Array.isArray(arr)) return;
+  const due = (store.errors||[]).filter(function(e){ return e && !e.mastered && e.nextReview && e.nextReview<=today; });
+  const totalDue = due.length;
+  const carryShown = due.filter(function(e){ return e.nextReview < today; }).length;
+  const overNew = Math.max(0, totalDue-15);
+  const redoTotal = Math.max(3, Math.min(20, Math.min(15, totalDue)));
+  const RE = /^(（含顺延）)?错题重做：待复习 \d+ 道/;
+  arr.forEach(function(p){
+    if(!p || p.manualEdited) return;
+    if(!(p.taskType==='错题重做' || RE.test(p.text||''))) return;
+    const prefix = ((p.text||'').indexOf('（含顺延）')===0) ? '（含顺延）' : '';
+    const parts = [];
+    if(carryShown>0) parts.push('含前日顺延 '+carryShown+' 道');
+    if(overNew>0) parts.push('今日先刷15道，余 '+overNew+' 道顺延至明日');
+    const newText = prefix + '错题重做：待复习 '+totalDue+' 道' + (parts.length ? '（'+parts.join('；')+'）' : '');
+    if(p.text !== newText){
+      p.text = newText;
+      if(p.count && p.count!==redoTotal) p.count = redoTotal;
+      if(p.todoId && store.todos){
+        const td = store.todos.find(function(x){ return x.id===p.todoId; });
+        if(td){ td.text = p.text; }
+      }
+    }
+  });
+}
 try{ migrateErrorFields(); }catch(e){ console.error('[boot] migrateErrorFields 出错(已忽略):', e); }
+try{ migrateRedoPlanText(); saveStore(); }catch(e){ console.error('[boot] migrateRedoPlanText 出错(已忽略):', e); }
 if(!Array.isArray(store.weakItems)) store.weakItems = [];
 if(store.planAutoDate===undefined) store.planAutoDate = '';
 applyTheme(store.colorTheme || 'sakura');
