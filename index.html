@@ -20748,10 +20748,15 @@ function renderGarden(){  ensureGarden();
     }
     // 雨天：自动缓解进行中的干旱事件（老天爷浇水）
     if(g.weather==='rain' && g.gardenEvent && g.gardenEvent.type==='dry'){ clearGardenEvent(); }
-    // 干旱判定：连续 2 天未浇水 → 触发干旱事件（成长减半）；但雨天不会干旱
-    if(days>=2 && !g.gardenEvent.type && g.weather!=='rain'){ g.gardenEvent = {type:'dry', since:todayKey()}; }
+    // 干旱判定：湿润度驱动——moisture<20（土壤真的干了）才触发；雨天不触发
+    // 【修复 2026-09-11】原判 days>=2（距上次「亲手浇水」天数），但雨天 +28 湿润/天不更新 lastCare，
+    // 造成「连着下雨两天、湿润度 70% 还判干旱」的反直觉现象。现在以湿润度为权威：
+    // 自然衰减 -15/天（暴晒 -18），满值放养约 4~5 天才真干；雨天/浇水都会把湿润度顶回去。
+    if(g.moisture < 20 && !g.gardenEvent.type && g.weather!=='rain'){ g.gardenEvent = {type:'dry', since:todayKey()}; }
+    // 【自愈】存量脏事件：湿润度 ≥40 却挂着干旱（雨后没亲手浇水的场景）→ 自动解除
+    if(g.gardenEvent.type==='dry' && (g.moisture||0) >= 40){ clearGardenEvent(); }
     // 相思病：连续 N 天没来「打卡日历」打卡 → 小花想你生病（成长变慢）；与干旱(没浇水)区分，治愈=去打卡
-    else if(calGap>=AWAY_DAYS && !g.gardenEvent.type){ g.gardenEvent = {type:'away', since:todayKey()}; }
+    if(calGap>=AWAY_DAYS && !g.gardenEvent.type){ g.gardenEvent = {type:'away', since:todayKey()}; }
     // ── 长虫：独立判定（不再挂在 else if 链尾部）──
     // 【修复】原先长虫排在「干旱 → 相思病 → 长虫」链的最后一项，只要处于干旱/相思病就永远轮不到判定，
     // 造成「越认真照顾花越容易长虫、完全放着不管反而不长虫」的反直觉现象（实测：佛系用户 60 天仅 1.9 次，半数人零长虫）。
@@ -20998,7 +21003,7 @@ function closeGardenEventPopup(){
 
 // ── 状态条「按住展开 / 松手缩放」交互 + 详情 ──
 function statDetailText(type, v){
-  if(type==='moist') return v>70?'湿润刚刚好 💧':(v>=40?'有点干了，记得浇水哦':'很渴了，快浇水！');
+  if(type==='moist') return v>=70?'湿润刚刚好 💧':(v>=40?'有点干了，记得浇水哦':'很渴了，快浇水！');
   if(type==='health') return v>70?'活力满满 💚':(v>=40?'还算健康，继续加油':'需要照顾啦');
   return v>70?'阳光充足 ☀️':(v>=40?'光照一般，去晒晒太阳':'阴阴的，补点光吧');
 }
@@ -21288,7 +21293,7 @@ function useRevive(){
   const g = store.garden;
   if((g.meds.revive||0)<=0){ toast('没有花朵复活，去养护背包「特殊道具」用 '+REVIVE_DEF.cost+' 金币购买～'); return; }
   const days = g.lastCare ? daysBetween(g.lastCare, todayKey()) : 99;
-  const wilted = (days>=2) || g.gardenEvent.type==='dry';
+  const wilted = (days>=2) || (g.moisture||0)<20 || g.gardenEvent.type==='dry';
   if(!wilted){ toast('🌼 小花现在很有精神，不需要复活哦～'); return; }
   g.meds.revive -= 1;
   g.lastCare = todayKey(); g.wateredDate = todayKey(); g.dryDays = 0;
