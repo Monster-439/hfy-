@@ -6138,6 +6138,14 @@ function waterSubjFlower(key){
 }
 
 // ============ 目标拆解 ============
+// 【自动结课】done 达到 total 时把「进行中/延期/未开始」自动改为「已完成」
+// 返回 true 表示本次刚结课（供各入口弹专属庆祝 toast）
+// 复现：图推课 8/8 节 100% 还挂着「进行中 + 已过期 43 天」——旧逻辑只在 status 为空时预填，听完最后一节从不回写 status
+function autoFinishCourse(c){
+  if(!c || !(c.total>0)) return false;
+  if((c.done||0) >= c.total && c.status !== '已完成'){ c.status = '已完成'; return true; }
+  return false;
+}
 function ensureGoals(){
   if(!store.goals) store.goals = defaultStore().goals;
   if(!store.goals.root) store.goals.root = { title:'上岸', emoji:'🎯', deadline:'2026-11-29', note:'' };
@@ -6149,6 +6157,8 @@ function ensureGoals(){
         c.status = (c.done>0) ? ((c.done < (c.total||0)) ? '进行中' : '已完成') : '未开始';
       }
       if(c.planFinish===undefined) c.planFinish = '';
+      // 【自愈】存量脏数据：已学满 total 却还挂着「进行中/延期」→ 打开页面就自动结课
+      autoFinishCourse(c);
     });
   });
 }
@@ -6567,9 +6577,11 @@ function saveGoalCourse(msId, cId){
   const planFinish = document.getElementById('gCoursePlanFinish').value || '';
   if(cId){
     const c = m.courses.find(function(x){ return x.id===cId; });
-    if(c){ c.name=name; c.platform=platform; c.total=total; c.done=done; c.linked=linked; c.lessonMin=lessonMin; c.deadline=deadline; c.note=note; c.status=status; c.planFinish=planFinish; }
+    if(c){ c.name=name; c.platform=platform; c.total=total; c.done=done; c.linked=linked; c.lessonMin=lessonMin; c.deadline=deadline; c.note=note; c.status=status; c.planFinish=planFinish; autoFinishCourse(c); }
   } else {
-    m.courses.push({ id:'cs_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, platform:platform, total:total, done:done, linked:linked, lessonMin:lessonMin, deadline:deadline, note:note, status:status, planFinish:planFinish });
+    const _nc = { id:'cs_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, platform:platform, total:total, done:done, linked:linked, lessonMin:lessonMin, deadline:deadline, note:note, status:status, planFinish:planFinish };
+    autoFinishCourse(_nc);
+    m.courses.push(_nc);
   }
   // 课程页面（#page-courses）也是同一份 course 数据，需同时刷新；否则用户改完数字课程卡片不更新，要强刷才能看到
   saveStore(); closeGoalsPopup(); renderGoals();
@@ -6595,6 +6607,8 @@ function viewCourseLesson(msId, cId){
   if(!c) return;
   if((c.done||0) >= (c.total||0)){ if(typeof toast==='function') toast('《'+c.name+'》已学完啦 🎉'); return; }
   c.done = (c.done||0) + 1;
+  // 【自动结课】学满最后一节 → 状态自动改「已完成」
+  const _justFinished = autoFinishCourse(c);
   const today = todayKey();
   const mins = (c.lessonMin && c.lessonMin>0) ? c.lessonMin : 30;
   if(!store.checkins) store.checkins = {};
@@ -6622,7 +6636,9 @@ function viewCourseLesson(msId, cId){
   if(typeof renderCourses==='function') renderCourses();
   if(typeof renderPlan==='function') renderPlan();
   if(typeof renderTodoList==='function') renderTodoList();
-  if(typeof toast==='function') toast('已学 1 节《'+c.name+'》📚 已记打卡·待办·计划');
+  if(typeof toast==='function') toast(_justFinished
+    ? ('🎉 最后一节学完！《'+c.name+'》已自动标记为已完成 🏁')
+    : ('已学 1 节《'+c.name+'》📚 已记打卡·待办·计划'));
 }
 // 联动：📖 做1节（弹窗记时长/完成度/笔记）— 取代原 +1节 按钮
 function recordCourseLesson(msId, cId){
@@ -6679,8 +6695,11 @@ function commitCourseLesson(msId, cId){
     c.note = (c.note ? (c.note+'\n') : '') + '['+today+' '+mins+'分] ' + note.trim();
   }
   // 完成度 → 进度 / 错题归集
+  let _justFinished = false;
   if(fin==='done'){
     if((c.done||0) < (c.total||0)) c.done = (c.done||0) + 1;
+    // 【自动结课】学满最后一节 → 状态自动改「已完成」
+    _justFinished = autoFinishCourse(c);
   } else {
     // 部分 / 跳过 → 入错题本（联动 collectQbookErrors 同样思路）
     if(!store.errors) store.errors = [];
@@ -6721,7 +6740,9 @@ function commitCourseLesson(msId, cId){
   if(typeof renderTodoList==='function') renderTodoList();
   if(typeof renderErrors==='function') renderErrors();
   if(typeof renderCourses==='function') renderCourses();
-  if(typeof toast==='function') toast((fin==='done'?'📖 完成 1 节《':'⚠️ 标记 '+(fin==='partial'?'部分':'跳过')+' · 已入错题本《') + (c.name||'课程')+'》'+mins+'分');
+  if(typeof toast==='function') toast(_justFinished
+    ? ('🎉 最后一节学完！《'+(c.name||'课程')+'》已自动标记为已完成 🏁')
+    : ((fin==='done'?'📖 完成 1 节《':'⚠️ 标记 '+(fin==='partial'?'部分':'跳过')+' · 已入错题本《') + (c.name||'课程')+'》'+mins+'分'));
 }
 function startCourseFocus(msId, cId){
   ensureGoals();
@@ -7145,6 +7166,8 @@ function decrCourseLesson(msId, cId){
   if(!c) return;
   if((c.done||0) <= 0){ if(typeof toast==='function') toast('已经是 0 节了～'); return; }
   c.done = Math.max(0, (c.done||0) - 1);
+  // 【回退】−1 后不满 total 了 → 已完成自动退回「进行中」（配合自动结课双向一致）
+  if(c.status==='已完成' && (c.done||0) < (c.total||0)) c.status = '进行中';
   saveStore(); renderCourses();
 }
 function toggleCoursePlanDone(msId, cId){
@@ -22912,13 +22935,15 @@ function addFocus(minutes, modOverride, opts){
           const c = (m.courses||[]).find(function(x){ return x.id===_triggerCourseId; });
           if(c){
             if(!((c.done||0) >= (c.total||0)) || !(c.total>0)) c.done = (c.done||0)+1;
+            // 【自动结课】番茄学完最后一节 → 状态自动改「已完成」
+            const _courseJustDone = autoFinishCourse(c);
             // 【修复】原来是 `c._todayDone = (c.todayPlanDate||'')===t;` —— 那是「按 todayPlanDate 重置」而不是「勾选」。
             // 课程若没被点过「📅 今日」（todayPlanDate 不是今天，比如由每日计划自动生成排进来的），
             // 这里会被写成 false，课程页「今日网课计划」永远勾不上；更糟的是已勾的会被反向取消。
             // 既然这次番茄确实学完了这一节，直接勾选，并把它纳入今日网课计划（课程页才能看到并划掉）。
             c._todayDone = true;
             if((c.todayPlanDate||'')!==t) c.todayPlanDate = t;
-            setTimeout(function(){ if(typeof toast==='function') toast('🎓 课程进度 +1'); }, 320);
+            setTimeout(function(){ if(typeof toast==='function') toast(_courseJustDone ? ('🎉 最后一节学完！课程已自动标记为已完成 🏁') : '🎓 课程进度 +1'); }, 320);
             // 联动：番茄完成 → 自动弹「做1节」并预填番茄分钟数
             setTimeout(function(){ try{ autoOpenPostFocusPopup('course', {msId:m.id, cId:c.id}, minutes); }catch(e){} }, POST_FOCUS_POPUP_DELAY);
             break;
