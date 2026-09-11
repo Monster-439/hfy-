@@ -7517,18 +7517,26 @@ function commitQuestionBookStats(tdId){
   saveStore(); closeQbookPopup(); renderQuestionBooks(); renderTodoList(); renderPlan();
   if(typeof renderHome==='function') renderHome();
 }
+// 统一「番茄计时 → 题本章节」目标章节：第一个未完成章节（没有则第一章）
+// addFocus 自动联动、记录进度弹窗默认选中、专注记录改/删联动 三处共用，保证写进同一个地方
+function qbookTargetChapter(b){
+  const chs = Array.isArray(b && b.chapters) ? b.chapters : [];
+  if(!chs.length) return null;
+  return chs.find(function(c){ return (c.done||0) < (c.total||0); }) || chs[0];
+}
 function recordQuestionBookProgress(id){
   ensureQuestionBooks();
   const b = qbookById(id); if(!b) return;
   const agg = qbookAggregate(b);
   const chs = Array.isArray(b.chapters) ? b.chapters : [];
+  const _target = qbookTargetChapter(b);
   let chapSel = '';
   if(chs.length){
     chapSel = '<div style="text-align:left;font-size:13px;color:#666;margin:6px 0 4px">记录到哪个章节</div>'
       + '<select id="qbAddChap" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none;background:#fff">';
     chs.forEach(function(c, i){
       const pct = c.total ? Math.round(Math.min(c.done||0, c.total)/c.total*100) : 0;
-      chapSel += '<option value="'+c.id+'">'+escapeHtml(c.name)+' · '+Math.min(c.done||0,c.total||0)+'/'+(c.total||0)+' · '+pct+'%</option>';
+      chapSel += '<option value="'+c.id+'"'+( _target && c.id===_target.id ? ' selected' : '' )+'>'+escapeHtml(c.name)+' · '+Math.min(c.done||0,c.total||0)+'/'+(c.total||0)+' · '+pct+'%</option>';
     });
     chapSel += '</select>';
   }
@@ -7543,6 +7551,7 @@ function recordQuestionBookProgress(id){
     + '<input id="qbAddCorrect" type="number" min="0" inputmode="numeric" value="0" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 16">'
     + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">用时（分钟）</div>'
     + '<input id="qbAddTime" type="number" min="0" inputmode="numeric" value="0" style="width:100%;padding:9px 11px;border:2px solid #D6E0EF;border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="如 30">'
+    + '<div id="qbAutoTimeHint" style="display:none;font-size:11px;color:#5A9A4E;margin-top:4px"></div>'
     + '<div style="display:flex;gap:10px;margin-top:14px">'
     + '<button class="btn popup-btn" style="background:#eee;color:#888;box-shadow:none" onclick="closeQbookPopup()">取消</button>'
     + '<button class="btn popup-btn" onclick="commitQuestionBookProgress(\''+id+'\')">保存</button></div>';
@@ -15289,11 +15298,41 @@ function renderFocusLog(){
       + '<span class="fl-del" onclick="delFocusLog(\''+x.id+'\')" title="删除该记录">✕</span></li>';
   }).join('');
 }
+// 【联动】专注记录修改/删除 → 把用时差值同步回写题本章节（或单本）/课程
+// 反查链与 addFocus 联动一致：x.todoId → td 自身字段 → 文本猜测；站外补录（无书/课关联）自动跳过
+function syncFocusMinToTarget(x, diff){
+  if(!x || !diff || !store) return;
+  const td = (x.todoId && store.todos) ? store.todos.find(function(t){ return t.id===x.todoId; }) : null;
+  const task = x.task || (td && td.text) || '';
+  let qbookId = (td && td.qbookId) || '';
+  let courseId = (td && td.courseId) || '';
+  if(!qbookId && typeof guessQbookIdByText==='function') qbookId = guessQbookIdByText(task) || '';
+  if(!courseId && typeof guessCourseIdByText==='function') courseId = guessCourseIdByText(task) || '';
+  if(qbookId && typeof qbookById==='function'){
+    const b = qbookById(qbookId);
+    if(b){
+      const target = qbookTargetChapter(b);
+      if(target){ target.time = Math.max(0, (target.time||0) + diff); target.updatedAt = Date.now(); }
+      else { b.time = Math.max(0, (b.time||0) + diff); }
+      b.updatedAt = Date.now();
+    }
+    return;
+  }
+  if(courseId && store.goals && Array.isArray(store.goals.milestones)){
+    for(const m of store.goals.milestones){
+      const c = (m.courses||[]).find(function(v){ return v.id===courseId; });
+      if(c){ c.time = Math.max(0, (c.time||0) + diff); break; }
+    }
+  }
+}
+
 function delFocusLog(id){
   const log = store.focusLog||[];
   const idx = log.findIndex(x=>x.id===id);
   if(idx<0) return;
   const x = log[idx];
+  // 【联动】删除记录 → 题本/课程用时同步扣回
+  try{ syncFocusMinToTarget(x, -x.min); }catch(e){}
   ensureGarden();
   const g = store.garden;
   if(g.focusDays[x.date]!=null) g.focusDays[x.date] = Math.max(0,(g.focusDays[x.date]||0)-x.min);
@@ -15328,9 +15367,12 @@ function editFocusMin(id){
   if(store.checkins[x.date]!=null) store.checkins[x.date] = Math.max(0,(store.checkins[x.date]||0)+diff/60);
   if(store.moduleTime[x.mod]!=null) store.moduleTime[x.mod] = Math.max(0,(store.moduleTime[x.mod]||0)+diff);
   x.min = newMin;
+  // 【联动】改专注时长 → 题本/课程用时同步加减差值（diff 可为负）
+  try{ syncFocusMinToTarget(x, diff); }catch(e){}
   saveStore();
   renderStats();
   renderTodoList();
+  if(typeof renderQuestionBooks==='function') renderQuestionBooks();
   if(document.getElementById('page-garden').classList.contains('active')) renderGarden();
   if(document.getElementById('page-tomato').classList.contains('active')) renderTomato();
   if(document.getElementById('page-checkin').classList.contains('active')) renderCheckin();
@@ -22649,8 +22691,13 @@ function _openPostFocusPopupNow(src, ref, minutes){
   if(src==='qbook' && typeof recordQuestionBookProgress==='function'){
     recordQuestionBookProgress(ref);
     setTimeout(function(){
-      const el = document.getElementById('qbAddTime');
-      if(el){ el.value = String(Math.max(1, Math.round(minutes||0))); }
+      // 【防双计】addFocus 联动已自动把本次用时写入题本章节，这里不再预填 qbAddTime，
+      // 只显示提示——否则用户直接点保存会把 33 分记成 66 分
+      const hint = document.getElementById('qbAutoTimeHint');
+      if(hint){
+        hint.style.display = 'block';
+        hint.textContent = '⏱ 本次专注 '+Math.max(1, Math.round(minutes||0))+' 分钟已自动记入题本用时，下方用时保持 0 即可（补录时长才需要填）';
+      }
     }, 80);
   } else if(src==='course' && ref && typeof recordCourseLesson==='function'){
     recordCourseLesson(ref.msId, ref.cId);
@@ -22911,7 +22958,8 @@ function addFocus(minutes, modOverride, opts){
         if(b){
           const chs = Array.isArray(b.chapters) ? b.chapters : [];
           if(chs.length){
-            const target = chs.find(function(c){ return (c.done||0) < (c.total||0); }) || chs[0];
+            // 统一目标章节：与「记录进度」弹窗默认选中、专注记录改/删联动共用 qbookTargetChapter
+            const target = qbookTargetChapter(b);
             if(target){
               target.done = target.total ? Math.min((target.done||0)+1, target.total) : (target.done||0)+1;
               target.time = (target.time||0)+minutes;
