@@ -2729,6 +2729,7 @@ body.drawer-open .nav-cloud{display:none;}
     </div>
 
     <div class="nav-item" data-page="guide" data-page-node-id="gdNavGuide"><span class="nav-icon">🎮</span>玩法指南</div>
+    <div class="nav-item" data-page="daily" data-page-node-id="gdNavDaily"><span class="nav-icon">🎁</span>每日福利</div>
     <div class="nav-item" data-page="setting" data-page-node-id="LxynDlrqArPc2Ypj2g31A8"><span class="nav-icon" data-page-node-id="ylbNC1ltwk2AXLOBy6yYOv">⚙️</span>设置</div>
     <div class="nav-quote" id="navQuote" data-page-node-id="qyEiyPC1ETyWqGi4Ogfl4y"></div>
   </div>
@@ -2748,6 +2749,7 @@ body.drawer-open .nav-cloud{display:none;}
 
 <!-- ===== 玩法指南 ===== -->
 <div class="page" id="page-guide"></div>
+<div class="page" id="page-daily"></div>
 
 <!-- ===== 知识闪卡 ===== -->
 <div class="page" id="page-flashcard" data-page-node-id="DcPdppCyvOFY7cCE0iAMuB"></div>
@@ -4481,6 +4483,10 @@ function defaultStore(){
     achievements: {}, // 成就墙：已解锁成就 {id: 解锁日期}
     gacha: { tickets:0, pulled:[], coll:{} }, // 抽卡养花：扭蛋币数 / 抽卡历史 / 已收集图鉴
     boss: { win:0, lose:0, best:0, history:[] }, // 错题BOSS战：胜场/败场/最高连击/最近战绩[{date,name,module,result,rate,dmg}]
+    // 🎁 每日福利：连击护盾 / 每日押注 / 每日盲盒
+    streakGame: { best:0, shields:0, claimed:{}, protected:{}, broken:0 }, // best=最高连击 / shields=护盾卡 / claimed=已领里程碑{天数:日期} / protected=护盾保护日{date:true}
+    bet: { date:'', amount:0, target:0, done:false, win:0, lose:0, total:0, history:[] }, // 每日押注：押注日/金额/目标番茄数/是否已结算/胜负/历史
+    dailyBox: { date:'', opened:false, streak:0, lastDate:'', lastReward:'', total:0 }, // 每日盲盒：当日/是否已开/连续开箱天数/上次开箱日/上次奖励
     ebbinghaus: { items: [] }, // 艾宾浩斯复习计划 [{id,srcDate,module,stage,interval,dueDate,done,doneDate}]
     errorBooks: [],  // 错题本（小本子）[{id,name,color,icon,createdAt,order}] 为空时首次运行按科目预建
     errors: [],      // 错题 [{id,module,content,photos,date,...,book,qType,level,wrongReason,wrongCount,srcDetail,mastered,masteredDate,note,nextReview,reviewRound,correctCount,answer:[]}]
@@ -9894,6 +9900,22 @@ const PLAYBOOK = [
       if(w+l>0) return {st:'done', tip:'胜 '+w+' · 负 '+l+' · 最高连击 '+(b.best||0)};
       if(due>0) return {st:'doing', tip:'有 '+due+' 道错题等着被讨伐！'};
       return {st:'todo', tip:'攒够错题就能开打'}; } },
+  { emoji:'🔥', name:'连续打卡连击', page:'daily', how:'每天来打卡攒连击，3/7/14/30/60/100 天有里程碑奖励（金币 + 扭蛋币）；断签 1 天会自动用护盾顶住，连击不清零', reward:'🪙 金币 + 🎰 扭蛋币 + 🛡️ 护盾',
+    probe:function(){ const s=store.streakGame||{}; const cur=(typeof calcStreak==='function')?calcStreak():0;
+      const got=Object.keys((s.claimed)||{}).length;
+      if(got>0) return {st:'done', tip:'当前连击 '+cur+' 天 · 最高 '+(s.best||0)+' 天 · 已领 '+got+' 个里程碑'};
+      if(cur>0) return {st:'doing', tip:'连击 '+cur+' 天，第一个奖励在 3 天！'};
+      return {st:'todo', tip:'今天去打卡就能开始攒连击'}; } },
+  { emoji:'🎲', name:'每日押注', page:'daily', how:'早上押 10/20/30 金币赌今日番茄数（2/4/6 个），达成翻倍返还，没达成没收——用钱逼自己多刷几个番茄', reward:'🪙 金币翻倍',
+    probe:function(){ const b=store.bet||{}; const n=(b.win||0)+(b.lose||0);
+      if(n>0) return {st:'done', tip:(b.win||0)+' 胜 '+(b.lose||0)+' 负 · 共 '+n+' 次'};
+      if((store.garden&&store.garden.coins||0)>=10) return {st:'doing', tip:'你有 '+(store.garden.coins||0)+' 金币，够押一把了！'};
+      return {st:'todo', tip:'攒够 10 金币就能下注'}; } },
+  { emoji:'🎁', name:'每日盲盒', page:'daily', how:'每天完成 1 个番茄钟就能开一个盲盒：水滴 / 金币 / 扭蛋币 / 花朵成长 / 护盾卡，连开 7 天额外送 20 金币', reward:'💧🪙🎰🌸🛡️ 随机掉落',
+    probe:function(){ const x=store.dailyBox||{}; const t=todayKey();
+      if((x.total||0)>0) return {st:'done', tip:'已开 '+x.total+' 次 · 连开 '+(x.streak||0)+' 天'+(x.date===t?' · 今日已开':'')};
+      if((store.focusLog||[]).some(function(f){ return f.date===t; })) return {st:'doing', tip:'今天已经刷过番茄，马上去开箱！'};
+      return {st:'todo', tip:'刷 1 个番茄钟就能开箱'}; } },
   { emoji:'🎰', name:'扭蛋养花', page:'garden', how:'番茄钟专注会掉扭蛋币，攒够就能抽卡，收集 24 种花（N→UR 五档稀有度）', reward:'图鉴收集 + 稀有花',
     probe:function(){ const g=store.gacha||{}; const n=(g.pulled||[]).length, t=g.tickets||0, c=Object.keys(g.coll||{}).length;
       if(n>0) return {st:'done', tip:'已抽 '+n+' 次 · 图鉴 '+c+' 种'};
@@ -10017,6 +10039,275 @@ function renderGuide(){
   html += '</div>';
   el.innerHTML = html;
 }
+// ====================================================
+//  🎁 每日福利：🔥 连击护盾 / 🎲 每日押注 / 🎁 每日盲盒
+// ====================================================
+const STREAK_MILESTONES = [
+  { n:3,   coin:3,   ticket:0, label:'🔥 三日不熄' },
+  { n:7,   coin:8,   ticket:1, label:'⭐ 一周不断' },
+  { n:14,  coin:15,  ticket:2, label:'💪 两周坚持' },
+  { n:30,  coin:30,  ticket:3, label:'🏅 满月打卡' },
+  { n:60,  coin:60,  ticket:5, label:'👑 双月传奇' },
+  { n:100, coin:100, ticket:8, label:'🎖️ 百日成钢' }
+];
+const SHIELD_PRICE = 20;          // 护盾卡售价（金币）
+const BET_AMOUNTS  = [10, 20, 30];// 押注金额档
+const BET_TARGETS  = [2, 4, 6];   // 押注目标番茄数档
+const DAILY_BOX_POOL = [
+  { w:26, type:'drop',   n:5,  text:'💧 水滴 +5' },
+  { w:22, type:'coin',   n:5,  text:'🪙 金币 +5' },
+  { w:14, type:'drop',   n:12, text:'💧 水滴 +12' },
+  { w:12, type:'ticket', n:1,  text:'🎰 扭蛋币 +1' },
+  { w:10, type:'grow',   n:5,  text:'🌸 花朵成长 +5' },
+  { w:8,  type:'coin',   n:12, text:'🪙 金币 +12' },
+  { w:5,  type:'shield', n:1,  text:'🛡️ 护盾卡 +1' },
+  { w:3,  type:'ticket', n:2,  text:'🎰 扭蛋币 +2（欧皇）' }
+];
+var _betAmount = 10, _betTarget = 2;
+
+function ensureDailyGame(){
+  if(!store.streakGame) store.streakGame = { best:0, shields:0, claimed:{}, protected:{}, broken:0 };
+  const s = store.streakGame;
+  if(!s.claimed) s.claimed = {};
+  if(!s.protected) s.protected = {};
+  if(typeof s.best !== 'number') s.best = 0;
+  if(typeof s.shields !== 'number') s.shields = 0;
+  if(!store.bet) store.bet = { date:'', amount:0, target:0, done:false, win:0, lose:0, total:0, history:[] };
+  if(!store.bet.history) store.bet.history = [];
+  if(!store.dailyBox) store.dailyBox = { date:'', opened:false, streak:0, lastDate:'', lastReward:'', total:0 };
+}
+// 护盾保护日：护盾替你顶掉的断签日，算作已打卡（不伪造真实打卡数据）
+function isStreakProtected(k){
+  return !!(store.streakGame && store.streakGame.protected && store.streakGame.protected[k]);
+}
+// 今日（或某天）完成的番茄钟个数
+function todayTomatoCount(d){
+  const k = d || todayKey();
+  return (store.focusLog||[]).filter(function(x){ return x.date===k; }).length;
+}
+// 打开时同步：刷新最高纪录 + 断签 1 天自动消耗护盾保住连击
+function syncStreakGame(){
+  ensureDailyGame();
+  const s = store.streakGame;
+  const ci = store.checkins || {};
+  const tk = todayKey();
+  const cur = (typeof calcStreak==='function') ? calcStreak() : 0;
+  if(cur > (s.best||0)) s.best = cur;
+  const dYes = new Date(tk+'T00:00:00'); dYes.setDate(dYes.getDate()-1);
+  const kYes = dateKey(dYes);
+  const dBe  = new Date(tk+'T00:00:00'); dBe.setDate(dBe.getDate()-2);
+  const kBe  = dateKey(dBe);
+  // 仅兜底「只断了昨天一天」的情况：昨天没打卡、前天打了，且有护盾
+  if(ci[kYes]===undefined && !s.protected[kYes] && (s.shields||0) > 0
+     && (ci[kBe]!==undefined || s.protected[kBe])){
+    s.protected[kYes] = true;
+    s.shields -= 1;
+    if(typeof saveStore==='function') saveStore();
+    setTimeout(function(){ if(typeof toast==='function') toast('🛡️ 护盾生效！昨天的连击保住了（剩余 '+s.shields+' 张）'); }, 700);
+    return true;
+  }
+  return false;
+}
+function claimStreakReward(n){
+  ensureDailyGame();
+  const s = store.streakGame, g = store.garden;
+  const ms = STREAK_MILESTONES.filter(function(x){ return x.n===n; })[0];
+  if(!ms) return false;
+  if(s.claimed[n]){ if(typeof toast==='function') toast('这个奖励已经领过啦～'); return false; }
+  if(((typeof calcStreak==='function')?calcStreak():0) < n){
+    if(typeof toast==='function') toast('连击还不够 '+n+' 天，继续加油！');
+    return false;
+  }
+  s.claimed[n] = todayKey();
+  g.coins = (g.coins||0) + ms.coin;
+  if(ms.ticket > 0){
+    if(!store.gacha) store.gacha = { tickets:0, pulled:[], coll:{} };
+    store.gacha.tickets = (store.gacha.tickets||0) + ms.ticket;
+  }
+  if(typeof saveStore==='function') saveStore();
+  if(typeof toast==='function') toast(ms.label+' 奖励：🪙 +'+ms.coin+(ms.ticket ? ('、🎰 +'+ms.ticket) : ''));
+  if(typeof renderDaily==='function') renderDaily();
+  return true;
+}
+function buyShield(){
+  ensureDailyGame();
+  const s = store.streakGame, g = store.garden;
+  if((g.coins||0) < SHIELD_PRICE){ if(typeof toast==='function') toast('金币不够哦～ 护盾需要 '+SHIELD_PRICE+' 金币'); return false; }
+  g.coins -= SHIELD_PRICE;
+  s.shields = (s.shields||0) + 1;
+  if(typeof saveStore==='function') saveStore();
+  if(typeof toast==='function') toast('🛡️ 买到 1 张护盾卡（断签一天自动保住连击），现有 '+s.shields+' 张');
+  if(typeof renderDaily==='function') renderDaily();
+  return true;
+}
+// ---- 🎲 每日押注 ----
+function placeBet(amount, target){
+  ensureDailyGame();
+  const b = store.bet, g = store.garden, t = todayKey();
+  if(b.date===t){ if(typeof toast==='function') toast('今天已经押过啦～ 明天再来'); return false; }
+  amount = amount||10; target = target||2;
+  if((g.coins||0) < amount){ if(typeof toast==='function') toast('金币不够，押注需要 '+amount+' 金币'); return false; }
+  g.coins -= amount;
+  b.date = t; b.amount = amount; b.target = target; b.done = false;
+  if(typeof saveStore==='function') saveStore();
+  if(typeof toast==='function') toast('🎲 押下 '+amount+' 金币！今日完成 '+target+' 个番茄就翻倍返还');
+  if(typeof renderDaily==='function') renderDaily();
+  return true;
+}
+// 结算往日押注（今天押的次日才结算）；返回结算结果或 null
+function settleBets(){
+  ensureDailyGame();
+  const b = store.bet, g = store.garden, t = todayKey();
+  if(!b.date || b.done) return null;
+  if(b.date >= t) return null;
+  const got = todayTomatoCount(b.date);
+  const win = got >= (b.target||0);
+  const amount = b.amount||0;
+  const delta = win ? amount*2 : 0;
+  b.done = true;
+  b.total = (b.total||0) + 1;
+  if(win) b.win = (b.win||0)+1; else b.lose = (b.lose||0)+1;
+  g.coins = (g.coins||0) + delta;
+  b.history.push({ date:b.date, amount:amount, target:b.target, got:got, win:win });
+  if(b.history.length > 20) b.history = b.history.slice(-20);
+  if(typeof saveStore==='function') saveStore();
+  setTimeout(function(){
+    if(typeof toast!=='function') return;
+    if(win) toast('🎲 昨日押注达成！完成 '+got+' 个番茄（目标 '+b.target+'），返还 🪙 '+delta+' 金币');
+    else toast('🎲 昨日押注没达成：只完成 '+got+' 个番茄（目标 '+b.target+'），'+amount+' 金币被没收…');
+  }, 900);
+  return { win:win, got:got, delta:delta, amount:amount, target:b.target };
+}
+// ---- 🎁 每日盲盒 ----
+function canOpenDailyBox(){
+  ensureDailyGame();
+  const b = store.dailyBox, t = todayKey();
+  if(b.date===t && b.opened) return false;
+  return todayTomatoCount() >= 1;
+}
+function openDailyBox(){
+  ensureDailyGame();
+  const b = store.dailyBox, g = store.garden, t = todayKey();
+  if(b.date===t && b.opened){ if(typeof toast==='function') toast('今天的盲盒已经开过啦，明天再来～'); return null; }
+  if(todayTomatoCount() < 1){ if(typeof toast==='function') toast('今天先完成 1 个番茄钟，才能开盲盒哦 🍅'); return null; }
+  const yd = new Date(t+'T00:00:00'); yd.setDate(yd.getDate()-1);
+  b.streak = (b.lastDate === dateKey(yd)) ? ((b.streak||0)+1) : 1;
+  b.lastDate = t; b.date = t; b.opened = true;
+  b.total = (b.total||0) + 1;
+  let totalW = 0;
+  DAILY_BOX_POOL.forEach(function(x){ totalW += x.w; });
+  let r = Math.random()*totalW, hit = DAILY_BOX_POOL[0];
+  for(let i=0;i<DAILY_BOX_POOL.length;i++){ r -= DAILY_BOX_POOL[i].w; if(r<=0){ hit = DAILY_BOX_POOL[i]; break; } }
+  if(!g.flowers) g.flowers = {};
+  if(!g.dropLog) g.dropLog = {};
+  if(hit.type==='drop'){ g.drops = (g.drops||0)+hit.n; g.dropLog[t] = (g.dropLog[t]||0)+hit.n; }
+  else if(hit.type==='coin'){ g.coins = (g.coins||0)+hit.n; }
+  else if(hit.type==='ticket'){ if(!store.gacha) store.gacha = { tickets:0, pulled:[], coll:{} }; store.gacha.tickets = (store.gacha.tickets||0)+hit.n; }
+  else if(hit.type==='grow'){ const act = g.active || 'hydrangea'; g.flowers[act] = Math.min(100,(g.flowers[act]||0)+hit.n); }
+  else if(hit.type==='shield'){ store.streakGame.shields = (store.streakGame.shields||0)+hit.n; }
+  let extra = '';
+  if(b.streak > 0 && b.streak % 7 === 0){ g.coins = (g.coins||0)+20; extra = ' 🎉 连开 '+b.streak+' 天，额外 🪙 +20！'; }
+  b.lastReward = hit.text + extra;
+  if(typeof saveStore==='function') saveStore();
+  if(typeof toast==='function') toast('🎁 开箱：'+hit.text+extra);
+  if(typeof renderDaily==='function') renderDaily();
+  return hit;
+}
+function pickBetAmount(n){ _betAmount = n; renderDaily(); }
+function pickBetTarget(n){ _betTarget = n; renderDaily(); }
+function confirmBet(){ placeBet(_betAmount, _betTarget); }
+
+// 🎁 每日福利页
+function renderDaily(){
+  const el = document.getElementById('page-daily');
+  if(!el) return;
+  if(typeof ensureStore==='function') ensureStore();
+  ensureDailyGame();
+  const g = store.garden, s = store.streakGame, b = store.bet, box = store.dailyBox;
+  const t = todayKey();
+  const cur = (typeof calcStreak==='function') ? calcStreak() : 0;
+  const tomatoes = todayTomatoCount();
+  const card = function(head, body, accent){
+    return '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);border-left:4px solid '+(accent||'#A86BC4')+';margin-bottom:12px">'
+      + head + body + '</div>';
+  };
+  const chip = function(label, on, fn){
+    return '<button onclick="'+fn+'" style="padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(on?'#A86BC4':'#E8E0EE')+';background:'+(on?'#F3ECFB':'#fff')+';color:'+(on?'#A86BC4':'#888')+'">'+label+'</button>';
+  };
+  let html = '<div style="padding:14px 14px 40px;background:#F7F7F8;min-height:100vh">';
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-bottom:12px;display:flex;align-items:center;gap:10px">'
+    + '<span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#6b4fa8,#8566c9);color:#fff;font-size:18px">🎁</span>'
+    + '<div style="flex:1"><div style="font-size:15px;font-weight:700;color:#333">每日福利</div>'
+    + '<div style="font-size:11px;color:#aaa;margin-top:1px">今天番茄 🍅 '+tomatoes+' 个 · 金币 🪙 '+(g.coins||0)+'</div></div></div>';
+
+  // ① 连击护盾
+  let msHtml = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">';
+  STREAK_MILESTONES.forEach(function(m){
+    const reached = cur >= m.n, claimed = !!s.claimed[m.n];
+    const bg = claimed ? '#EAF7E9' : (reached ? '#FFF3E0' : '#F4F2F6');
+    const col = claimed ? '#5BAE6F' : (reached ? '#e8a13a' : '#bbb');
+    msHtml += '<button onclick="claimStreakReward('+m.n+')" style="padding:5px 9px;border-radius:10px;font-size:11px;font-weight:700;cursor:pointer;border:1.5px solid '+col+';background:'+bg+';color:'+col+'">'
+      + (claimed ? '✅ ' : (reached ? '🎁 ' : '🔒 ')) + m.n + '天</button>';
+  });
+  msHtml += '</div>';
+  html += card(
+    '<div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">🔥</span>'
+    + '<span style="font-size:14px;font-weight:700;color:#444;flex:1">连续打卡连击</span>'
+    + '<span style="font-size:20px;font-weight:800;color:#E5484D">'+cur+'</span><span style="font-size:11px;color:#aaa">天</span></div>'
+    + '<div style="font-size:12px;color:#888;margin-top:6px">最高纪录 '+(s.best||0)+' 天 · 护盾卡 🛡️ '+(s.shields||0)+' 张（断签 1 天自动顶替，连击不清零）</div>'
+    + msHtml
+    + '<div style="margin-top:10px;display:flex;gap:8px;align-items:center">'
+    + '<button onclick="buyShield()" style="flex:1;padding:8px;border-radius:10px;border:1.5px solid #A86BC4;background:#fff;color:#A86BC4;font-size:12px;font-weight:700;cursor:pointer">🛡️ 买护盾（'+SHIELD_PRICE+' 金币）</button>'
+    + '</div>', '', '#E5484D');
+
+  // ② 每日押注
+  let betBody = '';
+  const betToday = (b.date===t);
+  if(betToday){
+    const left = Math.max(0, (b.target||0) - tomatoes);
+    betBody = '<div style="font-size:12px;color:#888;margin-top:6px">'
+      + (b.done
+          ? ('今日已结算：' + ((((b.history||[]).filter(function(h){ return h.date===t; })[0]||{}).win) ? '🎉 达成，翻倍返还' : '💧 未达成，金币被没收'))
+          : ('已押 🪙 '+b.amount+' · 目标 '+b.target+' 个番茄 · 还差 <b style="color:#E5484D">'+left+'</b> 个'))
+      + '</div>';
+  } else {
+    betBody = '<div style="font-size:12px;color:#888;margin-top:6px">选金额和目标，达成翻倍返还，没达成没收</div>'
+      + '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'
+      + BET_AMOUNTS.map(function(a){ return chip('🪙 '+a, _betAmount===a, 'pickBetAmount('+a+')'); }).join('')
+      + '</div>'
+      + '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">'
+      + BET_TARGETS.map(function(x){ return chip('🍅 '+x+' 个', _betTarget===x, 'pickBetTarget('+x+')'); }).join('')
+      + '</div>'
+      + '<button onclick="confirmBet()" style="margin-top:10px;width:100%;padding:8px;border-radius:10px;border:none;background:linear-gradient(135deg,#6b4fa8,#8566c9);color:#fff;font-size:13px;font-weight:700;cursor:pointer">🎲 下注（押 '+_betAmount+' 金币）</button>';
+  }
+  betBody += '<div style="font-size:11px;color:#aaa;margin-top:8px">战绩：'+(b.win||0)+' 胜 '+(b.lose||0)+' 负（共 '+(b.total||0)+' 次）</div>';
+  html += card(
+    '<div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">🎲</span>'
+    + '<span style="font-size:14px;font-weight:700;color:#444;flex:1">每日押注</span>'
+    + '<span style="font-size:11px;color:#aaa">今日 🍅 '+tomatoes+'</span></div>' + betBody, '', '#6b4fa8');
+
+  // ③ 每日盲盒
+  const opened = (box.date===t && box.opened);
+  const canOpen = canOpenDailyBox();
+  let boxBody = '';
+  if(opened){
+    boxBody = '<div style="font-size:13px;color:#5BAE6F;font-weight:700;margin-top:6px">今日已开：'+box.lastReward+'</div>';
+  } else if(canOpen){
+    boxBody = '<div style="font-size:12px;color:#888;margin-top:6px">今日番茄已达标，可以开箱啦</div>'
+      + '<button onclick="openDailyBox()" style="margin-top:10px;width:100%;padding:9px;border-radius:10px;border:none;background:linear-gradient(135deg,#F0A7C0,#D4537E);color:#fff;font-size:13px;font-weight:700;cursor:pointer">🎁 打开今日盲盒</button>';
+  } else {
+    boxBody = '<div style="font-size:12px;color:#888;margin-top:6px">完成 1 个番茄钟即可开箱（今日 🍅 '+tomatoes+'）</div>'
+      + '<button style="margin-top:10px;width:100%;padding:9px;border-radius:10px;border:1.5px solid #E8E0EE;background:#F7F7F8;color:#bbb;font-size:13px;font-weight:700;cursor:not-allowed">🔒 先去刷个番茄</button>';
+  }
+  boxBody += '<div style="font-size:11px;color:#aaa;margin-top:8px">连开 '+(box.streak||0)+' 天 · 累计开箱 '+(box.total||0)+' 次'+(box.streak>=7?' · 每 7 天额外 🪙 +20':'')+'</div>';
+  html += card(
+    '<div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">🎁</span>'
+    + '<span style="font-size:14px;font-weight:700;color:#444;flex:1">每日盲盒</span></div>' + boxBody, '', '#D4537E');
+
+  html += '<div style="font-size:11px;color:#aaa;text-align:center;padding:6px 0 0">护盾：断签 1 天自动顶替 · 押注：次日结算 · 盲盒：每日 1 个</div>';
+  html += '</div>';
+  el.innerHTML = html;
+}
 function onPageShow(page){
   if(page==='home'){ renderHome(); updateEbBadge(); }
   if(page==='plan') renderPlan();
@@ -10048,6 +10339,7 @@ function onPageShow(page){
   if(page==='secret') renderSecretGarden();
   if(page==='tomato'){ renderTomato(); ensureDailyTodos(); renderTodoList(); }
   if(page==='guide') renderGuide();
+  if(page==='daily'){ settleBets(); syncStreakGame(); renderDaily(); }
   if(page==='idea'){ renderIdeaTabs(); renderIdeaDaily(); renderIdeaCustom(); }
   checkDayReviewReminder();
   updateFloatingWidget();
@@ -15627,11 +15919,15 @@ function updateCheckinSummary(){
 
 function calcStreak(){
   // 「打卡」= 打卡日历里的日历打卡（不含番茄/站外专注），连续天数只数日历打卡
+  // 【修复】起点必须用 todayKey()（凌晨 0:00-7:59 归为前一天）而不是 new Date()，
+  // 否则熬夜时段 App 认为的「今天」与 new Date() 差一天，连击会被错算成 0。
   let streak = 0;
-  const d = new Date();
+  const _tk = (typeof todayKey==='function') ? todayKey() : '';
+  const d = _tk ? new Date(_tk+'T00:00:00') : new Date();
   while(true){
     const k = dateKey(d);
-    if(store.checkins[k]!==undefined){
+    // 护盾保护日也算连续（断签 1 天时护盾自动兜底，连击不清零）
+    if(store.checkins[k]!==undefined || (typeof isStreakProtected==='function' && isStreakProtected(k))){
       streak++;
       d.setDate(d.getDate()-1);
     } else {
@@ -23769,6 +24065,24 @@ function addFocus(minutes, modOverride, opts){
   // 番茄钟完成掉落扭蛋币 + 检查成就解锁
   store.gacha.tickets = (store.gacha.tickets||0) + 1;
   checkAchievements();
+  // 🎁 每日盲盒：今日首个番茄完成 → 提示可以去开箱（只提示一次，不打断专注）
+  try{
+    ensureDailyGame();
+    const _box = store.dailyBox;
+    if(todayTomatoCount()>=1 && !(_box.date===t && _box.opened)){
+      setTimeout(function(){ if(typeof toast==='function') toast('🎁 今日盲盒可开了！去「🎁 每日福利」开箱'); }, 1400);
+    }
+    // 押注进度提示：押了但还没达成时，每完成一个番茄报一下进度
+    const _bet = store.bet;
+    if(_bet && _bet.date===t && !_bet.done){
+      const got = todayTomatoCount();
+      setTimeout(function(){
+        if(typeof toast!=='function') return;
+        if(got >= (_bet.target||0)) toast('🎲 押注目标达成！今日 '+got+' 个番茄，明天结算返还 🪙 '+((_bet.amount||0)*2));
+        else toast('🎲 押注进度 '+got+'/'+(_bet.target||0)+' 个番茄');
+      }, 1000);
+    }
+  }catch(e){ if(window.console) console.warn('dailyGame hint', e); }
 }
 function renderTomato(){
   ensureGarden();
@@ -24822,6 +25136,9 @@ function boot(){
   try { autoGenDailyPlanOnBoot(); } catch(e){ console.error('[boot] autoGenDailyPlanOnBoot 出错(已忽略):', e); }
   // 月计划自动生成：每月 1 号首次打开且未生成过则自动跑（不自动写入每日计划）
   try { autoGenMonthlyPlanOnBoot(); } catch(e){ console.error('[boot] autoGenMonthlyPlanOnBoot 出错(已忽略):', e); }
+  // 🎁 每日福利：结算往日押注 + 断签护盾自动生效（不阻塞开屏）
+  try { settleBets(); } catch(e){ console.error('[boot] settleBets 出错(已忽略):', e); }
+  try { syncStreakGame(); } catch(e){ console.error('[boot] syncStreakGame 出错(已忽略):', e); }
   try {
     if(!store.onboard || !store.onboard.done){ startOnboarding(); }
     else { showSplash(); }
