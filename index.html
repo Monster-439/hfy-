@@ -2728,6 +2728,7 @@ body.drawer-open .nav-cloud{display:none;}
       </div>
     </div>
 
+    <div class="nav-item" data-page="guide" data-page-node-id="gdNavGuide"><span class="nav-icon">🎮</span>玩法指南</div>
     <div class="nav-item" data-page="setting" data-page-node-id="LxynDlrqArPc2Ypj2g31A8"><span class="nav-icon" data-page-node-id="ylbNC1ltwk2AXLOBy6yYOv">⚙️</span>设置</div>
     <div class="nav-quote" id="navQuote" data-page-node-id="qyEiyPC1ETyWqGi4Ogfl4y"></div>
   </div>
@@ -2744,6 +2745,9 @@ body.drawer-open .nav-cloud{display:none;}
 
 <!-- ===== 记忆复习（艾宾浩斯） ===== -->
 <div class="page" id="page-ebbinghaus" data-page-node-id="1wnOCIyzHWzvG4MzeW41J8"></div>
+
+<!-- ===== 玩法指南 ===== -->
+<div class="page" id="page-guide"></div>
 
 <!-- ===== 知识闪卡 ===== -->
 <div class="page" id="page-flashcard" data-page-node-id="DcPdppCyvOFY7cCE0iAMuB"></div>
@@ -9879,6 +9883,132 @@ function saveMindmapNote(sub, val){
   if(typeof saveStore==='function') saveStore();
 }
 
+// ===== 🎮 玩法指南：把「做完但没入口引导」的玩法推到台前 =====
+// 每项 probe() 读真实数据判断状态：todo=还没玩过 / doing=玩过但没玩透 / done=已经在玩
+// 显示文案一律来自真实数据（禁止写死字面量），与「显示文案读真实数据」红线一致
+const PLAYBOOK = [
+  { emoji:'🎰', name:'扭蛋养花', page:'garden', how:'番茄钟专注会掉扭蛋币，攒够就能抽卡，收集 24 种花（N→UR 五档稀有度）', reward:'图鉴收集 + 稀有花',
+    probe:function(){ const g=store.gacha||{}; const n=(g.pulled||[]).length, t=g.tickets||0, c=Object.keys(g.coll||{}).length;
+      if(n>0) return {st:'done', tip:'已抽 '+n+' 次 · 图鉴 '+c+' 种'};
+      if(t>0) return {st:'doing', tip:'你有 '+t+' 个扭蛋币还没用！'};
+      return {st:'todo', tip:'专注一次就能掉扭蛋币'}; } },
+  { emoji:'🏆', name:'成就墙', page:'garden', act:'ach', how:'打卡 / 专注 / 做题 / 模考 / 闪卡 / 导图 / 图鉴 / 正确率 八条轨道各自累计，自动解锁', reward:'铜→银→金→钻→大师→传奇 六档勋章',
+    probe:function(){ const n=Object.keys(store.achievements||{}).length;
+      return n>0 ? {st:'done', tip:'已解锁 '+n+' 枚成就'} : {st:'todo', tip:'你学习这么久，大概率已经有一堆待点亮'}; } },
+  { emoji:'🪙', name:'花种商店（金币）', page:'garden', act:'shop', how:'每累计 7 个专注打卡日送 1 金币，金币可买花种、道具、复活药', reward:'换花种 / 药品',
+    probe:function(){ const g=store.garden||{}; const c=g.coins||0, u=(g.unlocked||[]).length;
+      if(u>1) return {st:'done', tip:'金币 '+c+' · 已解锁 '+u+' 种花'};
+      if(c>0) return {st:'doing', tip:'金币 '+c+'，够买东西了'};
+      return {st:'todo', tip:'再打卡几天就有金币了'}; } },
+  { emoji:'🌸', name:'六科花开', page:'subjflower', how:'模块刷题正确率驱动花开：满开、荣耀绽放，六科全荣耀有大奖', reward:'满开 +5 金币 / 荣耀 +15 金币',
+    probe:function(){ const g=store.garden||{}; const bl=Object.keys(g.subjectBloom||{}).length, fl=g.flowers||{};
+      const grow=Object.keys(fl).filter(k=>(fl[k]||0)>0).length;
+      if(bl>0) return {st:'done', tip:'已绽放 '+bl+' 科 · '+grow+' 株在长'};
+      if(grow>0) return {st:'doing', tip:'有 '+grow+' 株花在长，还没开'};
+      return {st:'todo', tip:'去做题就会长花'}; } },
+  { emoji:'☀️', name:'守早阳光', page:'garden', how:'早上打开会自动弹守早窗，领阳光 + 金币，首次收录还有图鉴奖励', reward:'阳光 +1 金币',
+    probe:function(){ const g=store.garden||{}; const today=(typeof todayKey==='function')?todayKey():'';
+      return (g.lastSunDay===today) ? {st:'done', tip:'今天已领过阳光'} : {st:'todo', tip:'明天早上打开就有'}; } },
+  { emoji:'🌙', name:'夜间养护（夜话花）', page:'diary', how:'晚上写日记 + 复盘，解锁夜话限定花，连续写日记还有 streak', reward:'夜话花 + 连续天数',
+    probe:function(){ const g=store.garden||{}; const nc=Object.keys(g.nightCare||{}).length, d=Object.keys(store.diary||{}).length;
+      if(nc>0) return {st:'done', tip:'夜间养护 '+nc+' 天 · 日记 '+d+' 篇'};
+      if(d>0) return {st:'doing', tip:'写了 '+d+' 篇日记，还没做过夜间养护'};
+      return {st:'todo', tip:'今晚写一篇试试'}; } },
+  { emoji:'🕊️', name:'秘密花园（移植）', page:'secret', how:'养成的花可以移植到秘密花园永久保存，还能留一句话', reward:'永久花圃',
+    probe:function(){ const g=store.garden||{}; const n=(g.planted||[]).length;
+      return n>0 ? {st:'done', tip:'已移植 '+n+' 朵'} : {st:'todo', tip:'养出第一朵花就能移植'}; } },
+  { emoji:'🃏', name:'知识闪卡', page:'flashcard', how:'把公式、易错点、答题技巧录成小卡，碎片时间翻，记得标✓，不记得排前面', reward:'掌握度递进复习',
+    probe:function(){ const n=(store.flashcards||[]).length;
+      return n>0 ? {st:'done', tip:'已有 '+n+' 张卡'} : {st:'todo', tip:'一张都没录'}; } },
+  { emoji:'📚', name:'知识体系 PDF（导图）', page:'mindmap', how:'导入你自己的知识体系 PDF，随时翻阅、缩放、翻页', reward:'随时翻自己整理的体系',
+    probe:function(){ let has=false; try{ const p=(typeof getKpPdf==='function')?getKpPdf():null; has=!!(p&&p.dataUrl); }catch(e){}
+      return has ? {st:'done', tip:'已导入，可随时翻阅'} : {st:'todo', tip:'还没导入 PDF'}; } },
+  { emoji:'🧠', name:'记忆复习（艾宾浩斯）', page:'ebbinghaus', how:'按遗忘曲线自动排复习计划，到点提醒你回顾', reward:'长期记忆巩固',
+    probe:function(){ const it=((store.ebbinghaus||{}).items)||[]; const due=it.filter(function(x){ return !x.done; }).length;
+      return it.length>0 ? {st:'done', tip:'计划 '+it.length+' 条 · 待复习 '+due} : {st:'todo', tip:'还没生成复习计划'}; } },
+  { emoji:'📄', name:'试卷分析', page:'exam', how:'录入每次模考的各板块得分，看失分结构和趋势', reward:'摸清失分在哪',
+    probe:function(){ const n=(store.exams||[]).length;
+      return n>0 ? {st:'done', tip:'已记录 '+n+' 次'} : {st:'todo', tip:'一次都没录'}; } },
+  { emoji:'📉', name:'薄弱项汇总', page:'weak', how:'自动汇总错题知识点，按掌握度排序，看清哪里最薄弱', reward:'精准补短板',
+    probe:function(){ const n=(store.weakItems||[]).length;
+      return n>0 ? {st:'done', tip:'已追踪 '+n+' 个薄弱点'} : {st:'todo', tip:'还没数据（做题后自动汇总）'}; } },
+  { emoji:'🎯', name:'目标拆解', page:'goals', how:'把「上岸」拆成基础/强化/冲刺三阶段，挂课程和任务', reward:'大目标可视化',
+    probe:function(){ const ms=((store.goals||{}).milestones)||[]; let cs=0, tk=0;
+      ms.forEach(function(m){ cs+=(m.courses||[]).length; tk+=(m.tasks||[]).length; });
+      return (cs+tk)>0 ? {st:'done', tip:'课程 '+cs+' 门 · 任务 '+tk+' 条'} : {st:'todo', tip:'还没挂课程/任务'}; } },
+  { emoji:'📔', name:'题本进度', page:'qbook', how:'按章节记录刷题进度（总/已做/正确/用时），番茄钟自动累加用时', reward:'章节进度一目了然',
+    probe:function(){ const n=(store.questionBooks||[]).length;
+      return n>0 ? {st:'done', tip:'已有 '+n+' 本题本'} : {st:'todo', tip:'还没建题本'}; } },
+  { emoji:'📓', name:'每晚日记', page:'diary', how:'每天晚上记心情/收获/感恩，连续写有 streak', reward:'情绪留痕 + 连续天数',
+    probe:function(){ const n=Object.keys(store.diary||{}).length;
+      return n>0 ? {st:'done', tip:'已写 '+n+' 篇'} : {st:'todo', tip:'一篇都没写'}; } }
+];
+var _guideFilter = 'all';
+function guideGo(page, act){
+  showPage(page||'home');
+  if(act){
+    setTimeout(function(){
+      try{
+        if(act==='shop' && typeof openShop==='function') openShop();
+        else if(act==='ach' && typeof switchWall==='function') switchWall('ach');
+      }catch(e){}
+    }, 240);
+  }
+}
+function filterGuide(f){ _guideFilter = f; renderGuide(); }
+function renderGuide(){
+  const el = document.getElementById('page-guide');
+  if(!el) return;
+  if(typeof ensureStore==='function') ensureStore();
+  const rows = PLAYBOOK.map(function(p){
+    let s = {st:'todo', tip:''};
+    try{ s = p.probe() || s; }catch(e){ s = {st:'todo', tip:''}; }
+    return { p:p, s:s };
+  });
+  const doneN = rows.filter(function(r){ return r.s.st==='done'; }).length;
+  const todoN = rows.filter(function(r){ return r.s.st==='todo'; }).length;
+  const pct = rows.length ? Math.round(doneN/rows.length*100) : 0;
+  const f = _guideFilter;
+  const shown = rows.filter(function(r){ return f==='all' ? true : (f==='todo' ? r.s.st!=='done' : r.s.st==='done'); });
+  const chip = function(key, label){
+    const on = (f===key);
+    return '<button onclick="filterGuide(\''+key+'\')" style="padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid '+(on?'#A86BC4':'#E8E0EE')+';background:'+(on?'#F3ECFB':'#fff')+';color:'+(on?'#A86BC4':'#888')+'">'+label+'</button>';
+  };
+  let html = '<div style="padding:14px 14px 40px;background:#F7F7F8;min-height:100vh">';
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-bottom:12px">'
+    + '<div style="display:flex;align-items:center;gap:10px">'
+    + '<span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#6b4fa8,#8566c9);color:#fff;font-size:18px">🎮</span>'
+    + '<div style="flex:1"><div style="font-size:15px;font-weight:700;color:#333">玩法指南</div>'
+    + '<div style="font-size:11px;color:#aaa;margin-top:1px">花园里藏了不少玩法，已经玩过的会亮出来，没玩过的高亮推荐</div></div></div>'
+    + '<div style="margin-top:12px;display:flex;align-items:center;gap:10px">'
+    + '<div style="flex:1;height:8px;border-radius:6px;background:#F0EAF6;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,#A86BC4,#8566c9);border-radius:6px"></div></div>'
+    + '<span style="font-size:12px;color:#A86BC4;font-weight:700">'+doneN+'/'+rows.length+'</span></div>'
+    + '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">'+chip('all','全部 '+rows.length)+chip('todo','还没玩过 '+todoN)+chip('done','已在玩 '+doneN)+'</div>'
+    + '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">';
+  shown.forEach(function(r){
+    const p = r.p, s = r.s;
+    const isTodo = (s.st==='todo');
+    const isDoing = (s.st==='doing');
+    const badge = isTodo ? '<span style="font-size:10px;background:#FDE8EF;color:#D4537E;padding:2px 7px;border-radius:8px;font-weight:700">还没玩过</span>'
+      : (isDoing ? '<span style="font-size:10px;background:#FFF3E0;color:#e8a13a;padding:2px 7px;border-radius:8px;font-weight:700">玩了一半</span>'
+                 : '<span style="font-size:10px;background:#EAF7E9;color:#5BAE6F;padding:2px 7px;border-radius:8px;font-weight:700">已在玩</span>');
+    const tipColor = isTodo ? '#D4537E' : (isDoing ? '#e8a13a' : '#5BAE6F');
+    html += '<div style="background:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 2px 8px rgba(0,0,0,.04);border-left:4px solid '+(isTodo?'#D4537E':(isDoing?'#e8a13a':'#A86BC4'))+';display:flex;flex-direction:column;gap:6px">'
+      + '<div style="display:flex;align-items:center;gap:8px">'
+      + '<span style="font-size:24px;line-height:1">'+p.emoji+'</span>'
+      + '<span style="font-size:14px;font-weight:700;color:#444;flex:1">'+p.name+'</span>'+badge+'</div>'
+      + '<div style="font-size:12px;color:#888;line-height:1.6">'+p.how+'</div>'
+      + '<div style="font-size:12px;color:'+tipColor+';font-weight:700">'+s.tip+'</div>'
+      + '<div style="font-size:11px;color:#aaa">🎁 '+p.reward+'</div>'
+      + '<button onclick="guideGo(\''+p.page+'\',\''+(p.act||'')+'\')" style="margin-top:2px;width:100%;background:#fff;border:1.5px solid #A86BC4;color:#A86BC4;border-radius:10px;font-size:12px;padding:7px;cursor:pointer;font-weight:700">去玩 →</button>'
+      + '</div>';
+  });
+  html += '</div>';
+  if(!shown.length) html += '<div style="text-align:center;color:#aaa;font-size:13px;padding:30px">这个筛选下暂时没有玩法～</div>';
+  html += '</div>';
+  el.innerHTML = html;
+}
 function onPageShow(page){
   if(page==='home'){ renderHome(); updateEbBadge(); }
   if(page==='plan') renderPlan();
@@ -9909,6 +10039,7 @@ function onPageShow(page){
   if(page==='tomato'){ renderTomatoTodoPick(); autoPickTodayTodo(); }
   if(page==='secret') renderSecretGarden();
   if(page==='tomato'){ renderTomato(); ensureDailyTodos(); renderTodoList(); }
+  if(page==='guide') renderGuide();
   if(page==='idea'){ renderIdeaTabs(); renderIdeaDaily(); renderIdeaCustom(); }
   checkDayReviewReminder();
   updateFloatingWidget();
