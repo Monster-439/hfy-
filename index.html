@@ -20564,6 +20564,20 @@ const BLOOM_TITLES = [
 ];
 const COIN_PER_CHECKIN = 7; // 每累计 7 个专注打卡日送 1 金币
 const AWAY_DAYS = 3;        // 我的小花：连续 N 天没来「打卡日历」打卡 → 相思病（成长变慢），去打卡即可治愈
+// 【根治「昨天打卡了还能相思病」】旧判定读 g.lastCalCheckin 双字段——但 checkins 有 5 个写入路径
+//（手动打卡/手动补录/刷题落账/看课联动/做1节联动），只有前 2 个更新 lastCalCheckin，后 3 个漏了：
+// 日历上明明有 7.3h 打卡记录（彩虹格），花园却判「15 天没来」。改为直接扫真实 store.checkins：
+// 打卡日历上有什么，花园就信什么——单一事实源，不再维护双字段同步。
+function lastCheckinGapDays(tk){
+  const ci = (typeof store!=='undefined' && store.checkins) ? store.checkins : {};
+  let last = '';
+  Object.keys(ci).forEach(function(k){
+    if(ci[k] > 0 && k > last) last = k;   // 日期 key 是 YYYY-MM-DD，字符串比较即时间比较
+  });
+  if(!last) return 99;
+  const gap = (typeof daysBetween==='function') ? daysBetween(last, tk) : 99;
+  return gap > 0 ? gap : 0;   // 补卡到未来日期时不出负数
+}
 const EVENT_COOLDOWN_MS = 24*3600*1000; // 驱虫/化解后冷却期：期间两端都不重新长虫，且云端带虫会被强制清掉（解决跨端互相覆盖）
 // ── 长虫概率模型（2026-09-09 重做）──
 // 原实现把长虫挂在「干旱 → 相思病 → 长虫」else if 链尾部，导致只要处于干旱/相思病就永远轮不到判定，
@@ -20583,7 +20597,7 @@ function bugChanceNow(g){
   const gg = g || store.garden; if(!gg) return BUG_P_MIN;
   const tk = (typeof todayKey==='function') ? todayKey() : '';
   const days   = gg.lastCare       ? (typeof daysBetween==='function' ? daysBetween(gg.lastCare, tk) : 0) : 99;
-  const calGap = gg.lastCalCheckin ? (typeof daysBetween==='function' ? daysBetween(gg.lastCalCheckin, tk) : 0) : 99;
+  const calGap = lastCheckinGapDays(tk);
   return BUG_P_MIN + (BUG_P_MAX - BUG_P_MIN) * neglectLevel(days, calGap);
 }
 
@@ -21148,8 +21162,10 @@ function renderGarden(){  ensureGarden();
   const phase = GROWTH_PHASES[phaseIdx];
   // 花园状态：按最后一次照料/专注距今天数判断
   const days = g.lastCare ? daysBetween(g.lastCare, todayKey()) : 99;
-  // 相思病判定：按最后一次「日历打卡」距今天数判断（与干旱=没浇水区分）
-  const calGap = g.lastCalCheckin ? daysBetween(g.lastCalCheckin, todayKey()) : 99;
+  // 相思病判定：按打卡日历真实记录距今天数判断（与干旱=没浇水区分）；不再读 lastCalCheckin 双字段（漏同步 bug）
+  const calGap = lastCheckinGapDays(todayKey());
+  // 【自愈】挂着 away 但真实打卡记录显示没断（误判事件）→ 立即解除（渲染路径，强刷即生效，不等跨天）
+  if(g.gardenEvent && g.gardenEvent.type==='away' && calGap < AWAY_DAYS){ clearGardenEvent(); g._eventNotified=''; }
   // ── 跨天结算：自然衰减 + 天气 + 干旱 + 健康连续（每天只结算一次）──
   if(g._lastTick !== todayKey()){
     let ticked = false;
