@@ -2730,6 +2730,7 @@ body.drawer-open .nav-cloud{display:none;}
 
     <div class="nav-item" data-page="guide" data-page-node-id="gdNavGuide"><span class="nav-icon">🎮</span>玩法指南</div>
     <div class="nav-item" data-page="daily" data-page-node-id="gdNavDaily"><span class="nav-icon">🎁</span>每日福利</div>
+    <div class="nav-item" data-page="weekly" data-page-node-id="gdNavWeekly"><span class="nav-icon">🏅</span>每周挑战</div>
     <div class="nav-item" data-page="setting" data-page-node-id="LxynDlrqArPc2Ypj2g31A8"><span class="nav-icon" data-page-node-id="ylbNC1ltwk2AXLOBy6yYOv">⚙️</span>设置</div>
     <div class="nav-quote" id="navQuote" data-page-node-id="qyEiyPC1ETyWqGi4Ogfl4y"></div>
   </div>
@@ -9916,6 +9917,14 @@ const PLAYBOOK = [
       if((x.total||0)>0) return {st:'done', tip:'已开 '+x.total+' 次 · 连开 '+(x.streak||0)+' 天'+(x.date===t?' · 今日已开':'')};
       if((store.focusLog||[]).some(function(f){ return f.date===t; })) return {st:'doing', tip:'今天已经刷过番茄，马上去开箱！'};
       return {st:'todo', tip:'刷 1 个番茄钟就能开箱'}; } },
+  { emoji:'🏅', name:'每周挑战', page:'weekly', how:'每周一自动换 3 个挑战（番茄 / 刷题 / 学习天数 / 专注时长 / 清错题 / 写日记里抽 3 个），达标领金币 + 水滴 + 扭蛋币；三个全达成再发全勤奖', reward:'🪙 金币 + 💧 水滴 + 🎰 扭蛋币 + 👑 全勤奖',
+    probe:function(){ const w=store.weekly||{}; const lst=w.list||[]; let done=0;
+      if(w.week && lst.length){ const keys=(typeof weekDays==='function')?weekDays(w.week):[];
+        lst.forEach(function(it){ if((typeof challengeProgress==='function'?challengeProgress(it,keys):0) >= (it.target||1)) done++; }); }
+      const tw=Object.keys(w.doneWeeks||{}).length;
+      if(tw>0) return {st:'done', tip:'累计通关 '+tw+' 周 · 本周已达 '+done+'/'+lst.length};
+      if(done>0) return {st:'doing', tip:'本周已达成 '+done+'/'+lst.length+'，冲全勤！'};
+      return {st:'todo', tip:'本周 3 个挑战刚刷新，去看看吧'}; } },
   { emoji:'🎰', name:'扭蛋养花', page:'garden', how:'番茄钟专注会掉扭蛋币，攒够就能抽卡，收集 24 种花（N→UR 五档稀有度）', reward:'图鉴收集 + 稀有花',
     probe:function(){ const g=store.gacha||{}; const n=(g.pulled||[]).length, t=g.tickets||0, c=Object.keys(g.coll||{}).length;
       if(n>0) return {st:'done', tip:'已抽 '+n+' 次 · 图鉴 '+c+' 种'};
@@ -10305,9 +10314,264 @@ function renderDaily(){
     + '<span style="font-size:14px;font-weight:700;color:#444;flex:1">每日盲盒</span></div>' + boxBody, '', '#D4537E');
 
   html += '<div style="font-size:11px;color:#aaa;text-align:center;padding:6px 0 0">护盾：断签 1 天自动顶替 · 押注：次日结算 · 盲盒：每日 1 个</div>';
+  html += '<button onclick="showPage(\'weekly\')" style="margin-top:10px;width:100%;padding:10px;border-radius:12px;border:1.5px solid #A86BC4;background:#fff;color:#A86BC4;font-size:13px;font-weight:700;cursor:pointer">🏅 去看本周挑战 →</button>';
   html += '</div>';
   el.innerHTML = html;
 }
+// ====================================================
+//  🏅 每周挑战：每周一自动换 3 个挑战，达标领奖（金币 / 扭蛋币 / 水滴）
+//  红线：进度一律「从真实数据现算」，不维护影子计数；只有「已领奖 / 已通关」这类用户行为才落库
+// ====================================================
+const WEEKLY_POOL = [
+  { id:'tomato', emoji:'🍅', name:'番茄钟个数', unit:'个', targets:[5,8,12],
+    how:'本周完成 N 个番茄钟',
+    count:function(keys){ return (store.focusLog||[]).filter(function(x){ return keys.indexOf(x.date)>=0 && (x.mode==='down'||x.mode==='up'); }).length; } },
+  { id:'quiz', emoji:'📝', name:'本周刷题', unit:'道', targets:[80,150,250],
+    how:'本周累计做题 N 道',
+    count:function(keys){ let s=0; const recs=store.records||{}; keys.forEach(function(k){ (recs[k]||[]).forEach(function(r){ s+=(r.done||0); }); }); return s; } },
+  { id:'studyDays', emoji:'🎯', name:'学习天数', unit:'天', targets:[3,5,6],
+    how:'本周有学习记录（做题 / 番茄 / 打卡）N 天',
+    count:function(keys){ return keys.filter(function(k){ return dayHasStudy(k); }).length; } },
+  { id:'focusMin', emoji:'⏱️', name:'专注时长', unit:'分钟', targets:[120,240,400],
+    how:'本周累计专注 N 分钟',
+    count:function(keys){ let s=0; (store.focusLog||[]).forEach(function(x){ if(keys.indexOf(x.date)>=0) s+=(x.min||0); }); return s; } },
+  { id:'errClear', emoji:'🧹', name:'清错题', unit:'道', targets:[5,10,20],
+    how:'本周把 N 道错题练到「已掌握」',
+    count:function(keys){ return (store.errors||[]).filter(function(e){ return e && e.mastered && e.masteredDate && keys.indexOf(e.masteredDate)>=0; }).length; } },
+  { id:'diary', emoji:'📓', name:'写日记', unit:'篇', targets:[2,4,6],
+    how:'本周写 N 篇每晚日记',
+    count:function(keys){ const d=store.diary||{}; return keys.filter(function(k){ return !!d[k]; }).length; } }
+];
+const WEEKLY_BONUS = { coin:25, ticket:2, drop:20 };   // 三个全达成：本周全勤奖
+// 某天是否真的有学习（做题 / 番茄 / 打卡任一）
+function dayHasStudy(k){
+  const recs = store.records || {};
+  if((recs[k]||[]).some(function(r){ return (r.done||0)>0; })) return true;
+  if((store.focusLog||[]).some(function(x){ return x.date===k && (x.min||0)>0; })) return true;
+  if(store.checkins && store.checkins[k]!==undefined && store.checkins[k]>0) return true;
+  return false;
+}
+// ---- 周历工具（周一为一周起点）----
+function addDaysKey(k, n){ const d=new Date(k+'T00:00:00'); d.setDate(d.getDate()+n); return dateKey(d); }
+function mondayOfWeek(k){ const d=new Date(k+'T00:00:00'); const dow=d.getDay(); d.setDate(d.getDate() - (dow===0?6:dow-1)); return dateKey(d); }
+function currentWeekKey(){ return mondayOfWeek(todayKey()); }
+function weekDays(wk){
+  const out=[]; const d=new Date(wk+'T00:00:00');
+  for(let i=0;i<7;i++){ const x=new Date(d.getTime()); x.setDate(d.getDate()+i); out.push(dateKey(x)); }
+  return out;
+}
+// 周 key → 稳定随机（同一个 weekKey 永远抽出同一组挑战，刷新页面不会变）
+function weekSeed(wk){ let h=2166136261; for(let i=0;i<wk.length;i++){ h ^= wk.charCodeAt(i); h=(h*16777619)>>>0; } return h>>>0; }
+function mkWeeklyRand(seed){ let s=(seed>>>0)||1; return function(){ s=(s*1664525+1013904223)>>>0; return s/4294967296; }; }
+function genWeeklyList(wk){
+  const rnd = mkWeeklyRand(weekSeed(wk));
+  const pool = WEEKLY_POOL.slice();
+  for(let i=pool.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); const t=pool[i]; pool[i]=pool[j]; pool[j]=t; }
+  return pool.slice(0,3).map(function(p){
+    const ti = Math.min(p.targets.length-1, Math.floor(rnd()*p.targets.length));
+    return { id:p.id, target:p.targets[ti], ti:ti, reward:{ coin:6+ti*5, ticket:(ti>=1?1:0), drop:6+ti*6 } };
+  });
+}
+function weeklyItemDef(id){
+  const r = WEEKLY_POOL.filter(function(x){ return x.id===id; });
+  return r.length ? r[0] : null;
+}
+// 单个挑战的当前进度（现算）
+function challengeProgress(item, keys){
+  if(!item) return 0;
+  const def = weeklyItemDef(item.id);
+  if(!def) return 0;
+  try{ return def.count(keys)||0; }catch(e){ return 0; }
+}
+// 连续通关周数：从真实 doneWeeks 往前数（本周没通关就从上一周起算，不算断）
+function weeklyStreak(){
+  const dw = (store.weekly && store.weekly.doneWeeks) || {};
+  let cur = currentWeekKey();
+  if(!dw[cur]) cur = addDaysKey(cur, -7);
+  let n = 0;
+  for(let i=0;i<26;i++){
+    if(dw[cur]){ n++; cur = addDaysKey(cur, -7); } else break;
+  }
+  return n;
+}
+// 结算某一周：3 个挑战全达标 → 记通关 + 发全勤奖（doneWeeks 守卫，绝不重复发）
+function settleWeek(wk, list){
+  const w = store.weekly;
+  if(!w || !wk || !list || !list.length) return null;
+  const keys = weekDays(wk);
+  const all = list.every(function(it){ return challengeProgress(it, keys) >= (it.target||0); });
+  if(!all) return null;
+  if(w.doneWeeks[wk]) return null;
+  w.doneWeeks[wk] = true;
+  ensureGarden();
+  const g = store.garden;
+  g.coins = (g.coins||0) + WEEKLY_BONUS.coin;
+  g.drops = (g.drops||0) + WEEKLY_BONUS.drop;
+  if(!g.dropLog) g.dropLog = {};
+  g.dropLog[todayKey()] = (g.dropLog[todayKey()]||0) + WEEKLY_BONUS.drop;
+  if(WEEKLY_BONUS.ticket > 0){
+    if(!store.gacha) store.gacha = { tickets:0, pulled:[], coll:{} };
+    store.gacha.tickets = (store.gacha.tickets||0) + WEEKLY_BONUS.ticket;
+  }
+  if(typeof saveStore==='function') saveStore();
+  return { week:wk, coin:WEEKLY_BONUS.coin, ticket:WEEKLY_BONUS.ticket, drop:WEEKLY_BONUS.drop };
+}
+// 跨周自动推进：补结算旧周（最多补 8 周）+ 生成本周挑战
+function ensureWeekly(){
+  if(!store.weekly) store.weekly = { week:'', list:[], claimed:{}, doneWeeks:{} };
+  const w = store.weekly;
+  if(!Array.isArray(w.list)) w.list = [];
+  if(!w.claimed) w.claimed = {};
+  if(!w.doneWeeks) w.doneWeeks = {};
+  const cur = currentWeekKey();
+  if(!w.week){
+    w.week = cur; w.list = genWeeklyList(cur); w.claimed = {};
+    if(typeof saveStore==='function') saveStore();
+    return w;
+  }
+  if(w.week === cur){
+    if(!w.list.length) w.list = genWeeklyList(cur);
+    return w;
+  }
+  let guard = 0, got = null;
+  while(w.week !== cur && guard++ < 8){
+    if(w.list && w.list.length){
+      const r = settleWeek(w.week, w.list);
+      if(r) got = r;
+    }
+    w.week = mondayOfWeek(addDaysKey(w.week, 7));
+    w.list = genWeeklyList(w.week);
+    w.claimed = {};
+  }
+  if(w.week !== cur){ w.week = cur; w.list = genWeeklyList(cur); w.claimed = {}; }
+  if(typeof saveStore==='function') saveStore();
+  if(got){
+    setTimeout(function(){
+      if(typeof toast==='function') toast('🏅 上周挑战全达成！补发全勤奖 🪙 +'+got.coin+'、🎰 +'+got.ticket+'、💧 +'+got.drop);
+    }, 1000);
+  }
+  return w;
+}
+// 领取某个挑战的奖励
+function claimWeekly(idx){
+  ensureWeekly();
+  const w = store.weekly, keys = weekDays(w.week), it = w.list[idx];
+  if(!it) return false;
+  const def = weeklyItemDef(it.id);
+  if(!def) return false;
+  if(w.claimed[it.id]){ if(typeof toast==='function') toast('本周这个奖励已经领过啦～'); return false; }
+  const cur = challengeProgress(it, keys);
+  if(cur < it.target){
+    if(typeof toast==='function') toast('还差 '+(it.target-cur)+' '+def.unit+'，继续冲！');
+    return false;
+  }
+  w.claimed[it.id] = todayKey();
+  ensureGarden();
+  const g = store.garden, rw = it.reward || {};
+  g.coins = (g.coins||0) + (rw.coin||0);
+  g.drops = (g.drops||0) + (rw.drop||0);
+  if(!g.dropLog) g.dropLog = {};
+  g.dropLog[todayKey()] = (g.dropLog[todayKey()]||0) + (rw.drop||0);
+  if((rw.ticket||0) > 0){
+    if(!store.gacha) store.gacha = { tickets:0, pulled:[], coll:{} };
+    store.gacha.tickets = (store.gacha.tickets||0) + rw.ticket;
+  }
+  let bonus = null;
+  const allClaimed = w.list.every(function(x){ return !!w.claimed[x.id]; });
+  const allReached = w.list.every(function(x){ return challengeProgress(x, keys) >= (x.target||0); });
+  if(allClaimed && allReached) bonus = settleWeek(w.week, w.list);
+  if(typeof saveStore==='function') saveStore();
+  let msg = '🏅 '+def.name+' 达成！🪙 +'+(rw.coin||0)+'、💧 +'+(rw.drop||0)+((rw.ticket||0)?('、🎰 +'+rw.ticket):'');
+  if(bonus) msg += ' · 全勤奖 🪙 +'+bonus.coin+'、🎰 +'+bonus.ticket+'、💧 +'+bonus.drop;
+  if(typeof toast==='function') toast(msg);
+  if(typeof renderWeekly==='function') renderWeekly();
+  return true;
+}
+// 🏅 每周挑战页
+function renderWeekly(){
+  const el = document.getElementById('page-weekly');
+  if(!el) return;
+  if(typeof ensureStore==='function') ensureStore();
+  ensureWeekly();
+  const w = store.weekly;
+  ensureGarden();
+  const g = store.garden;
+  const keys = weekDays(w.week);
+  const md = function(k){ return k.slice(5).replace('-','/'); };
+  const rows = w.list.map(function(it, i){
+    const def = weeklyItemDef(it.id);
+    const cur = challengeProgress(it, keys);
+    const pct = it.target ? Math.min(100, Math.round(cur/(it.target||1)*100)) : 0;
+    return { i:i, def:def || {emoji:'🎯', name:it.id, unit:'', how:''}, it:it, cur:cur, pct:pct,
+             ok:cur >= (it.target||0), claimed:!!w.claimed[it.id] };
+  });
+  const doneN = rows.filter(function(r){ return r.ok; }).length;
+  const allDone = rows.length>0 && doneN===rows.length;
+  const bonusGot = !!w.doneWeeks[w.week];
+  const streak = weeklyStreak();
+  const totalWeeks = Object.keys(w.doneWeeks||{}).length;
+  let html = '<div style="padding:14px 14px 40px;background:#F7F7F8;min-height:100vh">';
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-bottom:12px;display:flex;align-items:center;gap:10px">'
+    + '<span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#6b4fa8,#8566c9);color:#fff;font-size:18px">🏅</span>'
+    + '<div style="flex:1"><div style="font-size:15px;font-weight:700;color:#333">每周挑战</div>'
+    + '<div style="font-size:11px;color:#aaa;margin-top:1px">'+md(keys[0])+' - '+md(keys[6])+' · 已达成 '+doneN+'/'+rows.length+' · 金币 🪙 '+(g.coins||0)+'</div></div>'
+    + '<div style="font-size:20px;font-weight:800;color:#6b4fa8">'+doneN+'<span style="font-size:12px;color:#bbb">/'+rows.length+'</span></div></div>';
+  rows.forEach(function(r){
+    const col = r.claimed ? '#5BAE6F' : (r.ok ? '#e8a13a' : '#A86BC4');
+    const bg  = r.claimed ? '#EAF7E9' : (r.ok ? '#FFF6E8' : '#F7F5FA');
+    let btn;
+    if(r.claimed){
+      btn = '<div style="margin-top:10px;padding:8px;border-radius:10px;background:#EAF7E9;color:#5BAE6F;font-size:12px;font-weight:700;text-align:center">✅ 已领取</div>';
+    } else if(r.ok){
+      btn = '<button onclick="claimWeekly('+r.i+')" style="margin-top:10px;width:100%;padding:9px;border-radius:10px;border:none;background:linear-gradient(135deg,#F0A7C0,#D4537E);color:#fff;font-size:13px;font-weight:700;cursor:pointer">🎁 领取奖励</button>';
+    } else {
+      btn = '<div style="margin-top:10px;padding:8px;border-radius:10px;background:#F4F2F6;color:#aaa;font-size:12px;font-weight:700;text-align:center">🔒 还差 '+Math.max(0,(r.it.target-r.cur))+' '+r.def.unit+'</div>';
+    }
+    const rw = r.it.reward || {};
+    html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);border-left:4px solid '+col+';margin-bottom:12px">'
+      + '<div style="display:flex;align-items:center;gap:8px">'
+      + '<span style="font-size:22px">'+r.def.emoji+'</span>'
+      + '<span style="font-size:14px;font-weight:700;color:#444;flex:1">'+r.def.name+' '+r.it.target+' '+r.def.unit+'</span>'
+      + '<span style="font-size:15px;font-weight:800;color:'+col+'">'+r.cur+'<span style="font-size:11px;color:#bbb">/'+r.it.target+'</span></span></div>'
+      + '<div style="font-size:11px;color:#999;margin-top:4px">'+r.def.how+'</div>'
+      + '<div style="margin-top:8px;height:8px;border-radius:6px;background:#EFEDF3;overflow:hidden">'
+      + '<div style="height:100%;width:'+r.pct+'%;border-radius:6px;background:linear-gradient(90deg,'+bg+','+col+')"></div></div>'
+      + '<div style="font-size:11px;color:#aaa;margin-top:6px">奖励：🪙 +'+(rw.coin||0)+' · 💧 +'+(rw.drop||0)+((rw.ticket||0)?(' · 🎰 +'+rw.ticket):'')+'</div>'
+      + btn + '</div>';
+  });
+  // 全勤奖
+  let bBody;
+  if(bonusGot){
+    bBody = '<div style="margin-top:8px;padding:8px;border-radius:10px;background:#EAF7E9;color:#5BAE6F;font-size:12px;font-weight:700;text-align:center">🎉 本周全勤奖已到账</div>';
+  } else if(allDone){
+    bBody = '<div style="font-size:12px;color:#888;margin-top:6px">三个挑战都达标了，把奖励都领了就能拿全勤奖</div>';
+  } else {
+    bBody = '<div style="font-size:12px;color:#888;margin-top:6px">三个挑战全部达成再发（当前 '+doneN+'/'+rows.length+'）</div>';
+  }
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);border-left:4px solid #e8a13a;margin-bottom:12px">'
+    + '<div style="display:flex;align-items:center;gap:8px"><span style="font-size:22px">👑</span>'
+    + '<span style="font-size:14px;font-weight:700;color:#444;flex:1">本周全勤奖</span></div>'
+    + '<div style="font-size:11px;color:#aaa;margin-top:6px">🪙 +'+WEEKLY_BONUS.coin+' · 🎰 +'+WEEKLY_BONUS.ticket+' · 💧 +'+WEEKLY_BONUS.drop+'</div>'
+    + bBody + '</div>';
+  // 历史战绩
+  let hist = '<div style="display:flex;gap:4px;margin-top:10px">';
+  for(let i=7;i>=0;i--){
+    const wk = addDaysKey(w.week, -7*i);
+    const on = !!w.doneWeeks[wk];
+    hist += '<div style="flex:1;text-align:center"><div style="font-size:15px">'+(on?'🏅':'▫️')+'</div>'
+      + '<div style="font-size:9px;color:'+(on?'#5BAE6F':'#ccc')+';margin-top:2px">'+md(wk)+'</div></div>';
+  }
+  hist += '</div>';
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-bottom:12px">'
+    + '<div style="font-size:13px;font-weight:700;color:#444">📈 通关战绩</div>'
+    + '<div style="font-size:12px;color:#888;margin-top:4px">累计通关 <b style="color:#6b4fa8">'+totalWeeks+'</b> 周 · 连续通关 <b style="color:#E5484D">'+streak+'</b> 周</div>'
+    + hist
+    + '<div style="font-size:11px;color:#aaa;margin-top:8px">挑战每周一自动换新 · 进度全部按真实学习数据实时计算</div></div>';
+  html += '<div style="font-size:11px;color:#aaa;text-align:center;padding:6px 0 0">周一自动刷新 · 补发不会重复发奖</div>';
+  html += '</div>';
+  el.innerHTML = html;
+}
+
 function onPageShow(page){
   if(page==='home'){ renderHome(); updateEbBadge(); }
   if(page==='plan') renderPlan();
@@ -10340,6 +10604,7 @@ function onPageShow(page){
   if(page==='tomato'){ renderTomato(); ensureDailyTodos(); renderTodoList(); }
   if(page==='guide') renderGuide();
   if(page==='daily'){ settleBets(); syncStreakGame(); renderDaily(); }
+  if(page==='weekly'){ ensureWeekly(); renderWeekly(); }
   if(page==='idea'){ renderIdeaTabs(); renderIdeaDaily(); renderIdeaCustom(); }
   checkDayReviewReminder();
   updateFloatingWidget();
@@ -25139,6 +25404,8 @@ function boot(){
   // 🎁 每日福利：结算往日押注 + 断签护盾自动生效（不阻塞开屏）
   try { settleBets(); } catch(e){ console.error('[boot] settleBets 出错(已忽略):', e); }
   try { syncStreakGame(); } catch(e){ console.error('[boot] syncStreakGame 出错(已忽略):', e); }
+  // 🏅 每周挑战：跨周自动推进（补结算旧周 + 生成本周挑战）
+  try { ensureWeekly(); } catch(e){ console.error('[boot] ensureWeekly 出错(已忽略):', e); }
   try {
     if(!store.onboard || !store.onboard.done){ startOnboarding(); }
     else { showSplash(); }
