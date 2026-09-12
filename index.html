@@ -2625,6 +2625,80 @@ body.drawer-open .nav-cloud{display:none;}
 .diary-past-mood{font-size:26px;}
 .diary-past-block{margin-bottom:10px;padding:12px;background:rgba(255,255,255,0.75);border-radius:12px;font-size:13px;color:#6E5560;line-height:1.85;white-space:pre-wrap;word-break:break-word;}
 .diary-past-block b{display:block;color:#B46A7E;font-size:11px;margin-bottom:4px;letter-spacing:1px;text-transform:uppercase;}
+/* ========== 🐾 陪学宠物（精致版 · 舞台 / 互动 / 装扮） ========== */
+.pet-stage{position:relative;height:224px;border-radius:18px;overflow:hidden;box-shadow:0 8px 24px rgba(120,90,140,.16);margin-bottom:12px;}
+.pet-sky{position:absolute;left:0;right:0;top:0;bottom:0;}
+.pet-sunmoon{position:absolute;right:18px;top:14px;font-size:30px;animation:petGlow 3.6s ease-in-out infinite;}
+.pet-cloud1{position:absolute;left:14px;top:20px;font-size:20px;opacity:.85;animation:petDrift 19s linear infinite;}
+.pet-cloud2{position:absolute;left:74px;top:48px;font-size:14px;opacity:.7;animation:petDrift 26s linear infinite;}
+.pet-star{position:absolute;font-size:12px;animation:petTwinkle 2.8s ease-in-out infinite;}
+.pet-petal{position:absolute;font-size:13px;opacity:.9;animation:petFall 7s linear infinite;}
+.pet-ground{position:absolute;left:-12%;right:-12%;bottom:-26px;height:104px;border-radius:50% 50% 0 0;}
+.pet-grass{position:absolute;bottom:26px;font-size:15px;opacity:.95;}
+.pet-body{position:absolute;left:50%;bottom:52px;transform:translateX(-50%);width:130px;text-align:center;}
+.pet-hat{position:absolute;left:50%;top:2px;transform:translateX(-50%);font-size:24px;z-index:4;animation:petBob 3s ease-in-out infinite;}
+.pet-avatar{position:relative;z-index:3;font-size:76px;line-height:1;filter:drop-shadow(0 8px 12px rgba(0,0,0,.2));animation:petBob 3s ease-in-out infinite;cursor:pointer;}
+.pet-shadow{width:72px;height:10px;margin:8px auto 0;background:rgba(0,0,0,.16);border-radius:50%;animation:petShadow 3s ease-in-out infinite;}
+.pet-tag{position:absolute;left:12px;top:12px;background:rgba(255,255,255,.86);border-radius:999px;padding:4px 10px;font-size:11px;font-weight:800;color:#6b4fa8;box-shadow:0 2px 6px rgba(0,0,0,.06);}
+.pet-tag2{position:absolute;right:12px;top:12px;background:rgba(255,255,255,.82);border-radius:999px;padding:3px 9px;font-size:10px;font-weight:700;color:#B46A7E;}
+.pet-bubble{position:absolute;left:12px;right:12px;bottom:10px;background:rgba(255,255,255,.94);border-radius:14px;padding:8px 12px;font-size:12px;color:#5E4A66;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,.1);display:flex;gap:7px;align-items:center;line-height:1.5;}
+.pet-bubble .face{font-size:17px;}
+.pet-bubble .txt{flex:1;}
+@keyframes petBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes petShadow{0%,100%{transform:scale(1);opacity:.18}50%{transform:scale(.84);opacity:.11}}
+@keyframes petDrift{0%{transform:translateX(-14px)}50%{transform:translateX(130px)}100%{transform:translateX(-14px)}}
+@keyframes petGlow{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.7;transform:scale(.92)}}
+@keyframes petTwinkle{0%,100%{opacity:.25;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
+@keyframes petFall{0%{transform:translateY(-6px) rotate(0deg);opacity:0}20%{opacity:.95}100%{transform:translateY(120px) rotate(180deg);opacity:0}}
+@keyframes petPop{0%{transform:scale(.82);opacity:0}60%{transform:scale(1.06)}100%{transform:scale(1);opacity:1}}
+.pet-pop{animation:petPop .45s ease-out;}
+
+.pet-card{background:#fff;border-radius:16px;padding:14px 16px;box-shadow:0 2px 10px rgba(120,90,140,.07);margin-bottom:12px;}
+.pet-sec{font-size:13px;font-weight:800;color:#5A4660;display:flex;align-items:center;gap:6px;}
+.pet-sec .en{font-size:10px;color:#B7A6BC;letter-spacing:1px;font-weight:700;background:#FAF7FC;padding:2px 7px;border-radius:6px;}
+.pet-head{display:flex;align-items:center;gap:8px;margin-top:10px;}
+.pet-name{font-size:17px;font-weight:800;color:#3E3145;}
+.pet-lv{font-size:11px;font-weight:800;color:#fff;background:linear-gradient(135deg,#A88AD0,#6b4fa8);border-radius:999px;padding:2px 9px;}
+.pet-sub{font-size:11px;color:#A98A98;margin-top:3px;}
+.pet-bar-wrap{margin-top:11px;}
+.pet-bar-top{display:flex;justify-content:space-between;font-size:11px;color:#9A899F;margin-bottom:4px;}
+.pet-bar-top b{color:#6b4fa8;}
+.pet-bar{height:9px;border-radius:6px;background:#F1EDF4;overflow:hidden;}
+.pet-bar > i{display:block;height:100%;border-radius:6px;transition:width .5s ease;}
+.pet-acts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;}
+.pet-act{border:1.5px solid #EFE6F2;background:#fff;border-radius:14px;padding:10px 4px 8px;text-align:center;cursor:pointer;transition:all .18s;}
+.pet-act:hover{transform:translateY(-2px);box-shadow:0 6px 14px rgba(150,120,170,.2);border-color:#DCCDE8;}
+.pet-act.full{opacity:.46;}
+.pet-act .ico{font-size:21px;line-height:1;}
+.pet-act .nm{font-size:11px;font-weight:800;color:#5A4660;margin-top:4px;}
+.pet-act .tip{font-size:9px;color:#B7A6BC;margin-top:1px;}
+.pet-dots{display:flex;justify-content:center;gap:3px;margin-top:5px;}
+.pet-dots i{width:5px;height:5px;border-radius:50%;background:#E4DAE9;display:block;}
+.pet-dots i.on{background:#D4537E;}
+.pet-chips{display:flex;gap:7px;overflow-x:auto;padding:3px 0 5px;margin-top:9px;}
+.pet-chip{flex:0 0 auto;border:1.5px solid #EFE6F2;background:#fff;border-radius:12px;padding:7px 11px;font-size:11px;font-weight:700;color:#6E5560;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:4px;}
+.pet-chip.on{border-color:#A86BC4;background:#F6EFFB;color:#6b4fa8;}
+.pet-chip.lock{opacity:.42;}
+.pet-tl{display:flex;align-items:flex-start;margin-top:14px;}
+.pet-tl-node{flex:1;text-align:center;position:relative;}
+.pet-tl-dot{position:relative;z-index:2;width:34px;height:34px;margin:0 auto;border-radius:50%;background:#F1EDF4;color:#B7A6BC;font-size:17px;line-height:34px;}
+.pet-tl-node.on .pet-tl-dot{background:linear-gradient(135deg,#C2BAE0,#6b4fa8);color:#fff;box-shadow:0 4px 10px rgba(107,79,168,.32);}
+.pet-tl-node.now .pet-tl-dot{background:#fff;border:2px solid #A86BC4;color:#6b4fa8;}
+.pet-tl-line{position:absolute;left:50%;width:100%;top:16px;height:2px;background:#F1EDF4;z-index:1;}
+.pet-tl-node.on .pet-tl-line,.pet-tl-node.now .pet-tl-line{background:#DCCDE8;}
+.pet-tl-nm{font-size:10px;color:#B0A0B5;margin-top:5px;}
+.pet-tl-node.on .pet-tl-nm{color:#6b4fa8;font-weight:800;}
+.pet-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;}
+.pet-g4{background:#FAF7FC;border-radius:12px;padding:9px 4px;text-align:center;}
+.pet-g4 b{display:block;font-size:16px;color:#6b4fa8;line-height:1.3;}
+.pet-g4 span{font-size:10px;color:#A98A98;}
+.pet-note{font-size:11px;color:#B7A6BC;margin-top:9px;line-height:1.75;}
+.pet-row{display:flex;gap:8px;margin-top:10px;}
+.pet-input{flex:1;padding:9px 11px;border-radius:11px;border:1.5px solid #EFE6F2;font-size:12px;color:#5A4660;box-sizing:border-box;font-family:inherit;background:#fff;}
+.pet-input:focus{border-color:#A86BC4;outline:none;}
+.pet-btn{padding:9px 14px;border-radius:11px;border:1.5px solid #A86BC4;background:#fff;color:#6b4fa8;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;}
+.pet-btn:hover{background:#F6EFFB;}
+
 .diary-past-empty{padding:16px;text-align:center;color:#A98A98;font-size:13px;}
 
 </style></style>
@@ -9945,14 +10019,15 @@ const PLAYBOOK = [
       if(n>0) return {st:'done', tip:'已归档 '+n+' 份 · 本周做题 '+done+' 道'};
       if(done>0) return {st:'doing', tip:'本周已做 '+done+' 道，周末记得归档'};
       return {st:'todo', tip:'周日来看这一周的成绩单'}; } },
-  { emoji:'🐾', name:'陪学宠物', page:'pet', how:'一只陪你备考的小家伙：经验=累计专注÷10+累计做题÷5，形态随等级进化（🐣→🐤→🐥→🐈→🦄），可以喂食、摸摸、改名', reward:'等级进化 + 每日陪伴',
-    probe:function(){ const p=store.pet||{}; let lv=1, feed=0;
-      try{ if(typeof petExp==='function') lv = petLevel(petExp()); }catch(e){}
-      const t=(typeof todayKey==='function')?todayKey():'';
-      if(p.feed && p.feed.date===t) feed = p.feed.n||0;
-      if(feed>0 || p.name) return {st:'done', tip:(p.name||'小家伙')+' Lv.'+lv+' · 今日已喂 '+feed+' 次'};
-      if(lv>1) return {st:'doing', tip:'已经 Lv.'+lv+' 了，去喂它一口'};
-      return {st:'todo', tip:'领养你的陪学小宠物'}; } },
+  { emoji:'🐾', name:'陪学宠物', page:'pet', how:'一只陪你备考的小家伙：经验=累计专注÷10+累计做题÷5，形态随等级进化（🐣→🐤→🐥→🐈→🦄）；有昼夜变化的舞台场景、帽子与背景装扮，可喂食·摸摸·玩耍·洗澡', reward:'等级进化 + 亲密度 + 每日陪伴',
+    probe:function(){ const p=store.pet||{}; let lv=1, form='', bond=0, acts=0;
+      try{ if(typeof petExp==='function'){ lv = petLevel(petExp()); form = petForm(lv).name; } }catch(e){}
+      try{ if(typeof petBond==='function') bond = petBond(); }catch(e){}
+      try{ if(typeof petActToday==='function'){ ['feed','touch','play','wash'].forEach(function(k){ acts += petActToday(k, true); }); } }catch(e){}
+      const nm = p.name || '小家伙';
+      if(acts>0) return {st:'done', tip:nm+' Lv.'+lv+' · '+form+' · 今日互动 '+acts+' 次 · 亲密 '+bond};
+      if(lv>1) return {st:'doing', tip:nm+' 已经 Lv.'+lv+'（'+form+'），去摸摸它'};
+      return {st:'todo', tip:'还没领养互动，去 🐾陪学宠物 看看'}; } },
   { emoji:'🎰', name:'扭蛋养花', page:'garden', how:'番茄钟专注会掉扭蛋币，攒够就能抽卡，收集 24 种花（N→UR 五档稀有度）', reward:'图鉴收集 + 稀有花',
     probe:function(){ const g=store.gacha||{}; const n=(g.pulled||[]).length, t=g.tickets||0, c=Object.keys(g.coll||{}).length;
       if(n>0) return {st:'done', tip:'已抽 '+n+' 次 · 图鉴 '+c+' 种'};
@@ -10875,22 +10950,57 @@ function renderWReport(){
 //  🐾 陪学宠物：等级 / 经验 / 心情全从真实数据现算，喂食摸摸改名才算「用户行为」落库
 // ====================================================
 const PET_FORMS = [
-  { minLv:1,  emoji:'🐣', name:'蛋壳期' },
-  { minLv:3,  emoji:'🐤', name:'幼崽期' },
-  { minLv:5,  emoji:'🐥', name:'少年期' },
-  { minLv:7,  emoji:'🐈', name:'成年期' },
-  { minLv:10, emoji:'🦄', name:'传说期' }
+  { minLv:1,  emoji:'🐣', name:'蛋壳期', desc:'刚认识你，正努力破壳' },
+  { minLv:3,  emoji:'🐤', name:'幼崽期', desc:'开始跟着你一起上自习' },
+  { minLv:5,  emoji:'🐥', name:'少年期', desc:'已经会催你刷题了' },
+  { minLv:7,  emoji:'🐈', name:'成年期', desc:'稳稳蹲在你旁边' },
+  { minLv:10, emoji:'🦄', name:'传说期', desc:'陪你一路冲上岸' }
 ];
-const PET_FEED_COST = 3;    // 每次喂食消耗水滴
+// 装扮：帽子（按等级解锁）
+const PET_HATS = [
+  { id:'none',   emoji:'➖', name:'不戴',   lv:1  },
+  { id:'flower', emoji:'🌸', name:'小花',   lv:2  },
+  { id:'bow',    emoji:'🎀', name:'蝴蝶结', lv:3  },
+  { id:'cap',    emoji:'🧢', name:'鸭舌帽', lv:5  },
+  { id:'crown',  emoji:'👑', name:'小王冠', lv:7  },
+  { id:'grad',   emoji:'🎓', name:'学士帽', lv:10 }
+];
+// 场景：自动按时段，或手动切换（按等级解锁）
+const PET_SCENES = [
+  { id:'dawn',   name:'清晨草地', lv:1,  sky:'linear-gradient(180deg,#FFE2C4 0%,#FFD3E2 48%,#FFF7FA 100%)', sun:'🌅', cloud:'🐦', grass:'🌱', ground:'linear-gradient(180deg,#CFEAC5,#A6DB9C)' },
+  { id:'day',    name:'晴日草地', lv:1,  sky:'linear-gradient(180deg,#C9E9FF 0%,#E9F5FF 52%,#FFFAFC 100%)', sun:'☀️', cloud:'☁️', grass:'🌿', ground:'linear-gradient(180deg,#CDEBC4,#A9DCA0)' },
+  { id:'dusk',   name:'黄昏山坡', lv:3,  sky:'linear-gradient(180deg,#FFC49B 0%,#FFB3C7 52%,#FFF1E9 100%)', sun:'🌇', cloud:'🦋', grass:'🍂', ground:'linear-gradient(180deg,#D9C8A2,#BFAE84)' },
+  { id:'night',  name:'星空露营', lv:5,  sky:'linear-gradient(180deg,#2C2A4C 0%,#6A5B96 55%,#B490BC 100%)', sun:'🌙', cloud:'✨', grass:'🌾', ground:'linear-gradient(180deg,#4B4472,#343058)', night:true },
+  { id:'sakura', name:'樱花树下', lv:7,  sky:'linear-gradient(180deg,#FFE6F0 0%,#FFD6E6 55%,#FFF8FB 100%)', sun:'🌸', cloud:'🌸', grass:'🍃', ground:'linear-gradient(180deg,#F4D8E2,#E2B8CA)', petal:true },
+  { id:'cloud',  name:'云海之上', lv:10, sky:'linear-gradient(180deg,#D9E9FF 0%,#F0E5FF 55%,#FFF7FB 100%)', sun:'🕊️', cloud:'☁️', grass:'🌤️', ground:'linear-gradient(180deg,#FFFFFF,#E7EDFB)' }
+];
+// 互动：上限 / 消耗 / 心情加成
+const PET_ACTS = [
+  { id:'feed',  emoji:'🍖', name:'喂食', max:3, cost:3, mood:6, ok:'🍖 吃得好开心！心情 +6' },
+  { id:'touch', emoji:'✋', name:'摸摸', max:5, cost:0, mood:4, ok:'✋ 蹭蹭你～心情 +4' },
+  { id:'play',  emoji:'🎾', name:'玩耍', max:4, cost:0, mood:5, ok:'🎾 玩得好起劲！心情 +5' },
+  { id:'wash',  emoji:'🛁', name:'洗澡', max:2, cost:2, mood:3, ok:'🛁 香喷喷啦～心情 +3' }
+];
+const PET_FEED_COST = 3;    // 每次喂食消耗水滴（兼容旧引用）
 const PET_FEED_MAX  = 3;    // 每日喂食上限
 const PET_TOUCH_MAX = 5;    // 每日摸摸上限
 function ensurePet(){
-  if(!store.pet) store.pet = { name:'', adopted:todayKey(), feed:{}, touch:{} };
+  if(!store.pet) store.pet = { name:'', adopted:todayKey(), feed:{}, touch:{}, play:{}, wash:{}, acts:{}, hat:'none', scene:'auto' };
   const p = store.pet;
   if(!p.adopted) p.adopted = todayKey();
-  if(!p.feed) p.feed = {};
-  if(!p.touch) p.touch = {};
+  if(!p.feed) p.feed = {}; if(!p.touch) p.touch = {};
+  if(!p.play) p.play = {}; if(!p.wash) p.wash = {};
+  if(!p.acts || typeof p.acts !== 'object') p.acts = {};
   if(typeof p.name !== 'string') p.name = '';
+  if(!p.hat) p.hat = 'none';
+  if(!p.scene) p.scene = 'auto';
+  // 旧数据迁移：把当日互动计数补进 acts 总账（取较大值，绝不双计）
+  ['feed','touch','play','wash'].forEach(function(k){
+    const d = p[k] && p[k].date; if(!d) return;
+    const n = p[k].n || 0; if(!n) return;
+    if(!p.acts[d]) p.acts[d] = {};
+    if((p.acts[d][k]||0) < n) p.acts[d][k] = n;
+  });
   return p;
 }
 // 经验：累计专注 + 累计做题（真实数据推导，绝不单独计数）
@@ -10912,24 +11022,83 @@ function todayFocusMin(){
   (store.focusLog||[]).forEach(function(x){ if(x.date===k) s += (x.min||0); });
   return s;
 }
-// 心情：今日学习时长打底 + 今日互动加成（互动次数是用户行为，存在 store.pet 里）
+// 今日某项互动次数（跨天自动归零，绝不累计到别的日子）
+function petActToday(k, noWrite){
+  const p = ensurePet(), t = todayKey();
+  if(!p[k] || typeof p[k] !== 'object') p[k] = {};
+  if(p[k].date !== t){
+    if(noWrite) return 0;
+    p[k] = { date:t, n:0 };
+  }
+  return p[k].n || 0;
+}
+// 心情：今日学习时长打底 + 今日四种互动加成（互动次数是用户行为，存在 store.pet 里）
 function petMood(){
-  const p = ensurePet();
-  const t = todayKey();
   const m = todayFocusMin();
   let base = 25;
-  if(m >= 60) base = 80; else if(m >= 30) base = 65; else if(m >= 10) base = 50; else if(dayHasStudy(t)) base = 40;
-  const feedN = (p.feed && p.feed.date===t) ? (p.feed.n||0) : 0;
-  const touchN = (p.touch && p.touch.date===t) ? (p.touch.n||0) : 0;
-  return Math.max(0, Math.min(100, base + feedN*6 + touchN*4));
+  if(m >= 60) base = 80; else if(m >= 30) base = 65; else if(m >= 10) base = 50; else if(dayHasStudy(todayKey())) base = 40;
+  let add = 0;
+  PET_ACTS.forEach(function(c){ add += petActToday(c.id, true) * c.mood; });
+  return Math.max(0, Math.min(100, base + add));
+}
+function petMoodFace(m){
+  const v = Math.max(0, Math.min(100, m||0));
+  return v>=85 ? '😻' : (v>=70 ? '😊' : (v>=50 ? '🙂' : (v>=30 ? '😕' : '😢')));
+}
+function petStateText(m){
+  const v = Math.max(0, Math.min(100, m||0));
+  return v>=85 ? '活力满满' : (v>=70 ? '心情不错' : (v>=50 ? '安安静静' : (v>=30 ? '有点无聊' : '想你了')));
+}
+function petTimeSlot(){
+  let h = 12;
+  try{ h = new Date().getHours(); }catch(e){ h = 12; }
+  if(h >= 5 && h < 10) return 'dawn';
+  if(h >= 10 && h < 17) return 'day';
+  if(h >= 17 && h < 20) return 'dusk';
+  return 'night';
+}
+function petScene(){
+  const p = ensurePet();
+  const lv = petLevel(petExp());
+  let want = (p.scene && p.scene !== 'auto') ? p.scene : petTimeSlot();
+  let s = PET_SCENES.filter(function(x){ return x.id === want; })[0];
+  if(!s || s.lv > lv){ // 等级不够 → 退回当前时段（不显示未解锁场景）
+    s = PET_SCENES.filter(function(x){ return x.id === petTimeSlot(); })[0] || PET_SCENES[1];
+  }
+  return s;
+}
+function petHatItem(){
+  const p = ensurePet();
+  return PET_HATS.filter(function(x){ return x.id === p.hat; })[0] || PET_HATS[0];
+}
+// 亲密度：累计互动 + 陪伴天数 + 连续打卡（全部从记录现算）
+function petBondTotal(){
+  const p = ensurePet();
+  let n = 0;
+  Object.keys(p.acts || {}).forEach(function(d){
+    const a = p.acts[d] || {};
+    n += (a.feed||0) + (a.touch||0) + (a.play||0) + (a.wash||0);
+  });
+  return n;
+}
+function petBond(){
+  const st = (typeof calcStreak === 'function') ? calcStreak() : 0;
+  const v = petBondTotal() * 1.5 + petDays() * 0.8 + Math.min(st, 30) * 1.2;
+  return Math.max(0, Math.min(100, Math.round(v)));
 }
 function petTalk(){
   const m = todayFocusMin();
   const st = (typeof calcStreak==='function') ? calcStreak() : 0;
+  const slot = petTimeSlot();
+  const mood = petMood();
+  if(m >= 120) return '天呐，今天已经 '+m+' 分钟了！我守着你，别停 💪';
   if(m >= 60) return '今天已经陪你 '+m+' 分钟啦，我在这给你加油 💪';
-  if(m >= 10) return '今天 '+m+' 分钟了，再刷一个番茄就更好了 🍅';
+  if(m >= 10) return '今天 '+m+' 分钟了，再刷一个番茄就更棒了 🍅';
+  if(slot === 'dawn') return '早上好呀～今天从哪一科开始？我陪你 🌅';
+  if(slot === 'night') return '夜深啦，要不要再刷 15 分钟再睡？🌙';
   if(st >= 7) return '连续打卡 '+st+' 天，你太稳了，今天也别断哦 🔥';
   if(dayHasStudy(todayKey())) return '今天开了个头，继续坐一会儿？我陪你 🐾';
+  if(mood < 30) return '你今天都没理我…摸摸我好不好 🥺';
   return '今天还没开工，先刷一个番茄陪我玩会儿？🍅';
 }
 function petDays(){
@@ -10939,28 +11108,67 @@ function petDays(){
     return Math.max(1, Math.round((b-a)/86400000) + 1);
   }catch(e){ return 1; }
 }
-function petFeed(){
+// 通用互动：上限 / 消耗 / 计账（只记「用户行为」，进度永远现算）
+function petAct(k){
   const p = ensurePet(), t = todayKey();
-  ensureGarden();
-  const g = store.garden;
-  if(p.feed.date !== t){ p.feed = { date:t, n:0 }; }
-  if((p.feed.n||0) >= PET_FEED_MAX){ if(typeof toast==='function') toast('今天已经喂饱啦（上限 '+PET_FEED_MAX+' 次）'); return false; }
-  if((g.drops||0) < PET_FEED_COST){ if(typeof toast==='function') toast('水滴不够，喂食需要 '+PET_FEED_COST+' 滴'); return false; }
-  g.drops = (g.drops||0) - PET_FEED_COST;
-  p.feed.n = (p.feed.n||0) + 1;
-  if(typeof saveStore==='function') saveStore();
-  if(typeof toast==='function') toast('🍖 喂食成功！心情 +6（今日第 '+p.feed.n+' 次）');
-  if(typeof renderPet==='function') renderPet();
+  const cfg = PET_ACTS.filter(function(x){ return x.id === k; })[0];
+  if(!cfg) return false;
+  petActToday(k); // 跨天先归零
+  if((p[k].n || 0) >= cfg.max){
+    if(typeof toast === 'function') toast(cfg.emoji + ' 今天已经'+cfg.name+'过了（上限 '+cfg.max+' 次）');
+    return false;
+  }
+  if(cfg.cost > 0){
+    if(typeof ensureGarden === 'function') ensureGarden();
+    if(!store.garden) store.garden = { coins:0, drops:0 };
+    if((store.garden.drops || 0) < cfg.cost){
+      if(typeof toast === 'function') toast('水滴不够，'+cfg.name+'需要 💧'+cfg.cost);
+      return false;
+    }
+    store.garden.drops = (store.garden.drops || 0) - cfg.cost;
+  }
+  p[k].n = (p[k].n || 0) + 1;
+  if(!p.acts[t]) p.acts[t] = {};
+  p.acts[t][k] = (p.acts[t][k] || 0) + 1;
+  if(typeof saveStore === 'function') saveStore();
+  if(typeof toast === 'function') toast(cfg.ok + '（今日第 '+p[k].n+' 次）');
+  if(typeof renderPet === 'function') renderPet();
   return true;
 }
-function petTouch(){
-  const p = ensurePet(), t = todayKey();
-  if(p.touch.date !== t){ p.touch = { date:t, n:0 }; }
-  if((p.touch.n||0) >= PET_TOUCH_MAX){ if(typeof toast==='function') toast('今天摸太多啦，人家要学习去了～'); return false; }
-  p.touch.n = (p.touch.n||0) + 1;
-  if(typeof saveStore==='function') saveStore();
-  if(typeof toast==='function') toast('✋ 摸摸头～心情 +4（今日第 '+p.touch.n+' 次）');
-  if(typeof renderPet==='function') renderPet();
+function petFeed(){ return petAct('feed'); }
+function petTouch(){ return petAct('touch'); }
+function petPlay(){ return petAct('play'); }
+function petWash(){ return petAct('wash'); }
+// 装扮：未达等级不能戴 / 不能切
+function petSetHat(id){
+  const p = ensurePet();
+  const it = PET_HATS.filter(function(x){ return x.id === id; })[0];
+  if(!it) return false;
+  const lv = petLevel(petExp());
+  if(lv < it.lv){
+    if(typeof toast === 'function') toast('🔒 '+it.name+' 需要 Lv.'+it.lv+'（当前 Lv.'+lv+'）');
+    return false;
+  }
+  p.hat = id;
+  if(typeof saveStore === 'function') saveStore();
+  if(typeof toast === 'function') toast((it.emoji==='🚫' ? '已取下装扮' : '✨ 换上「'+it.name+'」'));
+  if(typeof renderPet === 'function') renderPet();
+  return true;
+}
+function petSetScene(id){
+  const p = ensurePet();
+  if(id === 'auto'){ p.scene = 'auto'; if(typeof saveStore === 'function') saveStore(); if(typeof toast === 'function') toast('🕐 背景已恢复「按时段自动」'); if(typeof renderPet === 'function') renderPet(); return true; }
+  const it = PET_SCENES.filter(function(x){ return x.id === id; })[0];
+  if(!it) return false;
+  const lv = petLevel(petExp());
+  if(lv < it.lv){
+    if(typeof toast === 'function') toast('🔒 '+it.name+' 需要 Lv.'+it.lv+'（当前 Lv.'+lv+'）');
+    return false;
+  }
+  p.scene = id;
+  if(typeof saveStore === 'function') saveStore();
+  if(typeof toast === 'function') toast('🖼 背景换成「'+it.name+'」');
+  if(typeof renderPet === 'function') renderPet();
   return true;
 }
 function petRename(){
@@ -10985,41 +11193,137 @@ function renderPet(){
   const e0 = Math.pow(lv-1, 2) * 40, e1 = Math.pow(lv, 2) * 40;
   const pct = Math.max(0, Math.min(100, Math.round((exp - e0) / Math.max(1, (e1 - e0)) * 100)));
   const mood = petMood();
-  const feedN = (p.feed && p.feed.date===t) ? (p.feed.n||0) : 0;
-  const touchN = (p.touch && p.touch.date===t) ? (p.touch.n||0) : 0;
+  const bond = petBond();
+  const scene = petScene();
+  const hat = petHatItem();
+  const mFace = petMoodFace(mood);
+  const talk = petTalk();
+  const bondCol = bond >= 70 ? '#D4537E' : (bond >= 40 ? '#E8919B' : '#C9A9BE');
+  const streak = (typeof calcStreak === 'function') ? calcStreak() : 0;
+  const drops = (store.garden && store.garden.drops) || 0;
   const name = p.name || ('陪学'+form.name.replace('期',''));
   const moodCol = mood >= 70 ? '#5BAE6F' : (mood >= 40 ? '#e8a13a' : '#E5484D');
-  let html = '<div style="padding:14px 14px 40px;background:#F7F7F8;min-height:100vh">';
-  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-bottom:12px">'
-    + '<div style="text-align:center;padding:6px 0 2px">'
-    + '<div style="font-size:64px;line-height:1.1">'+form.emoji+'</div>'
-    + '<div style="font-size:16px;font-weight:800;color:#333;margin-top:4px">'+name+'</div>'
-    + '<div style="font-size:11px;color:#aaa;margin-top:2px">'+form.name+' · Lv.'+lv+' · 已陪伴 '+petDays()+' 天</div>'
-    + '<div style="margin:12px 0 4px;padding:10px 12px;border-radius:12px;background:#F3ECFB;color:#6b4fa8;font-size:12px;font-weight:700">“'+petTalk()+'”</div></div>'
-    + '<div style="margin-top:12px">'
-    + '<div style="display:flex;justify-content:space-between;font-size:11px;color:#888"><span>经验</span><span>'+exp+' / '+e1+'（距 Lv.'+(lv+1)+' 还差 '+Math.max(0,e1-exp)+'）</span></div>'
-    + '<div style="margin-top:4px;height:8px;border-radius:6px;background:#EFEDF3;overflow:hidden">'
-    + '<div style="height:100%;width:'+pct+'%;border-radius:6px;background:linear-gradient(90deg,#C2BAE0,#6b4fa8)"></div></div></div>'
-    + '<div style="margin-top:12px">'
-    + '<div style="display:flex;justify-content:space-between;font-size:11px;color:#888"><span>心情</span><span style="color:'+moodCol+'">'+mood+' / 100</span></div>'
-    + '<div style="margin-top:4px;height:8px;border-radius:6px;background:#EFEDF3;overflow:hidden">'
-    + '<div style="height:100%;width:'+mood+'%;border-radius:6px;background:linear-gradient(90deg,#F7E2C8,'+moodCol+')"></div></div></div></div>';
-  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-bottom:12px">'
-    + '<div style="font-size:13px;font-weight:700;color:#444">🎮 互动</div>'
-    + '<div style="display:flex;gap:8px;margin-top:10px">'
-    + '<button onclick="petFeed()" style="flex:1;padding:9px;border-radius:10px;border:none;background:linear-gradient(135deg,#F0A7C0,#D4537E);color:#fff;font-size:12px;font-weight:700;cursor:pointer">🍖 喂食（💧'+PET_FEED_COST+'）</button>'
-    + '<button onclick="petTouch()" style="flex:1;padding:9px;border-radius:10px;border:1.5px solid #A86BC4;background:#fff;color:#A86BC4;font-size:12px;font-weight:700;cursor:pointer">✋ 摸摸</button>'
+  // ---- 舞台装饰（按时段/场景生成，纯展示，不落库） ----
+  let deco = '';
+  if(scene.night){
+    [[24,26,0],[58,16,0.5],[118,30,1.1],[176,20,0.7],[228,36,1.4]].forEach(function(s){
+      deco += '<div class="pet-star" style="left:'+s[0]+'px;top:'+s[1]+'px;animation-delay:'+s[2]+'s">⭐</div>';
+    });
+  }
+  if(scene.petal){
+    [[30,10,0],[96,4,1.6],[162,14,3.1],[214,8,4.4]].forEach(function(s){
+      deco += '<div class="pet-petal" style="left:'+s[0]+'px;top:'+s[1]+'px;animation-delay:'+s[2]+'s">🌸</div>';
+    });
+  }
+  // ---- 进化时间线 ----
+  let tl = '<div class="pet-tl">';
+  PET_FORMS.forEach(function(f, i){
+    const passed = lv >= f.minLv;
+    const isNow  = form.minLv === f.minLv;
+    tl += '<div class="pet-tl-node'+(passed ? ' on' : '')+(isNow ? ' now' : '')+'">'
+      + (i < PET_FORMS.length - 1 ? '<div class="pet-tl-line"></div>' : '')
+      + '<div class="pet-tl-dot">'+f.emoji+'</div>'
+      + '<div class="pet-tl-nm">'+f.name+'<br>Lv.'+f.minLv+'</div>'
+      + '</div>';
+  });
+  tl += '</div>';
+  // ---- 装扮 chips ----
+  let hatChips = '<div class="pet-chips">';
+  PET_HATS.forEach(function(h){
+    const lock = lv < h.lv, on = p.hat === h.id;
+    hatChips += '<div class="pet-chip'+(on ? ' on' : '')+(lock ? ' lock' : '')+'" onclick="petSetHat(\''+h.id+'\')">'
+      + '<span>'+h.emoji+'</span>'+h.name+(lock ? ' 🔒'+h.lv : '')+'</div>';
+  });
+  hatChips += '</div>';
+  let scChips = '<div class="pet-chips">'
+    + '<div class="pet-chip'+(p.scene === 'auto' ? ' on' : '')+'" onclick="petSetScene(\'auto\')"><span>🕐</span>按时段</div>';
+  PET_SCENES.forEach(function(s){
+    if(s.id === 'day' && p.scene === 'auto') return; // 自动默认白天，不重复列
+    const lock = lv < s.lv, on = p.scene === s.id;
+    scChips += '<div class="pet-chip'+(on ? ' on' : '')+(lock ? ' lock' : '')+'" onclick="petSetScene(\''+s.id+'\')">'
+      + '<span>'+s.grass+'</span>'+s.name+(lock ? ' 🔒'+s.lv : '')+'</div>';
+  });
+  scChips += '</div>';
+  // ---- 互动按钮 ----
+  let acts = '<div class="pet-acts">';
+  PET_ACTS.forEach(function(c){
+    const n = petActToday(c.id, true);
+    const full = n >= c.max;
+    let dots = '<div class="pet-dots">';
+    for(let i = 0; i < c.max; i++) dots += '<i class="'+(i < n ? 'on' : '')+'"></i>';
+    dots += '</div>';
+    acts += '<div class="pet-act'+(full ? ' full' : '')+'" onclick="pet' + c.id.charAt(0).toUpperCase() + c.id.slice(1) + '()">'
+      + '<div class="ico">'+c.emoji+'</div><div class="nm">'+c.name+'</div>'
+      + '<div class="tip">'+(c.cost > 0 ? ('💧'+c.cost) : '免费')+'</div>' + dots + '</div>';
+  });
+  acts += '</div>';
+
+  let html = '<div style="padding:14px 14px 40px;background:#F8F6FA;min-height:100vh">';
+  // ===== 舞台 =====
+  html += '<div class="pet-stage">'
+    + '<div class="pet-sky" style="background:'+scene.sky+'"></div>'
+    + '<div class="pet-sunmoon">'+scene.sun+'</div>'
+    + '<div class="pet-cloud1">'+scene.cloud+'</div>'
+    + '<div class="pet-cloud2">'+scene.cloud+'</div>'
+    + deco
+    + '<div class="pet-ground" style="background:'+scene.ground+'"></div>'
+    + '<div class="pet-grass" style="left:16px">'+scene.grass+'</div>'
+    + '<div class="pet-grass" style="right:20px">'+scene.grass+'</div>'
+    + '<div class="pet-tag">'+form.name+' · Lv.'+lv+'</div>'
+    + '<div class="pet-tag2">已陪伴 '+petDays()+' 天</div>'
+    + '<div class="pet-body">'
+    + (hat.id !== 'none' ? '<div class="pet-hat">'+hat.emoji+'</div>' : '')
+    + '<div class="pet-avatar pet-pop" onclick="petTouch()" title="摸摸它">'+form.emoji+'</div>'
+    + '<div class="pet-shadow"></div></div>'
+    + '<div class="pet-bubble"><span class="face">'+mFace+'</span><span class="txt">'+talk+'</span></div>'
+    + '</div>';
+  // ===== 互动 =====
+  html += '<div class="pet-card">'
+    + '<div class="pet-sec">🎮 今日互动<span class="en">DAILY</span></div>'
+    + '<div class="pet-head"><span class="pet-name">'+name+'</span><span class="pet-lv">Lv.'+lv+'</span>'
+    + '<span class="pet-lv" style="background:linear-gradient(135deg,#F0A7C0,#D4537E)">'+petStateText(mood)+'</span></div>'
+    + '<div class="pet-sub">'+form.desc+' · 当前水滴 💧'+drops+'</div>'
+    + acts
+    + '<div class="pet-note">互动次数是「今天」的，跨天自动归零；心情每天按真实学习时长重算，不喂也不会掉级。</div>'
+    + '</div>';
+  // ===== 状态 =====
+  html += '<div class="pet-card">'
+    + '<div class="pet-sec">📈 成长状态<span class="en">STATUS</span></div>'
+    + '<div class="pet-bar-wrap"><div class="pet-bar-top"><span>经验</span><span><b>'+exp+'</b> / '+e1+' · 距 Lv.'+(lv+1)+' 还差 '+Math.max(0, e1-exp)+'</span></div>'
+    + '<div class="pet-bar"><i style="width:'+pct+'%;background:linear-gradient(90deg,#C2BAE0,#6b4fa8)"></i></div></div>'
+    + '<div class="pet-bar-wrap"><div class="pet-bar-top"><span>心情 '+mFace+'</span><span><b style="color:'+moodCol+'">'+mood+'</b> / 100</span></div>'
+    + '<div class="pet-bar"><i style="width:'+mood+'%;background:linear-gradient(90deg,#F9D9C0,'+moodCol+')"></i></div></div>'
+    + '<div class="pet-bar-wrap"><div class="pet-bar-top"><span>亲密度 💞</span><span><b style="color:'+bondCol+'">'+bond+'</b> / 100</span></div>'
+    + '<div class="pet-bar"><i style="width:'+bond+'%;background:linear-gradient(90deg,#FFD3E2,'+bondCol+')"></i></div></div>'
+    + '<div class="pet-grid4">'
+    + '<div class="pet-g4"><b>'+petDays()+'</b><span>陪伴天数</span></div>'
+    + '<div class="pet-g4"><b>'+statFocusMin()+'</b><span>累计专注(分)</span></div>'
+    + '<div class="pet-g4"><b>'+statCumuDone()+'</b><span>累计做题</span></div>'
+    + '<div class="pet-g4"><b>'+streak+'</b><span>连续打卡</span></div>'
     + '</div>'
-    + '<div style="font-size:11px;color:#aaa;margin-top:8px">今日已喂 '+feedN+'/'+PET_FEED_MAX+' 次 · 已摸 '+touchN+'/'+PET_TOUCH_MAX+' 次 · 心情每天按真实学习时长重算</div>'
-    + '<div style="display:flex;gap:8px;margin-top:10px">'
-    + '<input id="petNameInput" value="'+String(p.name||'').replace(/"/g,'&quot;')+'" placeholder="给它取个名字" style="flex:1;padding:9px;border-radius:10px;border:1.5px solid #E8E0EE;font-size:12px;color:#444;box-sizing:border-box">'
-    + '<button onclick="petRename()" style="padding:9px 14px;border-radius:10px;border:1.5px solid #A86BC4;background:#fff;color:#A86BC4;font-size:12px;font-weight:700;cursor:pointer">✏️ 改名</button>'
-    + '</div></div>';
-  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04)">'
-    + '<div style="font-size:13px;font-weight:700;color:#444">📈 成长来源</div>'
-    + '<div style="font-size:12px;color:#888;margin-top:6px">经验 = 累计专注 '+statFocusMin()+' 分钟 ÷ 10 + 累计做题 '+statCumuDone()+' 道 ÷ 5</div>'
-    + '<div style="font-size:12px;color:#888;margin-top:4px">形态随等级进化：🐣 蛋壳 → 🐤 幼崽 → 🐥 少年 → 🐈 成年 → 🦄 传说</div>'
-    + '<div style="font-size:11px;color:#aaa;margin-top:8px">等级与心情全部按真实学习数据实时计算，不喂也不会掉级</div></div>';
+    + '<div class="pet-note">亲密度 = 累计互动 '+petBondTotal()+' 次 + 陪伴 '+petDays()+' 天 + 连续打卡 '+streak+' 天（全部现算）</div>'
+    + '</div>';
+  // ===== 装扮 =====
+  html += '<div class="pet-card">'
+    + '<div class="pet-sec">✨ 装扮小屋<span class="en">SKIN</span></div>'
+    + '<div class="pet-sub" style="margin-top:6px">帽子（当前：'+hat.name+'）</div>' + hatChips
+    + '<div class="pet-sub" style="margin-top:8px">背景（当前：'+(p.scene === 'auto' ? '按时段自动' : scene.name)+'）</div>' + scChips
+    + '<div class="pet-note">🔒 表示还没解锁，等级到了自动开放；换装扮不花水滴。</div>'
+    + '</div>';
+  // ===== 进化路线 =====
+  html += '<div class="pet-card">'
+    + '<div class="pet-sec">🐣 进化路线<span class="en">EVOLUTION</span></div>' + tl
+    + '<div class="pet-note">经验 = 累计专注 '+statFocusMin()+' 分钟 ÷ 10 + 累计做题 '+statCumuDone()+' 道 ÷ 5，等级越高形态越稀有。</div>'
+    + '</div>';
+  // ===== 改名 & 来源 =====
+  html += '<div class="pet-card">'
+    + '<div class="pet-sec">✏️ 名字 & 成长来源<span class="en">PROFILE</span></div>'
+    + '<div class="pet-row">'
+    + '<input id="petNameInput" class="pet-input" value="'+String(p.name||'').replace(/"/g,'&quot;')+'" placeholder="给它取个名字（最多 12 字）">'
+    + '<button class="pet-btn" onclick="petRename()">改名</button>'
+    + '</div>'
+    + '<div class="pet-note">等级、心情、亲密度全部由真实学习数据实时计算，不存任何影子计数；只有互动次数、装扮、名字这类「你做过的事」才会被记住。</div>'
+    + '</div>';
   html += '</div>';
   el.innerHTML = html;
 }
