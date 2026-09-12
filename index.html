@@ -7535,7 +7535,10 @@ function editQuestionBook(id){
     + topBlock
     + '<div style="text-align:left;font-size:13px;color:#666;margin:12px 0 4px;display:flex;align-items:center;justify-content:space-between">'
       +'<span>📑 章节（篇章） <span id="qbChaptersHint" style="font-weight:400;color:#aaa;font-size:11px">'+(hasChap?'共 '+b.chapters.length+' 章 · 章节累加':'还没有章节，加一个吧～')+'</span></span>'
-      +'<button class="btn popup-btn" style="background:#F3ECFB;color:#A86BC4;font-size:12px;padding:5px 10px;box-shadow:none" onclick="addQbookChapterRow(\'\',0,0,0)">+ 添加章节</button>'
+      +'<span style="display:inline-flex;gap:6px">'
+        +'<button class="btn popup-btn" style="background:#F3ECFB;color:#A86BC4;font-size:12px;padding:5px 10px;box-shadow:none" onclick="quickAddQbookChapters()">⚡ 一键加章节</button>'
+        +'<button class="btn popup-btn" style="background:#F3ECFB;color:#A86BC4;font-size:12px;padding:5px 10px;box-shadow:none" onclick="addQbookChapterRow(\'\',0,0,0)">+ 添加章节</button>'
+      +'</span>'
       +'</div>'
     + '<div id="qbChaptersBox" style="margin-bottom:6px"></div>'
     + '<div style="background:#F3ECFB;border-radius:10px;padding:8px 10px;display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:#A86BC4">'
@@ -7613,9 +7616,62 @@ function readQbookChaptersFromDom(){
   });
   return out;
 }
+// ===== 章节自动编号 =====
+// 中文数字解析：支持 一~九十九（含「十」「十四」「二十」「二十五」等）与阿拉伯数字
+function cnNumToInt(s){
+  if(!s) return 0;
+  if(/^\d+$/.test(s)) return parseInt(s,10);
+  const D={'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9};
+  if(s==='十') return 10;
+  let n=0;
+  const bi=s.indexOf('百');
+  if(bi>=0){ n += (D[s[0]]||1)*100; s=s.slice(bi+1); }
+  const shi=s.indexOf('十');
+  if(shi>=0){ const a=shi>0?(D[s[0]]||1):1; n+=a*10; s=s.slice(shi+1); }
+  if(s && D[s[0]]) n+=D[s[0]];
+  return n;
+}
+// 扫弹窗里已有章节的「第N章/节/讲/篇」，返回最大编号及风格（中文/阿拉伯）；没有编号章节则 {no:0}
+function scanChapterMaxNo(){
+  const wrap = document.getElementById('qbChaptersBox');
+  let max = 0, cnStyle = false;
+  if(wrap){
+    wrap.querySelectorAll('[data-qb-chap]').forEach(function(r){
+      const el = r.querySelector('[data-f="name"]');
+      const nm = ((el && el.value) || '').trim();
+      const m = nm.match(/^第\s*(\d+|[一二三四五六七八九十百]+)\s*[章节讲篇部]/);
+      if(m){ const n = cnNumToInt(m[1]); if(n>max){ max=n; cnStyle=!/^\d+$/.test(m[1]); } }
+    });
+  }
+  return { no:max, cnStyle:cnStyle };
+}
+const CN_NUMS=['','一','二','三','四','五','六','七','八','九','十'];
+function intToCnNum(n){
+  if(n<=0) return String(n);
+  if(n<=10) return CN_NUMS[n]||String(n);
+  if(n<100){ const sh=Math.floor(n/10), ge=n%10; return (sh>1?CN_NUMS[sh]:'')+'十'+(ge?CN_NUMS[ge]:''); }
+  return String(n);
+}
+function nextChapterName(){
+  const s = scanChapterMaxNo();
+  const n = s.no + 1;
+  return '第' + (s.cnStyle ? intToCnNum(n) : n) + '章';  // 跟随已有编号风格：中文接中文、阿拉伯接阿拉伯
+}
+// 一键批量加章节：输入数量，接着已有编号连续生成（已有第六章 → 输 4 得 七/八/九/十章）
+function quickAddQbookChapters(){
+  const raw = prompt('⚡ 一键加章节\n输入要加的数量（自动接着已有章节往下编号）\n如已有「第六章」，输入 4 会加 第七/八/九/十章', '4');
+  if(raw===null) return;
+  const n = parseInt((raw||'').trim(),10);
+  if(!n || n<1 || n>99){ if(typeof toast==='function') toast('输入 1~99 的数字哦'); return; }
+  const s = scanChapterMaxNo();
+  let no = s.no;
+  for(let i=0;i<n;i++){ no++; addQbookChapterRow('第'+(s.cnStyle?intToCnNum(no):no)+'章',0,0,0); }
+  if(typeof toast==='function') toast('⚡ 已加 '+n+' 章，名字点输入框随便改～');
+}
 function addQbookChapterRow(name, total, done, correct, id, time){
   const wrap = document.getElementById('qbChaptersBox');
   if(!wrap) return;
+  if(!name || !String(name).trim()) name = nextChapterName();  // 自动编号：预填「第N章」，仍可手改
   const cid = id || ('qc_'+Date.now()+'_'+Math.random().toString(36).slice(2,6));
   const row = document.createElement('div');
   row.setAttribute('data-qb-chap', '1');
