@@ -6562,6 +6562,16 @@ function editGoalCourse(msId, cId){
   }
   const COURSE_STATUS = ['未开始','进行中','已完成','延期'];
   const statusOpts = COURSE_STATUS.map(function(s){ return '<option value="'+s+'"'+( (cur.status||'未开始')===s ? ' selected' : '' )+'>'+s+'</option>'; }).join('');
+  // 分类下拉：已有分类 + 未分类（新建走卡片上的 🏷 或分类管理）
+  let catOpts = '';
+  try{
+    if(typeof ensureCourseCats==='function') ensureCourseCats();
+    const _curCat = cur.cat || '';
+    catOpts = '<option value=""'+(_curCat?'':' selected')+'>未分类</option>';
+    (typeof allCourseCats==='function' ? allCourseCats() : []).forEach(function(b){
+      catOpts += '<option value="'+b.id+'"'+(_curCat===b.id?' selected':'')+'>'+escapeHtml(b.name||'')+'</option>';
+    });
+  }catch(_){ catOpts = '<option value="">未分类</option>'; }
   const inner = '<div class="popup-sparkles"><span>📚</span><span>💜</span><span>🌸</span><span>💜</span><span>📚</span></div>'
     + '<div class="popup-ico">📚</div>'
     + '<div class="popup-title">'+(cId?'编辑课程':'添加课程')+'</div>'
@@ -6583,6 +6593,8 @@ function editGoalCourse(msId, cId){
     + '</div>'
     + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">关联科目（可选，自动显示正确率）</div>'
     + '<select id="gCourseLinked" style="width:100%;padding:9px 11px;border:2px solid var(--border-deep);border-radius:12px;font-size:14px;box-sizing:border-box;outline:none;background:#fff">'+selOpts+'</select>'
+    + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">分类（自己归类，网课页按分类分组显示）</div>'
+    + '<select id="gCourseCat" style="width:100%;padding:9px 11px;border:2px solid var(--border-deep);border-radius:12px;font-size:14px;box-sizing:border-box;outline:none;background:#fff">'+catOpts+'</select>'
     + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">备注</div>'
     + '<input id="gCourseNote" value="'+ escapeHtml(cur.note||'') +'" style="width:100%;padding:9px 11px;border:2px solid var(--border-deep);border-radius:12px;font-size:14px;box-sizing:border-box;outline:none" placeholder="选课建议、上课节奏等">'
     + '<div style="display:flex;gap:10px;margin-top:14px">'
@@ -6607,11 +6619,13 @@ function saveGoalCourse(msId, cId){
   const note = (document.getElementById('gCourseNote').value||'').trim();
   const status = document.getElementById('gCourseStatus').value || '未开始';
   const planFinish = document.getElementById('gCoursePlanFinish').value || '';
+  const catEl = document.getElementById('gCourseCat');
+  const cat = catEl ? (catEl.value || '') : (cId ? ((m.courses.find(function(x){ return x.id===cId; })||{}).cat||'') : '');
   if(cId){
     const c = m.courses.find(function(x){ return x.id===cId; });
-    if(c){ c.name=name; c.platform=platform; c.total=total; c.done=done; c.linked=linked; c.lessonMin=lessonMin; c.deadline=deadline; c.note=note; c.status=status; c.planFinish=planFinish; autoFinishCourse(c); }
+    if(c){ c.name=name; c.platform=platform; c.total=total; c.done=done; c.linked=linked; c.lessonMin=lessonMin; c.deadline=deadline; c.note=note; c.status=status; c.planFinish=planFinish; c.cat=cat; autoFinishCourse(c); }
   } else {
-    const _nc = { id:'cs_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, platform:platform, total:total, done:done, linked:linked, lessonMin:lessonMin, deadline:deadline, note:note, status:status, planFinish:planFinish };
+    const _nc = { id:'cs_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, platform:platform, total:total, done:done, linked:linked, lessonMin:lessonMin, deadline:deadline, note:note, status:status, planFinish:planFinish, cat:cat };
     autoFinishCourse(_nc);
     m.courses.push(_nc);
   }
@@ -6872,6 +6886,179 @@ function getAllCourses(){
   });
   return out;
 }
+// ============ 网课自定义分类（用户自己归类，课程页分组展示） ============
+// 数据：store.courseCats=[{id,name,order}]；课程字段 c.cat=分类id（空=未分类）；折叠态 store.courseCatFold={id:true}
+let _courseCatFilter = '';   // 课程页分类筛选：''=全部，'_none'=未分类，其余=分类id
+function ensureCourseCats(){
+  if(!Array.isArray(store.courseCats)) store.courseCats = [];
+  if(!store.courseCatFold || typeof store.courseCatFold!=='object') store.courseCatFold = {};
+}
+function allCourseCats(){
+  ensureCourseCats();
+  return (store.courseCats||[]).slice().sort(function(a,b){ return (a.order||0)-(b.order||0); });
+}
+function courseCatById(id){
+  if(!id) return null;
+  ensureCourseCats();
+  return (store.courseCats||[]).find(function(x){ return x.id===id; }) || null;
+}
+function courseCatName(id){
+  if(!id) return '未分类';
+  const b = courseCatById(id);
+  return b ? (b.name||'未分类') : '未分类';
+}
+function addCourseCat(name){
+  name = (name||'').trim();
+  if(!name) return '';
+  ensureCourseCats();
+  const dup = (store.courseCats||[]).find(function(x){ return x.name===name; });
+  if(dup) return dup.id;
+  const id = 'cc_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+  store.courseCats.push({ id:id, name:name, order:(store.courseCats.length||0) });
+  try{ saveStore(); }catch(_){}
+  return id;
+}
+function renameCourseCat(id){
+  const b = courseCatById(id); if(!b) return;
+  const nv = prompt('重命名分类', b.name||'');
+  if(nv===null) return;
+  const t = nv.trim();
+  if(!t){ if(typeof toast==='function') toast('分类名不能为空'); return; }
+  b.name = t; saveStore();
+  if(typeof renderCourses==='function') renderCourses();
+}
+function delCourseCat(id){
+  const b = courseCatById(id); if(!b) return;
+  if(!confirm('删除分类「'+(b.name||'')+'」？里面的课不会删，会回到「未分类」。')) return;
+  ensureGoals();
+  (store.goals.milestones||[]).forEach(function(m){
+    (m.courses||[]).forEach(function(c){ if(c.cat===id) c.cat=''; });
+  });
+  store.courseCats = (store.courseCats||[]).filter(function(x){ return x.id!==id; });
+  saveStore();
+  if(typeof renderCourses==='function') renderCourses();
+  if(typeof toast==='function') toast('已删除分类，课程已回到「未分类」');
+}
+// 把某门课移入分类（catId 空=未分类）
+function setCourseCat(mId, cId, catId){
+  ensureGoals();
+  const m = (store.goals.milestones||[]).find(function(x){ return x.id===mId; });
+  if(!m) return;
+  const c = (m.courses||[]).find(function(x){ return x.id===cId; });
+  if(!c) return;
+  c.cat = catId || '';
+  saveStore();
+  if(typeof closeGoalsPopup==='function'){ try{ closeGoalsPopup(); }catch(_){} }
+  if(typeof renderCourses==='function') renderCourses();
+  if(typeof renderGoals==='function') renderGoals();
+  if(typeof toast==='function') toast('已归类到「'+courseCatName(catId)+'」🏷');
+}
+// 卡片上的 🏷：快速换分类（现有分类 + 新建）
+function pickCourseCat(mId, cId){
+  ensureCourseCats();
+  const cats = allCourseCats();
+  const cur = (function(){
+    const m = (store.goals.milestones||[]).find(function(x){ return x.id===mId; });
+    const c = m ? (m.courses||[]).find(function(x){ return x.id===cId; }) : null;
+    return c ? (c.cat||'') : '';
+  })();
+  let inner = '<div class="popup-sparkles"><span>🏷</span><span>💜</span><span>🌸</span><span>💜</span><span>🏷</span></div>'
+    + '<div class="popup-ico">🏷</div>'
+    + '<div class="popup-title">归到哪个分类</div>'
+    + '<div style="font-size:12px;color:#999;margin-bottom:10px">分类后，网课页会按分类分组显示，找课更快</div>';
+  cats.forEach(function(b){
+    const on = (cur===b.id);
+    inner += '<button class="btn popup-btn" style="background:'+(on?'linear-gradient(135deg,#A86BC4,#7B5AA6)':'#F7F3FA')+';color:'+(on?'#fff':'#666')+';box-shadow:none;margin-bottom:8px" onclick="setCourseCat(\''+mId+'\',\''+cId+'\',\''+b.id+'\')">'+(on?'✓ ':'')+escapeHtml(b.name||'')+'</button>';
+  });
+  inner += '<button class="btn popup-btn" style="background:#fff;color:#A86BC4;border:1.5px dashed #C9A4E0;box-shadow:none;margin-bottom:8px" onclick="addCatAndAssign(\''+mId+'\',\''+cId+'\')">➕ 新建分类并归到这里</button>';
+  if(cur) inner += '<button class="btn popup-btn" style="background:#fff;color:#999;border:1.5px solid #E8D7E0;box-shadow:none;margin-bottom:8px" onclick="setCourseCat(\''+mId+'\',\''+cId+'\',\'\')">↩️ 移出到「未分类」</button>';
+  inner += '<button class="btn popup-btn" style="background:#eee;color:#888;box-shadow:none" onclick="closeGoalsPopup()">取消</button>';
+  openGoalsPopup(inner);
+}
+function addCatAndAssign(mId, cId){
+  const nv = prompt('新分类名称（如：系统班 / 专项突破 / 冲刺 / 已购待学）','');
+  if(nv===null) return;
+  const id = addCourseCat(nv);
+  if(!id){ if(typeof toast==='function') toast('分类名不能为空'); return; }
+  setCourseCat(mId, cId, id);
+}
+// 分类管理：新建 / 重命名 / 删除 / 排序
+function showCourseCatMgr(){
+  ensureCourseCats();
+  const cats = allCourseCats();
+  let inner = '<div class="popup-sparkles"><span>🏷</span><span>💜</span><span>🌸</span><span>💜</span><span>🏷</span></div>'
+    + '<div class="popup-ico">🏷</div>'
+    + '<div class="popup-title">分类管理</div>'
+    + '<div style="font-size:12px;color:#999;margin-bottom:10px">自己归类，网课页按分类分组·可折叠</div>';
+  if(!cats.length){
+    inner += '<div style="font-size:13px;color:#bbb;padding:10px 0">还没有分类，点下面「新建」或一键用常用分类</div>';
+  }
+  cats.forEach(function(b, i){
+    const cnt = (function(){
+      let n=0; (store.goals.milestones||[]).forEach(function(m){ (m.courses||[]).forEach(function(c){ if(c.cat===b.id) n++; }); }); return n;
+    })();
+    inner += '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid #F3F0F2">'
+      + '<span style="font-size:12px;color:#bbb;width:18px">'+(i+1)+'</span>'
+      + '<span style="flex:1;font-size:14px;color:#444;font-weight:600">'+escapeHtml(b.name||'')+' <span style="font-size:11px;color:#aaa;font-weight:400">'+cnt+' 门</span></span>'
+      + '<button onclick="moveCourseCat(\''+b.id+'\',-1)" style="border:none;background:#F7F3FA;color:#888;border-radius:6px;font-size:12px;padding:4px 7px;cursor:pointer">↑</button>'
+      + '<button onclick="moveCourseCat(\''+b.id+'\',1)" style="border:none;background:#F7F3FA;color:#888;border-radius:6px;font-size:12px;padding:4px 7px;cursor:pointer">↓</button>'
+      + '<button onclick="renameCourseCat(\''+b.id+'\')" style="border:none;background:#F7F3FA;color:#888;border-radius:6px;font-size:12px;padding:4px 7px;cursor:pointer">✏️</button>'
+      + '<button onclick="delCourseCat(\''+b.id+'\')" style="border:none;background:#F7F3FA;color:#E5484D;border-radius:6px;font-size:12px;padding:4px 7px;cursor:pointer">🗑</button>'
+      + '</div>';
+  });
+  inner += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">'
+    + ['系统班','专项突破','冲刺','已购待学','申论'].map(function(n){
+        return '<button onclick="quickAddCourseCat(\''+n+'\')" style="border:1.5px dashed #C9A4E0;background:#fff;color:#A86BC4;border-radius:10px;font-size:12px;padding:6px 10px;cursor:pointer">+'+n+'</button>';
+      }).join('')
+    + '</div>';
+  inner += '<div style="display:flex;gap:10px;margin-top:14px">'
+    + '<button class="btn popup-btn" style="background:#eee;color:#888;box-shadow:none" onclick="closeGoalsPopup()">关闭</button>'
+    + '<button class="btn popup-btn" style="background:linear-gradient(135deg,#7FB069,#6A9B57);color:#fff" onclick="autoCatBySubject()">⚡ 按科目自动分组</button>'
+    + '<button class="btn popup-btn" onclick="quickAddCourseCat(\'\')">➕ 新建分类</button></div>';
+  openGoalsPopup(inner);
+}
+// 一键按科目（模块）自动建分类并归类，之后用户可自行微调
+function autoCatBySubject(){
+  ensureGoals(); ensureCourseCats();
+  const all = [];
+  (store.goals.milestones||[]).forEach(function(m){ (m.courses||[]).forEach(function(c){ all.push({ m:m, c:c }); }); });
+  let n = 0;
+  all.forEach(function(o){
+    let mod = '';
+    try{ mod = (typeof getCourseModName==='function') ? getCourseModName(o.c) : ''; }catch(_){ mod = ''; }
+    const nm = (mod && mod!=='综合/其他') ? mod : '其他课';
+    const id = addCourseCat(nm);
+    if(id && o.c.cat!==id){ o.c.cat = id; n++; }
+  });
+  saveStore();
+  if(typeof renderCourses==='function') renderCourses();
+  showCourseCatMgr();
+  if(typeof toast==='function') toast('已按科目自动分组 ' + n + ' 门课 🏷');
+}
+function quickAddCourseCat(name){
+  if(!name){ const nv = prompt('新分类名称',''); if(nv===null) return; name = nv; }
+  const id = addCourseCat(name);
+  if(!id){ if(typeof toast==='function') toast('分类名不能为空'); return; }
+  if(typeof renderCourses==='function') renderCourses();
+  showCourseCatMgr();
+}
+function moveCourseCat(id, dir){
+  const cats = allCourseCats();
+  const i = cats.findIndex(function(x){ return x.id===id; });
+  if(i<0) return;
+  const j = i + dir;
+  if(j<0 || j>=cats.length) return;
+  const tmp = cats[i].order; cats[i].order = cats[j].order; cats[j].order = tmp;
+  saveStore(); showCourseCatMgr();
+  if(typeof renderCourses==='function') renderCourses();
+}
+function filterCourseCat(catId){ _courseCatFilter = catId||''; renderCourses(); }
+function toggleCourseCatFold(catId){
+  ensureCourseCats();
+  const k = catId || '_none';
+  store.courseCatFold[k] = !store.courseCatFold[k];
+  saveStore(); renderCourses();
+}
 function renderGoals(){
   const el = document.getElementById('page-goals');
   if(!el) return;
@@ -7129,10 +7316,8 @@ function renderCourses(){
     });
     html += '</div>';
   }
-  // 网课卡片：左右双列网格（仿截图4）
-  html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px">';
-  allCourses.forEach(function(o){
-    const m = o.m, c = o.c;
+  // 单张网课卡片（分组渲染复用）
+  function courseCardHtml(m, c){
     const cd = Math.min(c.done||0, c.total||0);
     const ct = c.total||0;
     const cp = ct>0?Math.round(cd/ct*100):0;
@@ -7150,6 +7335,7 @@ function renderCourses(){
     let card='<div data-course-id="'+c.id+'" style="background:#fff;border-radius:14px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.05);border-top:3px solid '+cColor+';display:flex;flex-direction:column;gap:6px">';
     card+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
       +'<span style="font-weight:700;font-size:14px;color:#444;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escapeHtml(c.name||'课程')+'</span>'
+      +'<span style="cursor:pointer;font-size:12px;color:#A86BC4" onclick="pickCourseCat(\''+m.id+'\',\''+c.id+'\')" title="归类到分类">🏷</span>'
       +'<span style="cursor:pointer;font-size:12px;color:#888" onclick="editGoalCourse(\''+m.id+'\',\''+c.id+'\')" title="编辑">✏️</span>'
       +'<span style="cursor:pointer;font-size:12px;color:#888" onclick="deleteGoalCourse(\''+m.id+'\',\''+c.id+'\')" title="删除">🗑</span>'
       +'</div>';
@@ -7178,9 +7364,51 @@ function renderCourses(){
     // 启动番茄钟
     card+='<button onclick="event.stopPropagation();startCourseFocus(\''+m.id+'\',\''+c.id+'\')" style="width:100%;background:#fff;border:1.5px solid #E5484D;color:#E5484D;border-radius:8px;font-size:12px;padding:6px;cursor:pointer;font-weight:600;margin-top:2px">🍅 启动番茄钟专注</button>';
     card+='</div>';
-    html+=card;
+    return card;
+  }
+
+  // ===== 按自定义分类分组展示（可折叠 + 顶部筛选条） =====
+  ensureCourseCats();
+  const cats = allCourseCats();
+  const catFilter = _courseCatFilter || '';
+  const catCount = function(id){ return allCourses.filter(function(o){ return (o.c.cat||'')===id; }).length; };
+  const chip = function(val, label, cnt, active, color){
+    return '<button onclick="filterCourseCat(\''+val+'\')" style="border:1.5px solid '+(active?color:'#E8D7E0')+';background:'+(active?color:'#fff')+';color:'+(active?'#fff':'#888')+';border-radius:14px;font-size:12px;padding:5px 11px;cursor:pointer;font-weight:'+(active?'700':'400')+'">'+escapeHtml(label)+' '+cnt+'</button>';
+  };
+  html += '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:14px">';
+  html += chip('', '全部', allCourses.length, !catFilter, 'var(--pink-deep)');
+  cats.forEach(function(b){ html += chip(b.id, b.name||'', catCount(b.id), catFilter===b.id, '#A86BC4'); });
+  const unfiledCnt = allCourses.filter(function(o){ return !(o.c.cat && courseCatById(o.c.cat)); }).length;
+  if(unfiledCnt) html += chip('_none', '未分类', unfiledCnt, catFilter==='_none', '#b9a48c');
+  html += '<button onclick="showCourseCatMgr()" style="margin-left:auto;border:1.5px dashed #C9A4E0;background:#fff;color:#A86BC4;border-radius:14px;font-size:12px;padding:5px 11px;cursor:pointer">🏷 分类管理</button>';
+  html += '</div>';
+  if(!cats.length && allCourses.length){
+    html += '<div style="font-size:12px;color:#bbb;margin-top:8px">还没有分类～点卡片上的 🏷 或右边「🏷 分类管理」新建，把课归归类，找起来快很多</div>';
+  }
+  // 分组（未分类排在最后）
+  const groups = [];
+  cats.forEach(function(b){
+    if(catFilter && catFilter!==b.id) return;
+    groups.push({ key:b.id, name:b.name||'', list:allCourses.filter(function(o){ return o.c.cat===b.id; }) });
   });
-  html+='</div>';
+  if(!catFilter || catFilter==='_none'){
+    groups.push({ key:'_none', name:'未分类', list:allCourses.filter(function(o){ return !(o.c.cat && courseCatById(o.c.cat)); }) });
+  }
+  groups.forEach(function(g){
+    if(!g.list.length && g.key!=='_none') return;
+    const folded = !!store.courseCatFold[g.key];
+    html += '<div onclick="toggleCourseCatFold(\''+g.key+'\')" style="display:flex;align-items:center;gap:8px;margin-top:14px;padding:9px 12px;background:#fff;border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,.04);cursor:pointer">'
+      + '<span style="font-size:12px;color:#bbb">'+(folded?'▸':'▾')+'</span>'
+      + '<span style="font-size:14px">'+(g.key==='_none'?'🗂':'📁')+'</span>'
+      + '<span style="font-size:14px;font-weight:700;color:#444">'+escapeHtml(g.name)+'</span>'
+      + '<span style="margin-left:auto;font-size:11px;color:#aaa">'+g.list.length+' 门</span>'
+      + '</div>';
+    if(!folded){
+      html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:8px">';
+      g.list.forEach(function(o){ html += courseCardHtml(o.m, o.c); });
+      html += '</div>';
+    }
+  });
   html += '</div>';
   el.innerHTML = html;
 }
