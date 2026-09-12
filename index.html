@@ -2731,6 +2731,9 @@ body.drawer-open .nav-cloud{display:none;}
     <div class="nav-item" data-page="guide" data-page-node-id="gdNavGuide"><span class="nav-icon">🎮</span>玩法指南</div>
     <div class="nav-item" data-page="daily" data-page-node-id="gdNavDaily"><span class="nav-icon">🎁</span>每日福利</div>
     <div class="nav-item" data-page="weekly" data-page-node-id="gdNavWeekly"><span class="nav-icon">🏅</span>每周挑战</div>
+    <div class="nav-item" data-page="map" data-page-node-id="gdNavMap"><span class="nav-icon">🗺️</span>闯关地图</div>
+    <div class="nav-item" data-page="wreport" data-page-node-id="gdNavWReport"><span class="nav-icon">📊</span>学习周报</div>
+    <div class="nav-item" data-page="pet" data-page-node-id="gdNavPet"><span class="nav-icon">🐾</span>陪学宠物</div>
     <div class="nav-item" data-page="setting" data-page-node-id="LxynDlrqArPc2Ypj2g31A8"><span class="nav-icon" data-page-node-id="ylbNC1ltwk2AXLOBy6yYOv">⚙️</span>设置</div>
     <div class="nav-quote" id="navQuote" data-page-node-id="qyEiyPC1ETyWqGi4Ogfl4y"></div>
   </div>
@@ -2751,6 +2754,10 @@ body.drawer-open .nav-cloud{display:none;}
 <!-- ===== 玩法指南 ===== -->
 <div class="page" id="page-guide"></div>
 <div class="page" id="page-daily"></div>
+<div class="page" id="page-weekly"></div>
+<div class="page" id="page-map"></div>
+<div class="page" id="page-wreport"></div>
+<div class="page" id="page-pet"></div>
 
 <!-- ===== 知识闪卡 ===== -->
 <div class="page" id="page-flashcard" data-page-node-id="DcPdppCyvOFY7cCE0iAMuB"></div>
@@ -9925,6 +9932,27 @@ const PLAYBOOK = [
       if(tw>0) return {st:'done', tip:'累计通关 '+tw+' 周 · 本周已达 '+done+'/'+lst.length};
       if(done>0) return {st:'doing', tip:'本周已达成 '+done+'/'+lst.length+'，冲全勤！'};
       return {st:'todo', tip:'本周 3 个挑战刚刷新，去看看吧'}; } },
+  { emoji:'🗺️', name:'备考闯关地图', page:'map', how:'从「启程站」到「上岸终点」共 8 站，每站一个硬指标（累计做题 / 科目覆盖 / 清错题 / 专注时长 / 模考 / 连续打卡…），达标就能点亮领奖', reward:'🪙 金币 + 💧 水滴 + 🎰 扭蛋币',
+    probe:function(){ const rm=store.roadmap||{}; const cl=Object.keys(rm.cleared||{}).length;
+      let reach=0; try{ if(typeof MAP_STAGES!=='undefined' && typeof mapStageState==='function'){
+        MAP_STAGES.forEach(function(st){ if(mapStageState(st).ok) reach++; }); } }catch(e){}
+      if(cl>0) return {st:'done', tip:'已点亮 '+cl+' 站 · 当前可通关 '+reach+' 站'};
+      if(reach>0) return {st:'doing', tip:'第 1 站就能点亮了，去领！'};
+      return {st:'todo', tip:'8 站路线已铺好，从启程站开始'}; } },
+  { emoji:'📊', name:'学习周报', page:'wreport', how:'本周做题 / 正确率 / 专注 / 番茄 / 学习天数全量现算，并和上周对比涨跌，可归档留档 + 写一句小结', reward:'📌 历史周报留档',
+    probe:function(){ const n=Object.keys(store.weekReports||{}).length;
+      let done=0; try{ if(typeof weekStat==='function') done = weekStat(currentWeekKey()).done; }catch(e){}
+      if(n>0) return {st:'done', tip:'已归档 '+n+' 份 · 本周做题 '+done+' 道'};
+      if(done>0) return {st:'doing', tip:'本周已做 '+done+' 道，周末记得归档'};
+      return {st:'todo', tip:'周日来看这一周的成绩单'}; } },
+  { emoji:'🐾', name:'陪学宠物', page:'pet', how:'一只陪你备考的小家伙：经验=累计专注÷10+累计做题÷5，形态随等级进化（🐣→🐤→🐥→🐈→🦄），可以喂食、摸摸、改名', reward:'等级进化 + 每日陪伴',
+    probe:function(){ const p=store.pet||{}; let lv=1, feed=0;
+      try{ if(typeof petExp==='function') lv = petLevel(petExp()); }catch(e){}
+      const t=(typeof todayKey==='function')?todayKey():'';
+      if(p.feed && p.feed.date===t) feed = p.feed.n||0;
+      if(feed>0 || p.name) return {st:'done', tip:(p.name||'小家伙')+' Lv.'+lv+' · 今日已喂 '+feed+' 次'};
+      if(lv>1) return {st:'doing', tip:'已经 Lv.'+lv+' 了，去喂它一口'};
+      return {st:'todo', tip:'领养你的陪学小宠物'}; } },
   { emoji:'🎰', name:'扭蛋养花', page:'garden', how:'番茄钟专注会掉扭蛋币，攒够就能抽卡，收集 24 种花（N→UR 五档稀有度）', reward:'图鉴收集 + 稀有花',
     probe:function(){ const g=store.gacha||{}; const n=(g.pulled||[]).length, t=g.tickets||0, c=Object.keys(g.coll||{}).length;
       if(n>0) return {st:'done', tip:'已抽 '+n+' 次 · 图鉴 '+c+' 种'};
@@ -10572,6 +10600,430 @@ function renderWeekly(){
   el.innerHTML = html;
 }
 
+// ====================================================
+//  🗺️ 备考闯关地图：8 站路线，解锁条件全从真实数据现算，通关领奖
+// ====================================================
+// 通用发奖（金币 / 水滴 / 扭蛋币）
+function grantReward(rw){
+  rw = rw || {};
+  ensureGarden();
+  const g = store.garden;
+  g.coins = (g.coins||0) + (rw.coin||0);
+  g.drops = (g.drops||0) + (rw.drop||0);
+  if(!g.dropLog) g.dropLog = {};
+  g.dropLog[todayKey()] = (g.dropLog[todayKey()]||0) + (rw.drop||0);
+  if((rw.ticket||0) > 0){
+    if(!store.gacha) store.gacha = { tickets:0, pulled:[], coll:{} };
+    store.gacha.tickets = (store.gacha.tickets||0) + rw.ticket;
+  }
+  return rw;
+}
+// —— 真实统计（全局口径，与首页"累计做题总数"一致）——
+function statCumuDone(){
+  let s = 0;
+  try{
+    Object.keys(TOPICS||{}).forEach(function(k){ s += moduleCumuDone(TOPICS[k].name)||0; });
+  }catch(e){}
+  return s;
+}
+function statFocusMin(){
+  let s = 0;
+  (store.focusLog||[]).forEach(function(x){ s += (x.min||0); });
+  return s;
+}
+function statCheckinDays(){
+  const ci = store.checkins || {};
+  return Object.keys(ci).filter(function(k){ return (ci[k]||0) > 0; }).length;
+}
+function statMasteredErr(){
+  return (store.errors||[]).filter(function(e){ return e && e.mastered; }).length;
+}
+function statModulesTouched(){
+  const set = {};
+  Object.keys(store.records||{}).forEach(function(d){
+    (store.records[d]||[]).forEach(function(r){ if((r.done||0) > 0 && r.module) set[r.module] = 1; });
+  });
+  return Object.keys(set).length;
+}
+const MAP_STAGES = [
+  { id:'s1', emoji:'🌱', name:'启程站',   unit:'道',   goal:50,  probe:function(){ return statCumuDone(); },      desc:'累计做题 50 道',   reward:{coin:5,  ticket:0, drop:10} },
+  { id:'s2', emoji:'📚', name:'基础夯实', unit:'道',   goal:300, probe:function(){ return statCumuDone(); },      desc:'累计做题 300 道',  reward:{coin:10, ticket:1, drop:15} },
+  { id:'s3', emoji:'🎯', name:'六科开花', unit:'科',   goal:3,   probe:function(){ return statModulesTouched(); },desc:'在 3 个科目留下做题记录', reward:{coin:10, ticket:1, drop:15} },
+  { id:'s4', emoji:'🧹', name:'错题清剿', unit:'道',   goal:20,  probe:function(){ return statMasteredErr(); },   desc:'把 20 道错题练到已掌握', reward:{coin:12, ticket:1, drop:20} },
+  { id:'s5', emoji:'⏱️', name:'专注修炼', unit:'分钟', goal:600, probe:function(){ return statFocusMin(); },       desc:'累计专注 600 分钟', reward:{coin:12, ticket:1, drop:20} },
+  { id:'s6', emoji:'📄', name:'真题实战', unit:'次',   goal:1,   probe:function(){ return (store.exams||[]).length; }, desc:'录入 1 次模考成绩',  reward:{coin:15, ticket:2, drop:20} },
+  { id:'s7', emoji:'🔥', name:'七日不熄', unit:'天',   goal:7,   probe:function(){ return (typeof calcStreak==='function') ? calcStreak() : 0; }, desc:'连续打卡 7 天',  reward:{coin:15, ticket:2, drop:25} },
+  { id:'s8', emoji:'🏆', name:'上岸终点', unit:'天',   goal:60,  probe:function(){ return statCheckinDays(); },    desc:'累计打卡 60 天',     reward:{coin:30, ticket:3, drop:40} }
+];
+function ensureRoadmap(){
+  if(!store.roadmap) store.roadmap = { cleared:{} };
+  if(!store.roadmap.cleared) store.roadmap.cleared = {};
+  return store.roadmap;
+}
+// 某关当前状态（进度现算，cleared 只记「用户已领奖」这个行为）
+function mapStageState(st){
+  const rm = ensureRoadmap();
+  let cur = 0;
+  try{ cur = st.probe()||0; }catch(e){ cur = 0; }
+  return { cur:cur, ok:cur >= st.goal, cleared:!!rm.cleared[st.id], at:rm.cleared[st.id]||'' };
+}
+function clearMapStage(id){
+  const st = MAP_STAGES.filter(function(x){ return x.id===id; })[0];
+  if(!st) return false;
+  const rm = ensureRoadmap();
+  if(rm.cleared[id]){ if(typeof toast==='function') toast('这一站已经通关啦～'); return false; }
+  const s = mapStageState(st);
+  if(!s.ok){
+    if(typeof toast==='function') toast('还差 '+Math.max(0,(st.goal-s.cur))+' '+st.unit+'才能点亮「'+st.name+'」');
+    return false;
+  }
+  rm.cleared[id] = todayKey();
+  grantReward(st.reward);
+  if(typeof saveStore==='function') saveStore();
+  if(typeof toast==='function') toast('🗺️ 通关「'+st.emoji+' '+st.name+'」！🪙 +'+(st.reward.coin||0)+'、💧 +'+(st.reward.drop||0)+((st.reward.ticket||0)?('、🎰 +'+st.reward.ticket):''));
+  if(typeof renderMap==='function') renderMap();
+  return true;
+}
+function renderMap(){
+  const el = document.getElementById('page-map');
+  if(!el) return;
+  if(typeof ensureStore==='function') ensureStore();
+  ensureRoadmap();
+  const rows = MAP_STAGES.map(function(st){ return { st:st, s:mapStageState(st) }; });
+  const clearedN = rows.filter(function(r){ return r.s.cleared; }).length;
+  const reachedN = rows.filter(function(r){ return r.s.ok; }).length;
+  let curName = '启程站';
+  for(let i=0;i<rows.length;i++){ if(!rows[i].s.ok){ curName = rows[i].st.name; break; } if(i===rows.length-1) curName = '已抵达终点 🏆'; }
+  let html = '<div style="padding:14px 14px 40px;background:#F7F7F8;min-height:100vh">';
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-bottom:12px;display:flex;align-items:center;gap:10px">'
+    + '<span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#6b4fa8,#8566c9);color:#fff;font-size:18px">🗺️</span>'
+    + '<div style="flex:1"><div style="font-size:15px;font-weight:700;color:#333">备考闯关地图</div>'
+    + '<div style="font-size:11px;color:#aaa;margin-top:1px">当前：'+curName+' · 已点亮 '+clearedN+'/'+rows.length+' 站</div></div>'
+    + '<div style="font-size:20px;font-weight:800;color:#6b4fa8">'+clearedN+'<span style="font-size:12px;color:#bbb">/'+rows.length+'</span></div></div>';
+  rows.forEach(function(r, i){
+    const st = r.st, s = r.s;
+    const col = s.cleared ? '#5BAE6F' : (s.ok ? '#e8a13a' : '#c3bcd0');
+    const bg  = s.cleared ? '#EAF7E9' : (s.ok ? '#FFF6E8' : '#F7F5FA');
+    const pct = st.goal ? Math.min(100, Math.round(s.cur/st.goal*100)) : 0;
+    let btn;
+    if(s.cleared){
+      btn = '<div style="margin-top:10px;padding:8px;border-radius:10px;background:#EAF7E9;color:#5BAE6F;font-size:12px;font-weight:700;text-align:center">✅ 已通关（'+s.at+'）</div>';
+    } else if(s.ok){
+      btn = '<button onclick="clearMapStage(\''+st.id+'\')" style="margin-top:10px;width:100%;padding:9px;border-radius:10px;border:none;background:linear-gradient(135deg,#6b4fa8,#8566c9);color:#fff;font-size:13px;font-weight:700;cursor:pointer">🎁 点亮这一站</button>';
+    } else {
+      btn = '<div style="margin-top:10px;padding:8px;border-radius:10px;background:#F4F2F6;color:#aaa;font-size:12px;font-weight:700;text-align:center">🔒 还差 '+Math.max(0,(st.goal-s.cur))+' '+st.unit+'</div>';
+    }
+    html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);border-left:4px solid '+col+';margin-bottom:0">'
+      + '<div style="display:flex;align-items:center;gap:8px">'
+      + '<span style="font-size:22px">'+st.emoji+'</span>'
+      + '<span style="font-size:14px;font-weight:700;color:#444;flex:1">第'+(i+1)+'站 · '+st.name+'</span>'
+      + '<span style="font-size:15px;font-weight:800;color:'+col+'">'+s.cur+'<span style="font-size:11px;color:#bbb">/'+st.goal+'</span></span></div>'
+      + '<div style="font-size:11px;color:#999;margin-top:4px">'+st.desc+'</div>'
+      + '<div style="margin-top:8px;height:8px;border-radius:6px;background:#EFEDF3;overflow:hidden">'
+      + '<div style="height:100%;width:'+pct+'%;border-radius:6px;background:linear-gradient(90deg,'+bg+','+col+')"></div></div>'
+      + '<div style="font-size:11px;color:#aaa;margin-top:6px">通关奖励：🪙 +'+(st.reward.coin||0)+' · 💧 +'+(st.reward.drop||0)+((st.reward.ticket||0)?(' · 🎰 +'+st.reward.ticket):'')+'</div>'
+      + btn + '</div>';
+    if(i < rows.length-1){
+      html += '<div style="width:2px;height:14px;background:#E8E0EE;margin:0 0 0 24px"></div>';
+    }
+  });
+  html += '<div style="font-size:11px;color:#aaa;text-align:center;padding:12px 0 0">进度全部按真实学习数据实时计算 · 已达成 '+reachedN+'/'+rows.length+' 站</div>';
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ====================================================
+//  📊 学习周报卡片：本周 vs 上周全量现算，可归档留档 + 写一句小结
+// ====================================================
+function weekStat(wk){
+  const keys = (typeof weekDays==='function') ? weekDays(wk) : [];
+  let done = 0, right = 0;
+  keys.forEach(function(k){
+    (store.records[k]||[]).forEach(function(r){ done += (r.done||0); right += (r.right||0); });
+  });
+  let min = 0, tomato = 0;
+  (store.focusLog||[]).forEach(function(x){
+    if(keys.indexOf(x.date) >= 0){
+      min += (x.min||0);
+      if(x.mode==='down' || x.mode==='up') tomato++;
+    }
+  });
+  const days = keys.filter(function(k){ return dayHasStudy(k); }).length;
+  const newErr = (store.errors||[]).filter(function(e){ return e && e.date && keys.indexOf(e.date) >= 0; }).length;
+  const mastered = (store.errors||[]).filter(function(e){ return e && e.mastered && e.masteredDate && keys.indexOf(e.masteredDate) >= 0; }).length;
+  const diary = keys.filter(function(k){ return store.diary && store.diary[k]; }).length;
+  return { week:wk, done:done, right:right, rate:(done ? Math.round(right/done*100) : 0),
+           min:min, tomato:tomato, days:days, newErr:newErr, mastered:mastered, diary:diary };
+}
+function ensureWeekReports(){
+  if(!store.weekReports) store.weekReports = {};
+  return store.weekReports;
+}
+// 评语：全部由真实数字推导（不写死鼓励语）
+function weekComment(a, b){
+  if(!a) return '还没有数据，先去做两道题吧～';
+  const dd = a.done - (b ? b.done : 0);
+  if(a.done === 0) return '本周还没做题，明早先来一组热热身 💪';
+  if(b && b.done > 0 && dd > 0) return '比上周多刷了 '+dd+' 道，节奏在往上走 📈';
+  if(b && b.done > 0 && dd < 0) return '比上周少了 '+Math.abs(dd)+' 道，先别慌，把今天的番茄刷满就行 🍅';
+  if(a.days >= 5) return '本周学了 '+a.days+' 天，出勤很稳，继续保持 🔥';
+  if(a.newErr > a.mastered) return '本周新错 '+a.newErr+' 道、只清掉 '+a.mastered+' 道，先去把错题啃一遍 🧹';
+  if(a.mastered > 0) return '本周清掉 '+a.mastered+' 道错题，欠账在减少 ✅';
+  return '本周做题 '+a.done+' 道，正确率 '+a.rate+'%，继续推进 🚀';
+}
+function deltaHtml(cur, prev, unit){
+  if(prev === undefined || prev === null) return '<span style="font-size:10px;color:#ccc">—</span>';
+  const d = cur - prev;
+  if(d === 0) return '<span style="font-size:10px;color:#bbb">持平</span>';
+  const up = d > 0;
+  return '<span style="font-size:10px;color:'+(up?'#5BAE6F':'#E5484D')+'">'+(up?'↑':'↓')+Math.abs(d)+(unit||'')+'</span>';
+}
+function archiveWeekReport(){
+  ensureWeekReports();
+  const wk = currentWeekKey();
+  const snap = weekStat(wk);
+  const old = store.weekReports[wk];
+  store.weekReports[wk] = { at:todayKey(), done:snap.done, rate:snap.rate, min:snap.min, tomato:snap.tomato,
+    days:snap.days, newErr:snap.newErr, mastered:snap.mastered, note:(old && old.note) || '' };
+  if(typeof saveStore==='function') saveStore();
+  if(typeof toast==='function') toast('📌 本周周报已归档（可回看历史）');
+  if(typeof renderWReport==='function') renderWReport();
+  return true;
+}
+function saveWeekNote(){
+  ensureWeekReports();
+  const wk = currentWeekKey();
+  const el = document.getElementById('wreportNote');
+  if(!store.weekReports[wk]) store.weekReports[wk] = { at:todayKey(), note:'' };
+  store.weekReports[wk].note = el ? (el.value||'') : '';
+  if(typeof saveStore==='function') saveStore();
+  if(typeof toast==='function') toast('✍️ 本周小结已保存');
+  if(typeof renderWReport==='function') renderWReport();
+  return true;
+}
+function copyWeekReport(){
+  const wk = currentWeekKey();
+  const a = weekStat(wk), b = weekStat(addDaysKey(wk, -7));
+  const txt = '【备考周报】'+wk+' 起那周\n'
+    + '做题 '+a.done+' 道 · 正确率 '+a.rate+'%\n'
+    + '专注 '+a.min+' 分钟 · 番茄 '+a.tomato+' 个 · 学习 '+a.days+' 天\n'
+    + '新增错题 '+a.newErr+' 道 · 清掉 '+a.mastered+' 道\n'
+    + '（上周做题 '+b.done+' 道）\n' + weekComment(a, b);
+  try{
+    if(navigator && navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt);
+      if(typeof toast==='function') toast('📋 周报已复制到剪贴板');
+    } else if(typeof toast==='function') toast('当前环境不支持复制，已生成文本');
+  }catch(e){ if(typeof toast==='function') toast('复制失败，可手动记录'); }
+  return txt;
+}
+function renderWReport(){
+  const el = document.getElementById('page-wreport');
+  if(!el) return;
+  if(typeof ensureStore==='function') ensureStore();
+  ensureWeekReports();
+  const wk = currentWeekKey();
+  const a = weekStat(wk), b = weekStat(addDaysKey(wk, -7));
+  const md = function(k){ return k.slice(5).replace('-','/'); };
+  const cell = function(label, val, unit, prev){
+    return '<div style="flex:1;text-align:center;padding:10px 4px;background:#FAF8FC;border-radius:12px">'
+      + '<div style="font-size:16px;font-weight:800;color:#6b4fa8">'+val+'<span style="font-size:10px;color:#bbb">'+unit+'</span></div>'
+      + '<div style="font-size:10px;color:#aaa;margin-top:2px">'+label+'</div>'
+      + '<div style="margin-top:2px">'+deltaHtml(val, prev, unit)+'</div></div>';
+  };
+  let html = '<div style="padding:14px 14px 40px;background:#F7F7F8;min-height:100vh">';
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-bottom:12px;display:flex;align-items:center;gap:10px">'
+    + '<span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#6b4fa8,#8566c9);color:#fff;font-size:18px">📊</span>'
+    + '<div style="flex:1"><div style="font-size:15px;font-weight:700;color:#333">学习周报</div>'
+    + '<div style="font-size:11px;color:#aaa;margin-top:1px">'+md(wk)+' - '+md(addDaysKey(wk,6))+' · 对比上一周</div></div></div>';
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-bottom:12px">'
+    + '<div style="display:flex;gap:6px">' + cell('做题', a.done, '道', b.done) + cell('正确率', a.rate, '%', b.rate) + '</div>'
+    + '<div style="display:flex;gap:6px;margin-top:6px">' + cell('专注', a.min, '分', b.min) + cell('番茄', a.tomato, '个', b.tomato) + '</div>'
+    + '<div style="display:flex;gap:6px;margin-top:6px">' + cell('学习', a.days, '天', b.days) + cell('清错题', a.mastered, '道', b.mastered) + '</div>'
+    + '<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:#F3ECFB;color:#6b4fa8;font-size:12px;font-weight:700">' + weekComment(a, b) + '</div>'
+    + '<div style="font-size:11px;color:#aaa;margin-top:8px">本周新增错题 '+a.newErr+' 道 · 日记 '+a.diary+' 篇</div>'
+    + '<div style="display:flex;gap:8px;margin-top:10px">'
+    + '<button onclick="archiveWeekReport()" style="flex:1;padding:9px;border-radius:10px;border:none;background:linear-gradient(135deg,#6b4fa8,#8566c9);color:#fff;font-size:13px;font-weight:700;cursor:pointer">📌 归档本周</button>'
+    + '<button onclick="copyWeekReport()" style="flex:1;padding:9px;border-radius:10px;border:1.5px solid #A86BC4;background:#fff;color:#A86BC4;font-size:13px;font-weight:700;cursor:pointer">📋 复制</button>'
+    + '</div></div>';
+  const cur = store.weekReports[wk];
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-bottom:12px">'
+    + '<div style="font-size:13px;font-weight:700;color:#444">✍️ 本周小结</div>'
+    + '<textarea id="wreportNote" placeholder="写一句这周的感受 / 下周要改的地方…" style="width:100%;margin-top:8px;min-height:64px;border-radius:10px;border:1.5px solid #E8E0EE;padding:8px;font-size:12px;color:#444;resize:vertical;box-sizing:border-box">'+((cur && cur.note) ? String(cur.note).replace(/</g,'&lt;') : '')+'</textarea>'
+    + '<button onclick="saveWeekNote()" style="margin-top:8px;width:100%;padding:9px;border-radius:10px;border:1.5px solid #A86BC4;background:#fff;color:#A86BC4;font-size:13px;font-weight:700;cursor:pointer">💾 保存小结</button></div>';
+  const keys = Object.keys(store.weekReports).sort().reverse();
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04)">'
+    + '<div style="font-size:13px;font-weight:700;color:#444">🗂️ 历史周报（'+keys.length+' 份）</div>';
+  if(!keys.length){
+    html += '<div style="font-size:12px;color:#aaa;margin-top:8px">还没归档过，点上面的「归档本周」留一份</div>';
+  } else {
+    keys.slice(0, 8).forEach(function(k){
+      const r = store.weekReports[k] || {};
+      html += '<div style="margin-top:8px;padding:10px 12px;border-radius:10px;background:#FAF8FC">'
+        + '<div style="display:flex;align-items:center;gap:6px"><span style="font-size:12px;font-weight:700;color:#6b4fa8">'+md(k)+' 起</span>'
+        + '<span style="font-size:10px;color:#bbb">归档于 '+(r.at||'—')+'</span></div>'
+        + '<div style="font-size:11px;color:#888;margin-top:3px">做题 '+(r.done||0)+' 道 · 正确率 '+(r.rate||0)+'% · 专注 '+(r.min||0)+' 分 · 学习 '+(r.days||0)+' 天</div>'
+        + (r.note ? ('<div style="font-size:11px;color:#666;margin-top:3px">📝 '+String(r.note).replace(/</g,'&lt;')+'</div>') : '')
+        + '</div>';
+    });
+  }
+  html += '</div></div>';
+  el.innerHTML = html;
+}
+
+// ====================================================
+//  🐾 陪学宠物：等级 / 经验 / 心情全从真实数据现算，喂食摸摸改名才算「用户行为」落库
+// ====================================================
+const PET_FORMS = [
+  { minLv:1,  emoji:'🐣', name:'蛋壳期' },
+  { minLv:3,  emoji:'🐤', name:'幼崽期' },
+  { minLv:5,  emoji:'🐥', name:'少年期' },
+  { minLv:7,  emoji:'🐈', name:'成年期' },
+  { minLv:10, emoji:'🦄', name:'传说期' }
+];
+const PET_FEED_COST = 3;    // 每次喂食消耗水滴
+const PET_FEED_MAX  = 3;    // 每日喂食上限
+const PET_TOUCH_MAX = 5;    // 每日摸摸上限
+function ensurePet(){
+  if(!store.pet) store.pet = { name:'', adopted:todayKey(), feed:{}, touch:{} };
+  const p = store.pet;
+  if(!p.adopted) p.adopted = todayKey();
+  if(!p.feed) p.feed = {};
+  if(!p.touch) p.touch = {};
+  if(typeof p.name !== 'string') p.name = '';
+  return p;
+}
+// 经验：累计专注 + 累计做题（真实数据推导，绝不单独计数）
+function petExp(){
+  return Math.floor(statFocusMin()/10) + Math.floor(statCumuDone()/5);
+}
+function petLevel(exp){
+  const e = Math.max(0, exp||0);
+  return 1 + Math.floor(Math.sqrt(e/40));
+}
+function petForm(lv){
+  let f = PET_FORMS[0];
+  PET_FORMS.forEach(function(x){ if(lv >= x.minLv) f = x; });
+  return f;
+}
+function todayFocusMin(){
+  const k = todayKey();
+  let s = 0;
+  (store.focusLog||[]).forEach(function(x){ if(x.date===k) s += (x.min||0); });
+  return s;
+}
+// 心情：今日学习时长打底 + 今日互动加成（互动次数是用户行为，存在 store.pet 里）
+function petMood(){
+  const p = ensurePet();
+  const t = todayKey();
+  const m = todayFocusMin();
+  let base = 25;
+  if(m >= 60) base = 80; else if(m >= 30) base = 65; else if(m >= 10) base = 50; else if(dayHasStudy(t)) base = 40;
+  const feedN = (p.feed && p.feed.date===t) ? (p.feed.n||0) : 0;
+  const touchN = (p.touch && p.touch.date===t) ? (p.touch.n||0) : 0;
+  return Math.max(0, Math.min(100, base + feedN*6 + touchN*4));
+}
+function petTalk(){
+  const m = todayFocusMin();
+  const st = (typeof calcStreak==='function') ? calcStreak() : 0;
+  if(m >= 60) return '今天已经陪你 '+m+' 分钟啦，我在这给你加油 💪';
+  if(m >= 10) return '今天 '+m+' 分钟了，再刷一个番茄就更好了 🍅';
+  if(st >= 7) return '连续打卡 '+st+' 天，你太稳了，今天也别断哦 🔥';
+  if(dayHasStudy(todayKey())) return '今天开了个头，继续坐一会儿？我陪你 🐾';
+  return '今天还没开工，先刷一个番茄陪我玩会儿？🍅';
+}
+function petDays(){
+  const p = ensurePet();
+  try{
+    const a = new Date(p.adopted+'T00:00:00'), b = new Date(todayKey()+'T00:00:00');
+    return Math.max(1, Math.round((b-a)/86400000) + 1);
+  }catch(e){ return 1; }
+}
+function petFeed(){
+  const p = ensurePet(), t = todayKey();
+  ensureGarden();
+  const g = store.garden;
+  if(p.feed.date !== t){ p.feed = { date:t, n:0 }; }
+  if((p.feed.n||0) >= PET_FEED_MAX){ if(typeof toast==='function') toast('今天已经喂饱啦（上限 '+PET_FEED_MAX+' 次）'); return false; }
+  if((g.drops||0) < PET_FEED_COST){ if(typeof toast==='function') toast('水滴不够，喂食需要 '+PET_FEED_COST+' 滴'); return false; }
+  g.drops = (g.drops||0) - PET_FEED_COST;
+  p.feed.n = (p.feed.n||0) + 1;
+  if(typeof saveStore==='function') saveStore();
+  if(typeof toast==='function') toast('🍖 喂食成功！心情 +6（今日第 '+p.feed.n+' 次）');
+  if(typeof renderPet==='function') renderPet();
+  return true;
+}
+function petTouch(){
+  const p = ensurePet(), t = todayKey();
+  if(p.touch.date !== t){ p.touch = { date:t, n:0 }; }
+  if((p.touch.n||0) >= PET_TOUCH_MAX){ if(typeof toast==='function') toast('今天摸太多啦，人家要学习去了～'); return false; }
+  p.touch.n = (p.touch.n||0) + 1;
+  if(typeof saveStore==='function') saveStore();
+  if(typeof toast==='function') toast('✋ 摸摸头～心情 +4（今日第 '+p.touch.n+' 次）');
+  if(typeof renderPet==='function') renderPet();
+  return true;
+}
+function petRename(){
+  const p = ensurePet();
+  const el = document.getElementById('petNameInput');
+  const v = el ? String(el.value||'').trim() : '';
+  if(!v){ if(typeof toast==='function') toast('先给它取个名字吧～'); return false; }
+  p.name = v.slice(0, 12);
+  if(typeof saveStore==='function') saveStore();
+  if(typeof toast==='function') toast('✏️ 改名成功：'+p.name);
+  if(typeof renderPet==='function') renderPet();
+  return true;
+}
+function renderPet(){
+  const el = document.getElementById('page-pet');
+  if(!el) return;
+  if(typeof ensureStore==='function') ensureStore();
+  const p = ensurePet();
+  const t = todayKey();
+  const exp = petExp(), lv = petLevel(exp);
+  const form = petForm(lv);
+  const e0 = Math.pow(lv-1, 2) * 40, e1 = Math.pow(lv, 2) * 40;
+  const pct = Math.max(0, Math.min(100, Math.round((exp - e0) / Math.max(1, (e1 - e0)) * 100)));
+  const mood = petMood();
+  const feedN = (p.feed && p.feed.date===t) ? (p.feed.n||0) : 0;
+  const touchN = (p.touch && p.touch.date===t) ? (p.touch.n||0) : 0;
+  const name = p.name || ('陪学'+form.name.replace('期',''));
+  const moodCol = mood >= 70 ? '#5BAE6F' : (mood >= 40 ? '#e8a13a' : '#E5484D');
+  let html = '<div style="padding:14px 14px 40px;background:#F7F7F8;min-height:100vh">';
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-bottom:12px">'
+    + '<div style="text-align:center;padding:6px 0 2px">'
+    + '<div style="font-size:64px;line-height:1.1">'+form.emoji+'</div>'
+    + '<div style="font-size:16px;font-weight:800;color:#333;margin-top:4px">'+name+'</div>'
+    + '<div style="font-size:11px;color:#aaa;margin-top:2px">'+form.name+' · Lv.'+lv+' · 已陪伴 '+petDays()+' 天</div>'
+    + '<div style="margin:12px 0 4px;padding:10px 12px;border-radius:12px;background:#F3ECFB;color:#6b4fa8;font-size:12px;font-weight:700">“'+petTalk()+'”</div></div>'
+    + '<div style="margin-top:12px">'
+    + '<div style="display:flex;justify-content:space-between;font-size:11px;color:#888"><span>经验</span><span>'+exp+' / '+e1+'（距 Lv.'+(lv+1)+' 还差 '+Math.max(0,e1-exp)+'）</span></div>'
+    + '<div style="margin-top:4px;height:8px;border-radius:6px;background:#EFEDF3;overflow:hidden">'
+    + '<div style="height:100%;width:'+pct+'%;border-radius:6px;background:linear-gradient(90deg,#C2BAE0,#6b4fa8)"></div></div></div>'
+    + '<div style="margin-top:12px">'
+    + '<div style="display:flex;justify-content:space-between;font-size:11px;color:#888"><span>心情</span><span style="color:'+moodCol+'">'+mood+' / 100</span></div>'
+    + '<div style="margin-top:4px;height:8px;border-radius:6px;background:#EFEDF3;overflow:hidden">'
+    + '<div style="height:100%;width:'+mood+'%;border-radius:6px;background:linear-gradient(90deg,#F7E2C8,'+moodCol+')"></div></div></div></div>';
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04);margin-bottom:12px">'
+    + '<div style="font-size:13px;font-weight:700;color:#444">🎮 互动</div>'
+    + '<div style="display:flex;gap:8px;margin-top:10px">'
+    + '<button onclick="petFeed()" style="flex:1;padding:9px;border-radius:10px;border:none;background:linear-gradient(135deg,#F0A7C0,#D4537E);color:#fff;font-size:12px;font-weight:700;cursor:pointer">🍖 喂食（💧'+PET_FEED_COST+'）</button>'
+    + '<button onclick="petTouch()" style="flex:1;padding:9px;border-radius:10px;border:1.5px solid #A86BC4;background:#fff;color:#A86BC4;font-size:12px;font-weight:700;cursor:pointer">✋ 摸摸</button>'
+    + '</div>'
+    + '<div style="font-size:11px;color:#aaa;margin-top:8px">今日已喂 '+feedN+'/'+PET_FEED_MAX+' 次 · 已摸 '+touchN+'/'+PET_TOUCH_MAX+' 次 · 心情每天按真实学习时长重算</div>'
+    + '<div style="display:flex;gap:8px;margin-top:10px">'
+    + '<input id="petNameInput" value="'+String(p.name||'').replace(/"/g,'&quot;')+'" placeholder="给它取个名字" style="flex:1;padding:9px;border-radius:10px;border:1.5px solid #E8E0EE;font-size:12px;color:#444;box-sizing:border-box">'
+    + '<button onclick="petRename()" style="padding:9px 14px;border-radius:10px;border:1.5px solid #A86BC4;background:#fff;color:#A86BC4;font-size:12px;font-weight:700;cursor:pointer">✏️ 改名</button>'
+    + '</div></div>';
+  html += '<div style="background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04)">'
+    + '<div style="font-size:13px;font-weight:700;color:#444">📈 成长来源</div>'
+    + '<div style="font-size:12px;color:#888;margin-top:6px">经验 = 累计专注 '+statFocusMin()+' 分钟 ÷ 10 + 累计做题 '+statCumuDone()+' 道 ÷ 5</div>'
+    + '<div style="font-size:12px;color:#888;margin-top:4px">形态随等级进化：🐣 蛋壳 → 🐤 幼崽 → 🐥 少年 → 🐈 成年 → 🦄 传说</div>'
+    + '<div style="font-size:11px;color:#aaa;margin-top:8px">等级与心情全部按真实学习数据实时计算，不喂也不会掉级</div></div>';
+  html += '</div>';
+  el.innerHTML = html;
+}
+
 function onPageShow(page){
   if(page==='home'){ renderHome(); updateEbBadge(); }
   if(page==='plan') renderPlan();
@@ -10605,6 +11057,9 @@ function onPageShow(page){
   if(page==='guide') renderGuide();
   if(page==='daily'){ settleBets(); syncStreakGame(); renderDaily(); }
   if(page==='weekly'){ ensureWeekly(); renderWeekly(); }
+  if(page==='map'){ ensureRoadmap(); renderMap(); }
+  if(page==='wreport'){ renderWReport(); }
+  if(page==='pet'){ ensurePet(); renderPet(); }
   if(page==='idea'){ renderIdeaTabs(); renderIdeaDaily(); renderIdeaCustom(); }
   checkDayReviewReminder();
   updateFloatingWidget();
