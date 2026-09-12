@@ -4480,6 +4480,7 @@ function defaultStore(){
     },
     achievements: {}, // 成就墙：已解锁成就 {id: 解锁日期}
     gacha: { tickets:0, pulled:[], coll:{} }, // 抽卡养花：扭蛋币数 / 抽卡历史 / 已收集图鉴
+    boss: { win:0, lose:0, best:0, history:[] }, // 错题BOSS战：胜场/败场/最高连击/最近战绩[{date,name,module,result,rate,dmg}]
     ebbinghaus: { items: [] }, // 艾宾浩斯复习计划 [{id,srcDate,module,stage,interval,dueDate,done,doneDate}]
     errorBooks: [],  // 错题本（小本子）[{id,name,color,icon,createdAt,order}] 为空时首次运行按科目预建
     errors: [],      // 错题 [{id,module,content,photos,date,...,book,qType,level,wrongReason,wrongCount,srcDetail,mastered,masteredDate,note,nextReview,reviewRound,correctCount,answer:[]}]
@@ -9887,6 +9888,12 @@ function saveMindmapNote(sub, val){
 // 每项 probe() 读真实数据判断状态：todo=还没玩过 / doing=玩过但没玩透 / done=已经在玩
 // 显示文案一律来自真实数据（禁止写死字面量），与「显示文案读真实数据」红线一致
 const PLAYBOOK = [
+  { emoji:'⚔️', name:'错题 BOSS 战', page:'errors', act:'boss', how:'把待复习的错题组一只 BOSS：答对扣它血（连击≥3 暴击 18），答错你掉 20 血；击败掉扭蛋币 + 金币 + 花朵成长', reward:'🎰 扭蛋币 + 🪙 金币 + 🌸 成长值',
+    probe:function(){ const b=store.boss||{}; const w=b.win||0, l=b.lose||0;
+      const due=(store.errors||[]).filter(function(e){ return e && !e.mastered && e.nextReview && e.nextReview<=todayKey(); }).length;
+      if(w+l>0) return {st:'done', tip:'胜 '+w+' · 负 '+l+' · 最高连击 '+(b.best||0)};
+      if(due>0) return {st:'doing', tip:'有 '+due+' 道错题等着被讨伐！'};
+      return {st:'todo', tip:'攒够错题就能开打'}; } },
   { emoji:'🎰', name:'扭蛋养花', page:'garden', how:'番茄钟专注会掉扭蛋币，攒够就能抽卡，收集 24 种花（N→UR 五档稀有度）', reward:'图鉴收集 + 稀有花',
     probe:function(){ const g=store.gacha||{}; const n=(g.pulled||[]).length, t=g.tickets||0, c=Object.keys(g.coll||{}).length;
       if(n>0) return {st:'done', tip:'已抽 '+n+' 次 · 图鉴 '+c+' 种'};
@@ -9951,6 +9958,7 @@ function guideGo(page, act){
       try{
         if(act==='shop' && typeof openShop==='function') openShop();
         else if(act==='ach' && typeof switchWall==='function') switchWall('ach');
+        else if(act==='boss' && typeof startBossBattle==='function') startBossBattle();
       }catch(e){}
     }, 240);
   }
@@ -12268,6 +12276,9 @@ let quizState = {
   correctCount:0, module:'', type:'', userAnswers:[],
   timerStart:0, timerInt:0, fromPlanTaskId:'', finishedAll:false
 };
+// 错题 BOSS 战：战斗态（null = 当前不是 BOSS 战）
+// hp/hpMax：BOSS 血量；php/phpMax：我方血量；combo/maxCombo：连续答对数；dmg：累计对 BOSS 造成的伤害
+let bossState = null;
 
 // 解析重组：识别 "选项分析A:" "选项分析B:" ... "选项分析X:" 结构化段，
 // 按当前 q.options 顺序重新编排；其余内容保留在解析头部（用户的"题干梳理/论据/结论"等章节）。
@@ -12491,6 +12502,7 @@ function renderQuestion(){
       ${dateText ? '<span style="font-size:11px;padding:3px 10px;border-radius:12px;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0">'+escHtml(dateText)+'</span>' : ''}
     </div>` : '';
   document.getElementById('quizBody').innerHTML = `
+    ${bossState ? bossHudHtml() : ''}
     ${qImgHtml}
     <div class="quiz-q" style="white-space:pre-line"><span class="q-tag">${quizState.type}</span>${q.q}</div>
     ${photoOnlyHint}
@@ -12556,6 +12568,11 @@ function submitAnswer(){
         const _er = (store.errors||[]).find(function(x){ return x.id===q._fromError; });
         if(_er){ applyErrorDrillResult(_er, correct); }
       }
+      // ⚔️ BOSS 战：推进战斗（答对扣 BOSS 血 / 答错扣我方血），提前分胜负则标记
+      if(bossState){
+        const _br = bossOnAnswer(correct);
+        quizState._bossOver = _br.over ? _br : null;
+      }
       // 标记选项
       document.querySelectorAll('.quiz-option').forEach((el,i)=>{
         if(i===q.answer) el.classList.add('correct');
@@ -12571,11 +12588,19 @@ function submitAnswer(){
     }
 
     document.getElementById('quizExplain').classList.add('show');
-    document.getElementById('quizTip').textContent = hasAnswer ? (correct ? '✅ 回答正确！' : ('❌ 回答错误，正确答案是 ' + String.fromCharCode(65+q.answer))) : ('已选 ' + String.fromCharCode(65+quizState.selected) + '（本题未设置标准答案）');
-    document.getElementById('quizSubmitBtn').textContent = quizState.currentIdx < quizState.questions.length-1 ? '下一题' : '查看结果';
+    let tipText = hasAnswer ? (correct ? '✅ 回答正确！' : ('❌ 回答错误，正确答案是 ' + String.fromCharCode(65+q.answer))) : ('已选 ' + String.fromCharCode(65+quizState.selected) + '（本题未设置标准答案）');
+    if(bossState){
+      tipText += correct ? '　⚔️ 命中！BOSS 掉血' : '　💥 被反击！你掉 20 血';
+      if(quizState._bossOver) tipText = quizState._bossOver.win ? '🏆 BOSS 倒下了！' : '💀 你被击败了...';
+    }
+    document.getElementById('quizTip').textContent = tipText;
+    document.getElementById('quizSubmitBtn').textContent = quizState._bossOver ? '查看战果' : (quizState.currentIdx < quizState.questions.length-1 ? '下一题' : '查看结果');
   } else {
-    // 下一题或查看结果
-    if(quizState.currentIdx < quizState.questions.length-1){
+    // 下一题或查看结果（BOSS 战提前分出胜负 → 直接进结算）
+    if(quizState._bossOver){
+      quizState._bossOver = null;
+      showQuizResult();
+    } else if(quizState.currentIdx < quizState.questions.length-1){
       quizState.currentIdx++;
       renderQuestion();
     } else {
@@ -12585,6 +12610,11 @@ function submitAnswer(){
 }
 
 function skipQuestion(){
+  // BOSS 战：跳过视为未命中（扣我方血），否则可以无限跳过白嫖
+  if(bossState){
+    const _br = bossOnAnswer(false);
+    if(_br.over){ quizState._bossOver = null; showQuizResult(); return; }
+  }
   if(quizState.currentIdx < quizState.questions.length-1){
     quizState.currentIdx++;
     renderQuestion();
@@ -12595,6 +12625,14 @@ function skipQuestion(){
 
 function showQuizResult(){
   quizState.finishedAll = true; // 标记本组已刷完（用于计划跳转任务的自动打勾判定）
+  // ⚔️ BOSS 战：先定胜负再结算发奖（bossBattleEnd 内部会清空 bossState，故先算好正确率）
+  let _bossSnap = null;
+  if(bossState){
+    const g0 = quizState.questions.filter(function(q){ return (typeof q.answer === 'number' && q.answer >= 0); }).length;
+    const r0 = g0 > 0 ? Math.round(quizState.correctCount/g0*100) : 0;
+    const winFlag = bossState.hp <= 0 ? true : (bossState.php <= 0 ? false : 'retreat');
+    _bossSnap = bossBattleEnd(winFlag, r0);
+  }
   const total = quizState.questions.length;
   const graded = quizState.questions.filter(function(q){ return (typeof q.answer === 'number' && q.answer >= 0); }).length;
   const correct = quizState.correctCount;
@@ -12604,6 +12642,27 @@ function showQuizResult(){
 
   document.getElementById('quizProgressArea').style.display = 'none';
   document.getElementById('quizFooter').style.display = 'none';
+  if(_bossSnap){
+    const rw = _bossSnap.reward;
+    const winEmoji = _bossSnap.result==='完全击败' ? '🏆' : (_bossSnap.result==='击退' ? '🛡️' : '💀');
+    const winColor = _bossSnap.result==='战败' ? '#8a8a8a' : '#E5484D';
+    const dropLine = (rw.tickets||rw.coins||rw.grow)
+      ? ((rw.tickets?('🎰 扭蛋币 +'+rw.tickets+'　'):'') + (rw.coins?('🪙 金币 +'+rw.coins+'　'):'') + (rw.grow?('🌸 小花成长 +'+rw.grow):''))
+      : '本次无掉落，但错题复习进度照常推进了～';
+    document.getElementById('quizBody').innerHTML = `
+      <div class="quiz-result">
+        <div class="big-emoji">${winEmoji}</div>
+        <div class="score" style="color:${winColor}">${_bossSnap.result}</div>
+        <div class="score-detail">${escHtml(_bossSnap.name)}</div>
+        <div style="margin:12px 0 4px;font-size:13px;color:#666;line-height:1.9">
+          正确率 ${_bossSnap.rate}% ｜ 最高连击 🔥${_bossSnap.combo} ｜ 累计伤害 ${_bossSnap.dmg}
+        </div>
+        <div style="font-size:13px;color:#c0552b;font-weight:700;margin-bottom:6px">${dropLine}</div>
+        <button class="btn" onclick="closeQuiz()">结束战斗</button>
+        <button class="btn btn-outline" style="margin-top:8px" onclick="startBossBattle()">⚔️ 再战一场</button>
+      </div>
+    `;
+  } else {
   document.getElementById('quizBody').innerHTML = `
     <div class="quiz-result">
       <div class="big-emoji">${emoji}</div>
@@ -12612,6 +12671,7 @@ function showQuizResult(){
       <button class="btn" onclick="closeQuiz()">完成练习</button>
     </div>
   `;
+  }
 
   // 写入刷题统计：按每题所属模块分别归账（支持「全部演练」跨模块、也支持单模块演练）。
   // 这样错题记录与累计做题总数都会落到正确的模块下。
@@ -12744,6 +12804,8 @@ function closeQuiz(){
   }
   quizState.finishedAll = false;
   quizState.fromPlanTaskId = '';
+  quizState._bossOver = null;
+  bossState = null; // 中途关闭：丢弃未结算的战斗态（不记胜负，避免半途退出被判战败）
   document.getElementById('quizOverlay').classList.remove('show');
   document.getElementById('quizProgressArea').style.display = '';
   document.getElementById('quizFooter').style.display = '';
@@ -12772,6 +12834,161 @@ function stopQuizTimer(){
   quizState.timerStart = 0;
   if(!start) return 0;
   return Math.max(0, (Date.now() - start)/60000); // 分钟（浮点）
+}
+// ============================================================
+//  ⚔️ 错题 BOSS 战：把「错题重做」包装成打怪（提升啃错题的动力）
+//  规则：BOSS 血 100，答对扣 12（连击≥3 时扣 18）；我方血 100，答错扣 20 且 BOSS 回 3
+//        题答完：BOSS 血≤0 = 完全击败（全额）；BOSS 未死但我方存活 = 击退（半额）
+//        我方血≤0 = 战败（仅安慰成长值）
+//  注意：复习轮次推进照常走 applyErrorDrillResult —— 打怪是真复习，不是空玩
+// ============================================================
+const BOSS_TITLES = ['错因魔王','粗心巨兽','遗忘幽灵','定时炸弹','马虎大魔头'];
+const BOSS_SIZE_DEFAULT = 10;
+
+function ensureBoss(){
+  if(!store.boss) store.boss = { win:0, lose:0, best:0, history:[] };
+  if(typeof store.boss.win !== 'number') store.boss.win = 0;
+  if(typeof store.boss.lose !== 'number') store.boss.lose = 0;
+  if(typeof store.boss.best !== 'number') store.boss.best = 0;
+  if(!Array.isArray(store.boss.history)) store.boss.history = [];
+  return store.boss;
+}
+// BOSS 命名：模块 + 随机称号；平均错次越高越凶（精英/狂暴）
+function makeBossName(module, avgWrong){
+  const t = BOSS_TITLES[Math.floor(Math.random()*BOSS_TITLES.length)];
+  const tier = avgWrong >= 3 ? '·狂暴' : (avgWrong >= 2 ? '·精英' : '');
+  return (module || '综合') + ' ' + t + tier;
+}
+// 抽 BOSS 战题目：优先「未掌握且今日该复习」，不够再补「未掌握」；去重（一错题只出一题）
+function pickBossQuestions(n){
+  const errs = (store.errors||[]).filter(function(e){ return e && e.id && !e.mastered; });
+  if(errs.length === 0) return [];
+  const today = todayKey();
+  const due = errs.filter(function(e){ return e.nextReview && e.nextReview <= today; });
+  const rest = errs.filter(function(e){ return !(e.nextReview && e.nextReview <= today); });
+  const pick = shuffleQuizQuestions(due).concat(shuffleQuizQuestions(rest)).slice(0, n);
+  const ids = {}; pick.forEach(function(e){ ids[e.id] = true; });
+  const all = bankAllQuestions();
+  const pool = all.filter(function(x){
+    if(!x._fromError || !ids[x._fromError]) return false;
+    if(x.answer === null || x.answer === undefined || x.answer === -1) return false;
+    // 容许多种 answer 形态（数字索引 / 字母 / 字符串）——沿用错题重做的宽松约束
+    if(typeof x.answer === 'number') return x.answer >= 0;
+    if(typeof x.answer === 'string') return x.answer.length > 0;
+    return false;
+  });
+  const seen = {}, out = [];
+  pool.forEach(function(q){ if(!seen[q._fromError]){ seen[q._fromError] = 1; out.push(q); } });
+  return out;
+}
+function startBossBattle(size){
+  ensureBoss();
+  const n = Math.max(3, Math.min(15, size || BOSS_SIZE_DEFAULT));
+  const qs = pickBossQuestions(n);
+  if(qs.length === 0){ toast('还没有可挑战的错题～先去刷题/录错题，攒够错题再来讨伐！'); return; }
+  const errMap = {}; (store.errors||[]).forEach(function(e){ if(e) errMap[e.id] = e; });
+  const cnt = {};
+  qs.forEach(function(q){ const e = errMap[q._fromError]; const m = (e && e.module) || '综合'; cnt[m] = (cnt[m]||0)+1; });
+  let mod = '综合', mx = 0;
+  Object.keys(cnt).forEach(function(k){ if(cnt[k] > mx){ mx = cnt[k]; mod = k; } });
+  let sumW = 0, cW = 0;
+  qs.forEach(function(q){ const e = errMap[q._fromError]; if(e){ sumW += (e.wrongCount||1); cW++; } });
+  const avgWrong = cW ? (sumW/cW) : 1;
+  bossState = {
+    name: makeBossName(mod, avgWrong), module: mod,
+    hpMax: 100, hp: 100, phpMax: 100, php: 100,
+    combo: 0, maxCombo: 0, dmg: 0, size: qs.length, log: []
+  };
+  quizState.questions = shuffleQuizQuestions(qs);
+  quizState.currentIdx = 0; quizState.selected = -1; quizState.answered = false;
+  quizState.correctCount = 0; quizState.userAnswers = [];
+  quizState.fromImport = true;
+  quizState.fromPlanTaskId = '';
+  quizState.finishedAll = false;
+  quizState._bossOver = null;
+  quizState.module = mod;
+  quizState.type = 'BOSS战';
+  const titleEl = document.getElementById('quizTitle');
+  if(titleEl) titleEl.textContent = '⚔️ BOSS 战 · ' + bossState.name;
+  document.getElementById('quizOverlay').classList.add('show');
+  startQuizTimer();
+  renderQuestion();
+}
+// 战斗 HUD：BOSS 血条 + 我方血条 + 连击标记
+function bossHudHtml(){
+  if(!bossState) return '';
+  const b = bossState;
+  const bp = Math.max(0, Math.round(b.hp / b.hpMax * 100));
+  const pp = Math.max(0, Math.round(b.php / b.phpMax * 100));
+  const bColor = bp > 60 ? '#E5484D' : (bp > 25 ? '#e8a13a' : '#7FB069');
+  const pColor = pp > 60 ? '#7FB069' : (pp > 25 ? '#e8a13a' : '#E5484D');
+  return '<div style="margin:0 0 12px;padding:10px 12px;border-radius:14px;background:linear-gradient(135deg,#fff5f6,#fff0f3);border:1.5px solid #f3d2d8">'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">'
+    +   '<span style="font-size:16px">👹</span>'
+    +   '<span style="font-size:13px;font-weight:700;color:#c0552b;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(b.name)+'</span>'
+    +   (b.combo>=2 ? '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:#fff;color:#E5484D;border:1px solid #f3d2d8;font-weight:700">🔥 连击 '+b.combo+'</span>' : '')
+    + '</div>'
+    + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'
+    +   '<span style="font-size:11px;color:#888;width:30px;flex:none">BOSS</span>'
+    +   '<div style="flex:1;height:9px;border-radius:6px;background:#f0e2e5;overflow:hidden"><div style="height:100%;width:'+bp+'%;background:'+bColor+';border-radius:6px;transition:width .35s"></div></div>'
+    +   '<span style="font-size:11px;color:#666;width:32px;text-align:right;flex:none">'+b.hp+'</span>'
+    + '</div>'
+    + '<div style="display:flex;align-items:center;gap:8px">'
+    +   '<span style="font-size:11px;color:#888;width:30px;flex:none">我方</span>'
+    +   '<div style="flex:1;height:9px;border-radius:6px;background:#e6f2e6;overflow:hidden"><div style="height:100%;width:'+pp+'%;background:'+pColor+';border-radius:6px;transition:width .35s"></div></div>'
+    +   '<span style="font-size:11px;color:#666;width:32px;text-align:right;flex:none">'+b.php+'</span>'
+    + '</div>'
+    + '</div>';
+}
+// 每答完一题推进战斗：返回 {over, win}（win: true=击败 / false=战败 / 未结束不返回）
+function bossOnAnswer(correct){
+  if(!bossState) return { over:false };
+  const b = bossState;
+  if(correct){
+    b.combo++;
+    if(b.combo > b.maxCombo) b.maxCombo = b.combo;
+    const dmg = (b.combo >= 3 ? 18 : 12);
+    b.hp = Math.max(0, b.hp - dmg);
+    b.dmg += dmg;
+  } else {
+    b.combo = 0;
+    b.php = Math.max(0, b.php - 20);
+    b.hp = Math.min(b.hpMax, b.hp + 3);
+  }
+  if(b.hp <= 0) return { over:true, win:true };
+  if(b.php <= 0) return { over:true, win:false };
+  return { over:false };
+}
+// 战斗结算：发奖 + 记战绩 + 清态（中途关闭不调用，避免误记）
+function bossBattleEnd(win, rate){
+  if(!bossState) return null;
+  ensureBoss();
+  const b = bossState;
+  const g = store.garden || (store.garden = {});
+  let reward = { tickets:0, coins:0, grow:0 }, result = '';
+  if(win === true){ reward = { tickets:2, coins:15, grow:8 }; result = '完全击败'; store.boss.win = (store.boss.win||0)+1; }
+  else if(win === 'retreat'){ reward = { tickets:1, coins:8, grow:4 }; result = '击退'; store.boss.win = (store.boss.win||0)+1; }
+  else { reward = { tickets:0, coins:0, grow:1 }; result = '战败'; store.boss.lose = (store.boss.lose||0)+1; }
+  if(b.maxCombo > (store.boss.best||0)) store.boss.best = b.maxCombo;
+  if(reward.tickets){ store.gacha = store.gacha || { tickets:0, pulled:[], coll:{} }; store.gacha.tickets = (store.gacha.tickets||0) + reward.tickets; }
+  if(reward.coins){ g.coins = (g.coins||0) + reward.coins; }
+  if(reward.grow){
+    const fid = g.active || 'hydrangea';
+    g.flowers = g.flowers || {};
+    g.flowers[fid] = Math.min(100, (g.flowers[fid]||0) + reward.grow);
+  }
+  store.boss.history = (store.boss.history||[]).slice(0, 19);
+  store.boss.history.unshift({ date: todayKey(), name: b.name, module: b.module, result: result, rate: rate||0, combo: b.maxCombo, dmg: b.dmg });
+  const snap = { name:b.name, result:result, reward:reward, rate:rate||0, combo:b.maxCombo, dmg:b.dmg, hp:b.hp, php:b.php, size:b.size };
+  bossState = null;
+  saveStore();
+  return snap;
+}
+// BOSS 战战绩卡片（给玩法指南/错题本页调用）
+function bossRecordText(){
+  ensureBoss();
+  const b = store.boss;
+  return '胜 ' + (b.win||0) + ' · 负 ' + (b.lose||0) + ' · 最高连击 ' + (b.best||0);
 }
 // 今日计划「错题重做」跳转：只加载「未掌握 且 nextReview<=今日」的可作答错题
 function startTodayReviewDrill(planId){
@@ -16923,6 +17140,20 @@ function renderErrors(){
   let html = '<div class="eb-toolbar">'
     + '<button type="button" class="btn btn-sm" onclick="showNewBookModal()">➕ 新建本子</button>'
     + '<span class="eb-tip">点本子进内页 · 每课一本，按科目预建，可改名/改色/删除</span></div>';
+  // ⚔️ 错题 BOSS 战入口：把「啃错题」包装成打怪，答对扣 BOSS 血、答错扣自己血
+  {
+    const _bossDue = (store.errors||[]).filter(function(e){ return e && !e.mastered && e.nextReview && e.nextReview<=todayKey(); }).length;
+    const _bossAll = (store.errors||[]).filter(function(e){ return e && !e.mastered; }).length;
+    const _rec = (typeof bossRecordText==='function') ? bossRecordText() : '';
+    html += '<div style="margin:10px 0 12px;padding:12px 14px;border-radius:16px;background:linear-gradient(135deg,#fff1f2,#ffe9ee);border:1.5px solid #f7c9d3;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+      + '<div style="font-size:26px">👹</div>'
+      + '<div style="flex:1;min-width:150px">'
+      +   '<div style="font-size:14px;font-weight:700;color:#c0552b">⚔️ 错题 BOSS 战</div>'
+      +   '<div style="font-size:12px;color:#8a6b73;line-height:1.6">待讨伐 '+(_bossDue||_bossAll)+' 道' + (_rec ? (' · '+_rec) : '') + '</div>'
+      + '</div>'
+      + '<button type="button" class="btn btn-sm" style="background:#E5484D;color:#fff;border:none" onclick="startBossBattle()">⚔️ 开始挑战</button>'
+      + '</div>';
+  }
   html += '<div class="eb-shelf">';
   books.forEach(function(b){
     const items = (store.errors||[]).filter(function(e){ return e.book===b.id; });
