@@ -3942,6 +3942,8 @@ body.drawer-open .nav-cloud{display:none;}
       <button class="btn" onclick="exportBackup()" data-page-node-id="D1RAJBujoW4Tq8bK6yRBGS">📤 导出备份文件</button>
       <label class="btn btn-outline" data-page-node-id="TGKcuvYjPUbiwAbGSPORxw">📥 导入备份文件<input id="backupFile" type="file" accept="application/json,.json" hidden onchange="importBackup(this)" data-page-node-id="jpwmSqHN8QnR6s09mYsNeR"></label>
     </div>
+    <button class="btn btn-outline" style="width:100%;margin-top:8px;" onclick="restoreAutoBackup()" data-page-node-id="bkAutoRestore">🛟 恢复上一次自动备份<span id="autoBakTime" style="font-weight:400;opacity:.75"></span></button>
+    <p class="import-empty" style="text-align:left;margin-top:6px;margin-bottom:8px;" data-page-node-id="bkAutoTip">本机每次保存都会偷偷留一份「更好的」快照（数据变少时不会被覆盖），误删/误清空可一键回退。</p>
     <div class="backup-divider" data-page-node-id="RhFVtxGX8ItnXSUg3c1LoW">— 或跨设备用「同步码」 —</div>
     <button class="btn btn-outline" style="width:100%;" onclick="copySyncCode()" data-page-node-id="v1ULfJYjxwFU6jKUWuNiuE">📋 复制同步码（当前数据）</button>
     <p class="import-empty" style="text-align:left;margin-top:10px;margin-bottom:8px;" data-page-node-id="L2M3WNaDfUG7AUjIKt9kVi">在另一台设备粘贴同步码即可恢复：</p>
@@ -4686,7 +4688,11 @@ function linkCoursesByName(){
   });
   if(changed) saveStore();
 }
-function saveStore(){ localStorage.setItem(STORE_KEY, JSON.stringify(store)); ghOnLocalChange(); }
+function saveStore(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }catch(e){ console.error('[saveStore] 写入失败(配额?)：', e); }
+  try{ autoBackup(); }catch(e){}
+  ghOnLocalChange();
+}
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 // Chart.js 安全包装：CDN 加载失败时图表降级为提示，绝不让整页崩溃
@@ -11475,7 +11481,7 @@ function onPageShow(page){
   if(page==='shenlun') renderShenlun();
   if(page==='verbal'||page==='idiom') renderIdiomDeck();
   if(page==='quiz') renderQuiz();
-  if(page==='setting'){ renderSetting(); renderCustomQuoteList(); }
+  if(page==='setting'){ renderSetting(); renderCustomQuoteList(); try{ renderAutoBakTime(); }catch(e){} }
   if(page==='review') renderReview();
   if(page==='ebbinghaus') renderEbbinghaus();
   if(page==='flashcard') renderFlashcards();
@@ -21943,6 +21949,66 @@ function exportBackup(){
   URL.revokeObjectURL(url);
   toast('已导出备份文件，记得存到云盘或发给自己～');
 }
+// ---------- 自动快照备份（防误删/误清空：数据变少时不覆盖旧快照） ----------
+const AUTO_BAK_KEY = 'xckq_workbench_v1_autobak';
+let _autoBakAt = 0;
+// 数据量打分：错题为王，其次专注/题本/打卡/记录/计划
+function storeDataScore(s){
+  s = s || {};
+  let n = 0;
+  n += (Array.isArray(s.errors) ? s.errors.length : 0) * 20;
+  n += (Array.isArray(s.focusLog) ? s.focusLog.length : 0) * 10;
+  n += (Array.isArray(s.questionBooks) ? s.questionBooks.length : 0) * 20;
+  n += (Array.isArray(s.flashcards) ? s.flashcards.length : 0) * 5;
+  n += (Array.isArray(s.todos) ? s.todos.length : 0) * 2;
+  n += (s.checkins && typeof s.checkins === 'object') ? Object.keys(s.checkins).length * 5 : 0;
+  n += (s.records && typeof s.records === 'object') ? Object.keys(s.records).length * 3 : 0;
+  n += (s.plans && typeof s.plans === 'object') ? Object.keys(s.plans).length * 2 : 0;
+  n += (s.diary && typeof s.diary === 'object') ? Object.keys(s.diary).length * 5 : 0;
+  return n;
+}
+function autoBackup(){
+  try{
+    const now = Date.now();
+    if(now - _autoBakAt < 60000) return;          // 最多每分钟一次，避免大存档反复写
+    _autoBakAt = now;
+    const cur = storeDataScore(store);
+    let old = null, oldScore = -1;
+    try{ old = JSON.parse(localStorage.getItem(AUTO_BAK_KEY) || 'null'); }catch(e){ old = null; }
+    if(old && typeof old.__score === 'number') oldScore = old.__score;
+    if(cur <= oldScore) return;                    // 【关键】数据变少 → 绝不覆盖旧快照
+    const bak = JSON.parse(JSON.stringify(store));
+    bak.__score = cur; bak.__bakAt = now;
+    localStorage.setItem(AUTO_BAK_KEY, JSON.stringify(bak));
+    renderAutoBakTime();
+  }catch(e){ /* 配额不足等：静默跳过，不影响主流程 */ }
+}
+function autoBakInfo(){
+  try{
+    const o = JSON.parse(localStorage.getItem(AUTO_BAK_KEY) || 'null');
+    if(!o || typeof o !== 'object') return null;
+    return { at:o.__bakAt || 0, score:o.__score || 0 };
+  }catch(e){ return null; }
+}
+function renderAutoBakTime(){
+  const el = document.getElementById('autoBakTime');
+  if(!el) return;
+  const info = autoBakInfo();
+  el.textContent = info && info.at ? ('（' + new Date(info.at).toLocaleString('zh-CN') + '）') : '（暂无）';
+}
+function restoreAutoBackup(){
+  let bak = null;
+  try{ bak = JSON.parse(localStorage.getItem(AUTO_BAK_KEY) || 'null'); }catch(e){ bak = null; }
+  if(!bak || typeof bak !== 'object'){ if(typeof toast==='function') toast('还没有自动备份快照～'); return; }
+  const info = autoBakInfo();
+  const when = info && info.at ? new Date(info.at).toLocaleString('zh-CN') : '未知时间';
+  const cur = storeDataScore(store);
+  if(!confirm('用 '+when+' 的自动快照覆盖当前数据？\n\n快照数据量评分：'+bak.__score+'（当前 '+cur+'）\n覆盖后当前改动会丢失，建议先「导出备份文件」。')) return;
+  delete bak.__score; delete bak.__bakAt;
+  applyImportedStore(bak, 'replace');
+  if(typeof toast==='function') toast('🛟 已恢复到 '+when+' 的快照，正在刷新…');
+  setTimeout(function(){ try{ location.reload(); }catch(e){} }, 600);
+}
 function importBackup(input){
   const file = input.files && input.files[0];
   if(!file){ return; }
@@ -26206,13 +26272,28 @@ function ghUpload(isInitial){
   GH.v=payload.v;
   var content=ghEncodeUnicode(JSON.stringify(payload));
   var url=ghPath();
+  var guarded = false;   // true = 触发防覆盖保护，本次不写远端
   return ghApi('GET',url).then(function(f){
     GH.baseSha=f.sha;
+    // 【防覆盖红线】本机数据量明显少于云端时，绝不允许把云端冲掉（换设备/清缓存后误同步会丢数据）
+    try{
+      if(f && f.content && f.size && f.size < 900000){
+        var remoteData = JSON.parse(ghDecodeUnicode(f.content)).data;
+        var rs = storeDataScore(remoteData), ls = storeDataScore(store);
+        if(ls < rs * 0.5 && rs >= 60){
+          guarded = true;
+          ghStatus('已保护云端数据，未上传','err'); ghRenderPanel();
+          if(typeof toast==='function') toast('⚠️ 本机数据比云端少很多（'+ls+' / '+rs+'），已停止上传。点「立即同步」把云端数据拉回来');
+          return null;
+        }
+      }
+    }catch(ge){ /* 解析失败不拦上传 */ }
     return ghApi('PUT',url,{ message:'上岸花园 同步 '+(isInitial?'初始化':'更新')+' '+new Date().toISOString(), content:content, sha:f.sha });
   }, function(err){
     if(err.status===404){ return ghApi('PUT',url,{ message:'上岸花园 同步 初始化', content:content }); }
     throw err;
   }).then(function(res){
+    if(guarded) return;                       // 未写入远端，不能更新本地同步时间戳
     if(res && res.content) GH.baseSha=res.content.sha;
     GH.remoteSavedAt=payload.savedAt; GH.lastSyncAt=Date.now(); ghSaveCfg();
     ghStatus(isInitial?'已连接 · 已上传本机数据':'已同步','on'); ghRenderPanel();
@@ -26251,7 +26332,13 @@ function ghPull(){
     try{ remoteTime=Date.parse(f.commit.commit.committer.date); }catch(e){}
     var payload=JSON.parse(ghDecodeUnicode(f.content));
     var remoteSavedAt=payload.savedAt||remoteTime||0;
-    if(remoteSavedAt > (GH.remoteSavedAt||0)){
+    // 正常按时间戳；但本机数据明显少于云端时（换设备/清缓存后），强制拉回来做并集
+    var needMerge = (remoteSavedAt > (GH.remoteSavedAt||0));
+    if(!needMerge){
+      try{ var _rs = storeDataScore(payload.data), _ls = storeDataScore(store);
+        if(_rs >= 60 && _ls < _rs * 0.5) needMerge = true; }catch(e){}
+    }
+    if(needMerge){
       // 花园事件特例：任一侧显式清空（gardenEvent={}）必须跨端生效，
       // 否则 ghMerge 遇远端空对象会保留本机旧事件（驱虫/化解后另一端仍显示事件）
       var remoteGardenEvent = (payload.data && payload.data.garden && payload.data.garden.gardenEvent) ? payload.data.garden.gardenEvent : null;
