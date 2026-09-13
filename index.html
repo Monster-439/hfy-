@@ -4688,8 +4688,19 @@ function linkCoursesByName(){
   });
   if(changed) saveStore();
 }
+let _saveWarnAt = 0;
 function saveStore(){
-  try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }catch(e){ console.error('[saveStore] 写入失败(配额?)：', e); }
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+  catch(e){
+    console.error('[saveStore] 写入失败(配额?)：', e);
+    // 静默失败＝"数据没了却没人知道"，必须让用户看见
+    const now = Date.now();
+    if(now - _saveWarnAt > 10000){
+      _saveWarnAt = now;
+      if(typeof toast === 'function') toast('⚠️ 保存失败：浏览器存储空间不足，本次改动没写进去！请先「📤 导出备份」，再删掉几张错题照片');
+      else alert('保存失败：浏览器存储空间不足，数据未写入！请先导出备份。');
+    }
+  }
   try{ autoBackup(); }catch(e){}
   ghOnLocalChange();
 }
@@ -22016,8 +22027,20 @@ function importBackup(input){
   reader.onload = ()=>{
     try{
       const parsed = JSON.parse(reader.result);
+      const wantN = Array.isArray(parsed.errors) ? parsed.errors.length : 0;
       applyImportedStore(parsed, 'replace');
-      toast('已用备份恢复本机数据！正在刷新页面…');
+      // 导入后回读校验：写不进 localStorage（配额满）时不能假装成功
+      let gotN = -1;
+      try{
+        const raw = localStorage.getItem(STORE_KEY);
+        if(raw) { const o = JSON.parse(raw); gotN = Array.isArray(o.errors) ? o.errors.length : 0; }
+      }catch(e){}
+      if(gotN !== wantN){
+        toast('⚠️ 导入校验失败：应有 '+wantN+' 道错题，实际写入 '+gotN+' 道。可能是浏览器存储空间不足，请先清理或删掉几张错题照片再试');
+        input.value = '';
+        return;
+      }
+      toast('已恢复 '+gotN+' 道错题！正在刷新页面…');
       setTimeout(()=>location.reload(), 600);
     }catch(e){ toast('备份文件无法识别，请确认是导出的 JSON'); }
     input.value = '';
@@ -26266,6 +26289,23 @@ function ghConnect(){
     toast('GitHub 连接失败：'+err.message);
   });
 }
+// 取远端数据：contents API 对 >1MB 的文件不返回 content，此时改用 git blobs + raw
+// 【红线】绝不能因为"拿不到远端内容"就静默放行上传——那正是空存档冲掉真数据的通道
+function ghRemotePayload(f){
+  if(!f) return Promise.resolve(null);
+  if(f.content){
+    try{ return Promise.resolve(JSON.parse(ghDecodeUnicode(f.content))); }catch(e){ return Promise.resolve(null); }
+  }
+  if(!f.sha) return Promise.resolve(null);
+  var url='/repos/'+GH.owner+'/'+GH.repo+'/git/blobs/'+f.sha;
+  return fetch('https://api.github.com'+url, { headers:{ 'Accept':'application/vnd.github.raw', 'Authorization':'Bearer '+GH.token, 'User-Agent':'wb' } })
+    .then(function(r){ return r.ok ? r.text() : ''; })
+    .then(function(t){ try{ return JSON.parse(t); }catch(e){ return null; } })
+    .catch(function(){ return null; });
+}
+function ghRemoteData(f){
+  return ghRemotePayload(f).then(function(p){ return p ? p.data : null; }).catch(function(){ return null; });
+}
 function ghUpload(isInitial){
   if(!GH.connected) return Promise.resolve();
   var payload={ data:store, savedAt:Date.now(), v:(GH.v||0)+1 };
@@ -26276,19 +26316,28 @@ function ghUpload(isInitial){
   return ghApi('GET',url).then(function(f){
     GH.baseSha=f.sha;
     // 【防覆盖红线】本机数据量明显少于云端时，绝不允许把云端冲掉（换设备/清缓存后误同步会丢数据）
-    try{
-      if(f && f.content && f.size && f.size < 900000){
-        var remoteData = JSON.parse(ghDecodeUnicode(f.content)).data;
-        var rs = storeDataScore(remoteData), ls = storeDataScore(store);
-        if(ls < rs * 0.5 && rs >= 60){
+    // 大文件也必须检查：先尝试 contents，拿不到再走 blobs raw；若最终拿不到远端分数，按"无法证明安全"处理
+    return ghRemoteData(f).then(function(remoteData){
+      try{
+        var rs = remoteData ? storeDataScore(remoteData) : -1;
+        var ls = storeDataScore(store);
+        if(rs < 0){
+          // 读不到远端内容（可能超大/异常）：本机又几乎没有数据时，宁可不传，也不要冒险覆盖
+          if(ls < 200 && f && f.size > 200000){
+            guarded = true;
+            ghStatus('无法确认云端内容，已暂停上传','err'); ghRenderPanel();
+            if(typeof toast==='function') toast('⚠️ 云端存档较大且读不到内容，已暂停上传保护数据。点「立即同步」先把云端拉回来');
+            return null;
+          }
+        }else if(ls < rs * 0.5 && rs >= 60){
           guarded = true;
           ghStatus('已保护云端数据，未上传','err'); ghRenderPanel();
           if(typeof toast==='function') toast('⚠️ 本机数据比云端少很多（'+ls+' / '+rs+'），已停止上传。点「立即同步」把云端数据拉回来');
           return null;
         }
-      }
-    }catch(ge){ /* 解析失败不拦上传 */ }
-    return ghApi('PUT',url,{ message:'上岸花园 同步 '+(isInitial?'初始化':'更新')+' '+new Date().toISOString(), content:content, sha:f.sha });
+      }catch(ge){ /* 解析失败不拦上传 */ }
+      return ghApi('PUT',url,{ message:'上岸花园 同步 '+(isInitial?'初始化':'更新')+' '+new Date().toISOString(), content:content, sha:f.sha });
+    });
   }, function(err){
     if(err.status===404){ return ghApi('PUT',url,{ message:'上岸花园 同步 初始化', content:content }); }
     throw err;
@@ -26330,7 +26379,8 @@ function ghPull(){
     GH.baseSha=f.sha;
     var remoteTime=0;
     try{ remoteTime=Date.parse(f.commit.commit.committer.date); }catch(e){}
-    var payload=JSON.parse(ghDecodeUnicode(f.content));
+    return ghRemotePayload(f).then(function(payload){
+    if(!payload) return;
     var remoteSavedAt=payload.savedAt||remoteTime||0;
     // 正常按时间戳；但本机数据明显少于云端时（换设备/清缓存后），强制拉回来做并集
     var needMerge = (remoteSavedAt > (GH.remoteSavedAt||0));
@@ -26357,6 +26407,7 @@ function ghPull(){
       GH.applying=false;
       ghStatus('已拉取远端更新','on'); ghRenderPanel();
     }
+    });
   }).catch(function(err){
     if(err.status===404){ /* 仓库里还没有同步文件，无需拉取 */ }
     else ghStatus('拉取失败：'+err.message,'err');
