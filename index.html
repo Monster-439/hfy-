@@ -4373,6 +4373,16 @@ function inlineCourseModName(c){
   }
   return '综合/其他';
 }
+// 【手动锁定 2026-09-14】用户在「编辑课程→关联科目」手动选过（含选"不关联"）→ c.linkedManual=true，
+// 自动识别必须让位——复现：用户手动改了课程模块对应关系，一刷新又被 migrateCourseModules 按课程名猜回去（对应错了且永远改不了）
+const COURSE_MODKEY_TO_NAME = { common:'常识判断', politics:'时政热点', verbal:'言语理解', figure:'图形推理', reasoning:'判断推理', quantity:'数量关系', data:'资料分析', shenlun:'申论' };
+function inlineCourseModNameFor(c){
+  if(c && c.linkedManual===true){
+    if(c.linked && COURSE_MODKEY_TO_NAME[c.linked]) return COURSE_MODKEY_TO_NAME[c.linked];
+    return '综合/其他';
+  }
+  return inlineCourseModName(c);
+}
 const COURSE_MOD_KEYS = ['常识判断','时政热点','言语理解','图形推理','判断推理','数量关系','资料分析','申论'];
 const MOD_NAME_TO_TOPIC_KEY = {
   '常识判断':'common','时政热点':'politics','言语理解':'verbal','图形推理':'figure',
@@ -4392,7 +4402,7 @@ function migrateCourseTodos(){
     const c = (m.courses||[]).find(function(x){ return x.id===cId; });
     if(!c) return;
     // 【TDZ 修复】用 inlineCourseModName 替代 getCourseModName——后者引用 TOPICS，boot 早期 TDZ
-    const newMod = inlineCourseModName(c);
+    const newMod = inlineCourseModNameFor(c);
     if(newMod && newMod !== td.mod){
       // 只在 newMod 是已知模块或确实是 '综合/其他' 时刷新，避免乱写
       if(COURSE_MOD_KEYS.indexOf(newMod) >= 0 || newMod === '综合/其他'){
@@ -4415,10 +4425,10 @@ function migrateCourseModules(){
     if(!m || !Array.isArray(m.courses)) return;
     m.courses.forEach(function(c){
       if(!c || !c.name) return;
-      // ① 按 c.name 二次推断
-      const newName = inlineCourseModName(c);
-      const newLinked = MOD_NAME_TO_TOPIC_KEY[newName] || null;
-      // ② 修 c.linked
+      // ① 按 c.name 二次推断（【手动锁定红线】用户手动设过关联科目的课程 → 尊重手动值，不再按名字猜）
+      const newName = inlineCourseModNameFor(c);
+      // ② 修 c.linked（c.linkedManual=true 的课程绝不再覆盖——用户选"不关联"也要尊重）
+      const newLinked = (c.linkedManual===true) ? (c.linked||null) : (MOD_NAME_TO_TOPIC_KEY[newName] || null);
       if(c.linked !== newLinked){
         c.linked = newLinked;
         changed = true;
@@ -6719,6 +6729,7 @@ function editGoalCourse(msId, cId){
     + '</div>'
     + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">关联科目（可选，自动显示正确率）</div>'
     + '<select id="gCourseLinked" style="width:100%;padding:9px 11px;border:2px solid var(--border-deep);border-radius:12px;font-size:14px;box-sizing:border-box;outline:none;background:#fff">'+selOpts+'</select>'
+    + '<div style="font-size:11px;color:#aaa;margin-top:4px">默认按课程名自动识别；手动选择后会锁定，以后改课程名也不会再被自动改回</div>'
     + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">分类（自己归类，网课页按分类分组显示）</div>'
     + '<select id="gCourseCat" style="width:100%;padding:9px 11px;border:2px solid var(--border-deep);border-radius:12px;font-size:14px;box-sizing:border-box;outline:none;background:#fff">'+catOpts+'</select>'
     + '<div style="text-align:left;font-size:13px;color:#666;margin:10px 0 4px">备注</div>'
@@ -6738,7 +6749,12 @@ function saveGoalCourse(msId, cId){
   const total = Math.max(0, parseInt(document.getElementById('gCourseTotal').value,10)||0);
   let done = Math.max(0, parseInt(document.getElementById('gCourseDone').value,10)||0);
   if(done>total) done = total;
-  const linked = document.getElementById('gCourseLinked').value || null;
+  const linkedEl = document.getElementById('gCourseLinked');
+  const linked = linkedEl ? (linkedEl.value || null) : null;
+  // 【手动锁定】选的关联科目 ≠ 按课程名自动推断的结果（含选"不关联"）= 用户显式意图 → 锁定不再自动改；
+  // 与推断一致 = 保持自动跟随（以后改名还能自动更新）
+  const _guessKey = MOD_NAME_TO_TOPIC_KEY[inlineCourseModNameFor({ name: name })] || null;
+  const linkedManual = (linked || null) !== _guessKey;
   const platform = (document.getElementById('gCoursePlatform').value||'').trim();
   const lessonMin = Math.max(1, parseInt(document.getElementById('gCourseMin').value,10)||30);
   const deadline = document.getElementById('gCourseDeadline').value || '';
@@ -6749,9 +6765,9 @@ function saveGoalCourse(msId, cId){
   const cat = catEl ? (catEl.value || '') : (cId ? ((m.courses.find(function(x){ return x.id===cId; })||{}).cat||'') : '');
   if(cId){
     const c = m.courses.find(function(x){ return x.id===cId; });
-    if(c){ c.name=name; c.platform=platform; c.total=total; c.done=done; c.linked=linked; c.lessonMin=lessonMin; c.deadline=deadline; c.note=note; c.status=status; c.planFinish=planFinish; c.cat=cat; autoFinishCourse(c); }
+    if(c){ c.name=name; c.platform=platform; c.total=total; c.done=done; c.linked=linked; c.linkedManual=linkedManual; c.lessonMin=lessonMin; c.deadline=deadline; c.note=note; c.status=status; c.planFinish=planFinish; c.cat=cat; autoFinishCourse(c); }
   } else {
-    const _nc = { id:'cs_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, platform:platform, total:total, done:done, linked:linked, lessonMin:lessonMin, deadline:deadline, note:note, status:status, planFinish:planFinish, cat:cat };
+    const _nc = { id:'cs_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), name:name, platform:platform, total:total, done:done, linked:linked, linkedManual:linkedManual, lessonMin:lessonMin, deadline:deadline, note:note, status:status, planFinish:planFinish, cat:cat };
     autoFinishCourse(_nc);
     m.courses.push(_nc);
   }
@@ -6983,6 +6999,11 @@ function startCourseFocus(msId, cId){
 // 用户改 c.name 后 c.linked 可能还停留在旧值（例如图推课 c.linked='verbal' 但 c.name='超格夸夸刷·图推'），
 // 走 c.linked 优先会让图推永远返回「言语理解」。别名顺序要点：'图推'/'图形' 必须最靠前（用户明确规则）；'常识' 必须在 '判断' 之前，否则"常识判断"会被误判为判断推理。
 function getCourseModName(c){
+  // 【手动锁定】用户在编辑弹窗手动选过关联科目 → 直接用锁定值（选"不关联"=综合/其他），不再按课程名猜
+  if(c && c.linkedManual===true){
+    if(c.linked && TOPICS[c.linked]) return TOPICS[c.linked].name;
+    return '综合/其他';
+  }
   if(c && c.name){
     const COURSE_MOD_ALIAS = [
       { key:'图形推理', words:['图推','图形推理','图形'] },        // 最高优先：图推/图形 → 图形推理
@@ -15841,7 +15862,9 @@ function buildTodayPlanSlots(data, today){
   const totalDue = reviewDueAll.length;
   const carryShown = reviewDueAll.filter(function(e){ return e.nextReview && e.nextReview < todayKey(); }).length;  // 展示用：池里从之前顺延来的题量
   const topWeak = data.weakTop[0];
-  const c1 = data.courseTop2[0], c2 = data.courseTop2[1];
+  let c1 = data.courseTop2[0], c2 = data.courseTop2[1];
+  // 【同一门课不占两个时段】courseTop2 可能含同名课（不同阶段重复添加同一门）→ 上午/下午必须排不同的课
+  if(c1 && c2 && ((c2.id && c2.id===c1.id) || (c2.name||'')===(c1.name||''))) c2 = null;
   const items = [];
   let it;
   let redoNew = totalDue;
@@ -15907,11 +15930,18 @@ function inferSlotKey(p){
   return 'redo';
 }
 // 顺延替换当天新课（顺延优先）：courseM/courseA 用顺延文本覆盖新课，不叠加
-function mergeDeferReplace(slots, key, dp){
+// avoidCourseId：【同一门课不占两个时段】下午的顺延课若与上午相同（同一 courseId）→ 跳过替换，保留新生成的第2门
+function mergeDeferReplace(slots, key, dp, avoidCourseId){
   if(!dp) return;
   const slot = slots.find(function(s){ return s.slotKey===key; });
   if(!slot) return;
-  slot.text = '（含顺延）' + dp.text;
+  if(avoidCourseId && dp.courseId && dp.courseId===avoidCourseId) return;
+  // 【防叠加】昨天那条文案可能已经带过「（含顺延）」前缀 → 先剥掉旧的再统一加一个
+  const clean = String(dp.text||'').replace(/（含顺延）/g, '');
+  slot.text = '（含顺延）' + clean;
+  // 【标签跟随】顺延条目有自己的真实模块 → 必须跟着换，否则出现「文本是A课、标签是B模块」
+  if(dp.module) slot.module = dp.module;
+  if(dp.courseId) slot.courseId = dp.courseId;
   slot.count = dp.count||0;
   slot.defer = true; slot.mergedDefer = true;
 }
@@ -15925,7 +15955,7 @@ function mergeDeferAdd(slots, key, list){
   if(key==='drillM'||key==='drillA') slot.count = Math.min(25, slot.count);   // 配套≤25
   if(key==='weak') slot.count = Math.min(15, slot.count);                       // 薄弱≤15
   if(key==='review') slot.count = Math.min(1, slot.count);                      // 复盘≤1
-  slot.text = '（含顺延）' + slot.text;
+  if(slot.text.indexOf('（含顺延）')<0) slot.text = '（含顺延）' + slot.text;   // 【防叠加】已有前缀不重复加
   slot.defer = true; slot.mergedDefer = true;
 }
 // 把昨天未完成任务分散合并进今天的 7 个时段（8-9 只留错题重做，其余按类型归位）
@@ -15941,8 +15971,10 @@ function mergeDefersIntoSlots(slots, deferList){
     if(s){ let e=0; defer.redo.forEach(function(dp){ e += (dp.count||0); }); s.count = Math.min(20, s.count + e); s.defer = true; s.text = '（含顺延）' + s.text; }
   }
   // 网课：顺延优先替换新课（courseM 取第1条、courseA 取第2条，其余丢弃不新增行）
+  // 【同一门课不占两个时段】courseA 替换时避开 courseM 已占用的课程
   mergeDeferReplace(slots, 'courseM', defer.courseM[0]);
-  mergeDeferReplace(slots, 'courseA', defer.courseA[0]);
+  const _cmSlot = slots.find(function(x){ return x.slotKey==='courseM'; });
+  mergeDeferReplace(slots, 'courseA', defer.courseA[0], _cmSlot && _cmSlot.courseId);
   // 配套/薄弱/复盘：叠加题量 + 上限
   mergeDeferAdd(slots, 'drillM', defer.drillM);
   mergeDeferAdd(slots, 'drillA', defer.drillA);
